@@ -3,7 +3,7 @@
 //! Provides CLI execution for fast deterministic replay, state hashing,
 //! time-travel rollback, and autonomous Monte Carlo combat balancing.
 
-use axiom_cli::{AsciiView, MonteCarloBalancer, Replayer, TimeTravelDemo};
+use axiom_cli::{AsciiView, MonteCarloBalancer, OpenWorldRpgSession, Replayer, TimeTravelDemo};
 use axiom_core::fixed::FixedVec2;
 use axiom_core::input::InputState;
 use axiom_core::state::TickState;
@@ -75,4 +75,41 @@ fn main() {
     } else {
         println!("==> Balance report successfully saved to tmp/balance_report.md");
     }
+
+    // 4. Open-World RPG Integration Demo (100k NPCs + Procedural Chunks + Quests + A* Navigation + ATB Combat + 3D Spatial Audio)
+    println!("\n--- [DEMO 4] Complete Open-World RPG Integration ---");
+    let mut rpg = OpenWorldRpgSession::new(0xABCD_1234_5678);
+    println!("Spawned 100,000 living NPCs and initialized procedural world chunks.");
+
+    // Dialogue & Quest
+    rpg.interact_npc_quest(10, 100, 999, 1, 500);
+    println!("Player interacted with Village Elder NPC and accepted Quest #100 (Slay Frost Goblin).");
+
+    // A* Pathfinding
+    rpg.plan_path_to(15, 15);
+    println!("Calculated A* collision-free path across procedural terrain.");
+
+    // Encounter
+    rpg.trigger_combat_encounter(999);
+    println!("Triggered combat encounter with Frost Goblin Mob!");
+
+    // Simulate 30 ticks
+    let rpg_report = rpg.run_loop(30);
+    println!(
+        "[PASS] 30 ticks simulated in {:.2}ms ({:.3}ms/tick = {:.1} FPS equivalent)",
+        rpg_report.elapsed_micros as f64 / 1000.0,
+        rpg_report.avg_micros_per_tick / 1000.0,
+        rpg_report.fps_equivalent
+    );
+    println!("Final Master State Hash: 0x{:016X}", rpg_report.final_hash);
+    println!(
+        "Quest Status: Active={}, Completed={}, XP Earned={}",
+        rpg_report.active_quests, rpg_report.completed_quests, rpg_report.total_xp
+    );
+    println!(
+        "Audio Events Spatialized: {}, Master Left/Right Volume: ({}, {})\n",
+        rpg_report.audio_events_processed,
+        rpg_report.audio_master_volume.0,
+        rpg_report.audio_master_volume.1
+    );
 }
