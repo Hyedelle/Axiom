@@ -50,8 +50,17 @@ Write-Host "    [OK] GitHub CLI authenticated as Hyedelle." -ForegroundColor Gre
 
 # 4. Check or Create Remote Repository
 Write-Host "==> [4/5] Checking Remote Repository ($RepoName)..." -ForegroundColor Yellow
-$ExistingRepo = gh repo view $RepoName 2>&1
-if ($LASTEXITCODE -ne 0) {
+$RepoExists = $false
+try {
+    $null = gh repo view $RepoName 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $RepoExists = $true
+    }
+} catch {
+    $RepoExists = $false
+}
+
+if (-not $RepoExists) {
     Write-Host "    Repository $RepoName does not exist. Creating public repository..." -ForegroundColor Cyan
     gh repo create $RepoName --public --source=. --remote=origin --push
     if ($LASTEXITCODE -ne 0) {
