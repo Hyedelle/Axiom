@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/axiom-core",
+    "crates/axiom-render",
 ]
 resolver = "2"
 
