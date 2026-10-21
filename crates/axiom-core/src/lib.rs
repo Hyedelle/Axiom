@@ -20,6 +20,7 @@ pub mod npc_crowd;
 pub mod pathfinding;
 pub mod pcg;
 pub mod quest;
+pub mod serialization;
 pub mod spatial;
 pub mod state;
 pub mod storage;
@@ -54,6 +55,9 @@ pub use pcg::{Rng, TileMap, TileType};
 pub use quest::{
     DialogueAction, DialogueChoice, DialogueNode, DialogueSession, ObjectiveType, QuestJournal,
     QuestRecord, QuestStatus, DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS,
+};
+pub use serialization::{
+    SaveHeader, SerializationError, WorldSerializer, AXM_MAGIC, AXM_VERSION,
 };
 pub use spatial::{GridCell, SpatialGrid};
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};
