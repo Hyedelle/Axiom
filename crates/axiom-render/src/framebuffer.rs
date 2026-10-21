@@ -73,6 +73,31 @@ impl FrameBuffer {
         }
     }
 
+    /// Renders a deterministic procedural tilemap onto the framebuffer.
+    pub fn render_tilemap<const W: usize, const H: usize>(
+        &mut self,
+        map: &axiom_core::pcg::TileMap<W, H>,
+        tile_size: usize,
+    ) {
+        for y in 0..H {
+            for x in 0..W {
+                let color = match map.tiles[y][x] {
+                    axiom_core::pcg::TileType::Plains => 0xFF3CB371, // Medium Sea Green
+                    axiom_core::pcg::TileType::Forest => 0xFF195E35, // Forest Green
+                    axiom_core::pcg::TileType::Rock => 0xFF708090,   // Slate Grey
+                    axiom_core::pcg::TileType::Water => 0xFF1E90FF,  // Dodger Blue
+                };
+                self.draw_rect(
+                    (x * tile_size) as i32,
+                    (y * tile_size) as i32,
+                    tile_size as i32,
+                    tile_size as i32,
+                    color,
+                );
+            }
+        }
+    }
+
     /// Returns the raw pixel slice (ARGB format).
     #[inline(always)]
     pub fn as_slice(&self) -> &[u32] {
