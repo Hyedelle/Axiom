@@ -6,20 +6,21 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-021: 고정소수점 2D A* 길찾기(NavMesh) 및 장애물 회피 시스템**
-  - **목표:** `crates/axiom-core`에 힙 할당 없는 고정 메모리 우선순위 큐 기반 2D A* 경로 탐색기(`PathFinder`)를 구현하여 NPC 및 플레이어가 물/암석 지형을 우회하는 최단 경로를 고정소수점으로 산출
-  - **검증:** 복잡한 미로/장애물 지형 1,000회 길찾기 벤치마크 및 `tools/guard.ps1` 통과
-  - **가드:** Float 절대 배제, Zero 힙 할당 고정 슬랩 큐
+- [ ] **T-022: 대규모 오픈월드 저장/불러오기(Save/Load) 무손실 직렬화 벤치마크**
+  - **목표:** `crates/axiom-core`에 10만 NPC 상태, 무한 청크 변형 슬랩, 퀘스트 저널, 물류 그리드를 무손실 압축/직렬화하여 디스크에 저장 및 0.001초 단위로 완전 복원하는 바이너리 직렬화 엔진(`WorldSerializer`) 구현
+  - **검증:** 10만 NPC + 월드 세이브/로드 후 100% 비트 일치 해시 복원 검증 및 `tools/guard.ps1` 통과
+  - **가드:** Float 절대 배제, Zero-copy 직렬화 지향
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-022: 대규모 오픈월드 저장/불러오기(Save/Load) 무손실 직렬화 벤치마크**
 - [ ] **T-023: 액티브 타임 전투(ATB) & 스킬 콤보 결정론적 이펙터 시스템**
+- [ ] **T-024: 오픈월드 오디오/사운드 이벤트 헤드리스 시뮬레이터 (3D 오디오 공간화)**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-021: 고정소수점 2D A* 길찾기(NavMesh) 및 장애물 회피 시스템** (`PathFinder`, `FixedMinHeap`, O(1) 에포크 태그 리셋, 64x64 미로 지형 1,000회 길찾기 쿼리 37.5ms 만에 완료 — 쿼리당 **37.5 µs**, 초당 26,000회 연산 검증 통과)
 - [x] **T-020: Milestone 3 분산 네트워크 롤백 넷코드(Lockstep/GGPO) 프로토타입** (`PlayerInputQueue`, `RollbackSession`, `SimulatedNetworkPipe`, 200ms 대기시간 및 예측 실패 환경 100프레임 시뮬레이션 후 양방향 피어 간 100% 비트 일치 마스터 해시 `0xF79CEBC644701D30` 동기화 검증 통과)
 - [x] **T-019: WASM 웹 뷰어와 오픈월드 통합 데모 연동** (`axiom-wasm`, `FrameBuffer::render_npc_minimap`, HTML5 Canvas 실시간 10만 NPC 활동별 컬러 히트맵 및 무한 청크 실시간 탐험 WASM 바인딩 검증 통과)
 - [x] **T-018: Phase 4 심층 플레이어 상호작용 및 퀘스트/다이얼로그 상태기계 설계** (`QuestRecord`, `QuestJournal`, `DialogueSession`, 64B 정렬, 퀘스트 수락·진행·완료 및 20틱 타임머신 롤백 100% 비트 일치 복원 검증 통과)

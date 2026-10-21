@@ -17,6 +17,7 @@ pub mod input;
 pub mod logistics;
 pub mod netcode;
 pub mod npc_crowd;
+pub mod pathfinding;
 pub mod pcg;
 pub mod quest;
 pub mod spatial;
@@ -45,6 +46,9 @@ pub use netcode::{
 };
 pub use npc_crowd::{
     Npc, NpcActivity, NpcCrowdPool, NpcTable, DEFAULT_NPC_TABLE_CAPACITY, TICKS_PER_DAY,
+};
+pub use pathfinding::{
+    Path, PathFinder, DEFAULT_GRID_H, DEFAULT_GRID_W, DEFAULT_HEAP_CAPACITY, MAX_PATH_WAYPOINTS,
 };
 pub use pcg::{Rng, TileMap, TileType};
 pub use quest::{
