@@ -1,6 +1,6 @@
 //! Fixed-point arithmetic module for zero-floating-point determinism.
 
-use core::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign, Neg};
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 /// 32.16 fixed-point number (16 bits of fractional precision).
 /// 1.0 = 65,536 (1 << 16)
@@ -111,7 +111,10 @@ pub struct FixedVec2 {
 }
 
 impl FixedVec2 {
-    pub const ZERO: Self = Self { x: Fixed::ZERO, y: Fixed::ZERO };
+    pub const ZERO: Self = Self {
+        x: Fixed::ZERO,
+        y: Fixed::ZERO,
+    };
 
     #[inline(always)]
     pub const fn new(x: Fixed, y: Fixed) -> Self {

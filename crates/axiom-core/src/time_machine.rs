@@ -60,7 +60,8 @@ impl<const CAPACITY: usize, const ENTITIES: usize> TimeMachine<CAPACITY, ENTITIE
                 self.count += 1;
             } else {
                 // Buffer wrapped around, advance oldest_tick
-                self.oldest_tick = Tick(self.max_recorded_tick.0.saturating_sub(CAPACITY as u64 - 1));
+                self.oldest_tick =
+                    Tick(self.max_recorded_tick.0.saturating_sub(CAPACITY as u64 - 1));
             }
         }
     }

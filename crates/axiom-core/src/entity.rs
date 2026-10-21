@@ -62,6 +62,10 @@ mod tests {
     #[test]
     fn test_entity_cache_line_geometry() {
         assert_eq!(size_of::<Entity>(), 64, "Entity must be exactly 64 bytes");
-        assert_eq!(align_of::<Entity>(), 64, "Entity must be aligned to 64 bytes");
+        assert_eq!(
+            align_of::<Entity>(),
+            64,
+            "Entity must be aligned to 64 bytes"
+        );
     }
 }

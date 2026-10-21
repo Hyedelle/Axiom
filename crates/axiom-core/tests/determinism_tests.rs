@@ -44,7 +44,11 @@ fn test_100_tick_determinism_identical_runs() {
     // Run A
     let mut state_a = TickState::<16>::new();
     state_a.spawn(101, FixedVec2::from_ints(10, 20), FixedVec2::ZERO);
-    state_a.spawn(102, FixedVec2::from_ints(50, -30), FixedVec2::from_ints(1, 2));
+    state_a.spawn(
+        102,
+        FixedVec2::from_ints(50, -30),
+        FixedVec2::from_ints(1, 2),
+    );
 
     let mut hashes_a = Vec::with_capacity(100);
     for input in &inputs {
@@ -55,7 +59,11 @@ fn test_100_tick_determinism_identical_runs() {
     // Run B (fresh separate run with same inputs)
     let mut state_b = TickState::<16>::new();
     state_b.spawn(101, FixedVec2::from_ints(10, 20), FixedVec2::ZERO);
-    state_b.spawn(102, FixedVec2::from_ints(50, -30), FixedVec2::from_ints(1, 2));
+    state_b.spawn(
+        102,
+        FixedVec2::from_ints(50, -30),
+        FixedVec2::from_ints(1, 2),
+    );
 
     let mut hashes_b = Vec::with_capacity(100);
     for input in &inputs {
@@ -63,8 +71,14 @@ fn test_100_tick_determinism_identical_runs() {
         hashes_b.push(state_b.compute_hash());
     }
 
-    assert_eq!(state_a, state_b, "Final states must be byte-for-byte identical");
-    assert_eq!(hashes_a, hashes_b, "Hash histories must be bit-for-bit identical");
+    assert_eq!(
+        state_a, state_b,
+        "Final states must be byte-for-byte identical"
+    );
+    assert_eq!(
+        hashes_a, hashes_b,
+        "Hash histories must be bit-for-bit identical"
+    );
     assert_eq!(state_a.tick, Tick(100));
 }
 
@@ -75,7 +89,11 @@ fn test_time_travel_rollback_50_ticks_identical_hash() {
 
     let mut current_state = TickState::<16>::new();
     current_state.spawn(1, FixedVec2::from_ints(0, 0), FixedVec2::ZERO);
-    current_state.spawn(2, FixedVec2::from_ints(100, 100), FixedVec2::from_ints(-1, -1));
+    current_state.spawn(
+        2,
+        FixedVec2::from_ints(100, 100),
+        FixedVec2::from_ints(-1, -1),
+    );
 
     // Record initial state at Tick 0
     time_machine.push(current_state, InputState::NEUTRAL);
