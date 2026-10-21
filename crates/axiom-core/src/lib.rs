@@ -8,6 +8,7 @@
 
 #![no_std]
 
+pub mod chunk;
 pub mod combat;
 pub mod entity;
 pub mod fixed;
@@ -21,6 +22,10 @@ pub mod storage;
 pub mod tick;
 pub mod time_machine;
 
+pub use chunk::{
+    sample_world_tile, Chunk, ChunkCoord, ChunkManager, ChunkSlot, ChunkStreamStats,
+    DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS, DEFAULT_VIEW_RADIUS,
+};
 pub use combat::{BattleArena, CombatUnit, DEFAULT_MAX_UNITS};
 pub use entity::Entity;
 pub use fixed::{Fixed, FixedVec2};
