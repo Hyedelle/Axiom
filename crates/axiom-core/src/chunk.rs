@@ -219,7 +219,7 @@ pub struct ChunkStreamStats {
 /// Fixed-slab manager for procedural chunk streaming and spatial querying.
 ///
 /// Guaranteed zero dynamic allocations during world exploration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkManager<const S: usize = DEFAULT_CHUNK_SIZE, const MAX_CHUNKS: usize = DEFAULT_MAX_CHUNKS> {
     pub slots: [ChunkSlot<S>; MAX_CHUNKS],
     pub world_seed: u64,
