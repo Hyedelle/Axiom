@@ -2,6 +2,7 @@
 members = [
     "crates/axiom-core",
     "crates/axiom-render",
+    "crates/axiom-cli",
 ]
 resolver = "2"
 
