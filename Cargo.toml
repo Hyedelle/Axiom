@@ -3,6 +3,7 @@ members = [
     "crates/axiom-core",
     "crates/axiom-render",
     "crates/axiom-cli",
+    "crates/axiom-wasm",
 ]
 resolver = "2"
 

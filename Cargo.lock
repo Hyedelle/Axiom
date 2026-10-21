@@ -19,3 +19,11 @@ version = "0.1.0"
 dependencies = [
  "axiom-core",
 ]
+
+[[package]]
+name = "axiom-wasm"
+version = "0.1.0"
+dependencies = [
+ "axiom-core",
+ "axiom-render",
+]

@@ -1,0 +1,15 @@
+[package]
+name = "axiom-wasm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+axiom-core = { path = "../axiom-core" }
+axiom-render = { path = "../axiom-render" }
+
+[dev-dependencies]
