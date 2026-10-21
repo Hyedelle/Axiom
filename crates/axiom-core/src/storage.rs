@@ -175,6 +175,127 @@ impl<const CAP: usize> EntityTable<CAP> {
     }
 }
 
+/// Multi-slab entity pool managing contiguous 64KB `EntityTable` blocks.
+///
+/// Designed to scale up to 10,000 ~ 100,000 entities while maintaining
+/// strict L1/L2 cache locality per slab during sequential kinematic integration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(C, align(64))]
+pub struct EntitySlabPool<const SLABS: usize = 10> {
+    /// Array of 64KB contiguous entity slabs (10 slabs = 10,240 entities)
+    pub slabs: [EntityTable<DEFAULT_TABLE_CAPACITY>; SLABS],
+    /// Total active entities across all slabs
+    active_count: usize,
+}
+
+impl<const SLABS: usize> Default for EntitySlabPool<SLABS> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<const SLABS: usize> EntitySlabPool<SLABS> {
+    /// Creates a new, completely zeroed entity slab pool.
+    pub const fn new() -> Self {
+        Self {
+            slabs: [EntityTable::new(); SLABS],
+            active_count: 0,
+        }
+    }
+
+    /// Total entity capacity across all slabs (e.g. 10 * 1024 = 10,240).
+    #[inline(always)]
+    pub const fn capacity(&self) -> usize {
+        SLABS * DEFAULT_TABLE_CAPACITY
+    }
+
+    /// Total active entity count across all slabs.
+    #[inline(always)]
+    pub const fn len(&self) -> usize {
+        self.active_count
+    }
+
+    /// Returns true if no entities are active in the pool.
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        self.active_count == 0
+    }
+
+    /// Spawns an entity into the first available slab with capacity.
+    /// Returns a flat global handle ID (`u32`).
+    pub fn spawn(&mut self, id: u64, pos: FixedVec2, vel: FixedVec2) -> Option<u32> {
+        if id == 0 {
+            return None;
+        }
+
+        for (slab_idx, slab) in self.slabs.iter_mut().enumerate() {
+            if !slab.is_full() {
+                if let Some(slot) = slab.spawn(id, pos, vel) {
+                    self.active_count += 1;
+                    return Some((slab_idx as u32 * DEFAULT_TABLE_CAPACITY as u32) + slot as u32);
+                }
+            }
+        }
+        None
+    }
+
+    /// Despawns an entity by its global handle ID.
+    pub fn despawn(&mut self, global_id: u32) -> bool {
+        let slab_idx = (global_id as usize) / DEFAULT_TABLE_CAPACITY;
+        let slot = (global_id as usize) % DEFAULT_TABLE_CAPACITY;
+
+        if slab_idx < SLABS && self.slabs[slab_idx].despawn(slot) {
+            self.active_count = self.active_count.saturating_sub(1);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Retrieves an entity by its global handle ID.
+    #[inline(always)]
+    pub fn get(&self, global_id: u32) -> Option<&Entity> {
+        let slab_idx = (global_id as usize) / DEFAULT_TABLE_CAPACITY;
+        let slot = (global_id as usize) % DEFAULT_TABLE_CAPACITY;
+
+        if slab_idx < SLABS {
+            self.slabs[slab_idx].get(slot)
+        } else {
+            None
+        }
+    }
+
+    /// Mutably retrieves an entity by its global handle ID.
+    #[inline(always)]
+    pub fn get_mut(&mut self, global_id: u32) -> Option<&mut Entity> {
+        let slab_idx = (global_id as usize) / DEFAULT_TABLE_CAPACITY;
+        let slot = (global_id as usize) % DEFAULT_TABLE_CAPACITY;
+
+        if slab_idx < SLABS {
+            self.slabs[slab_idx].get_mut(slot)
+        } else {
+            None
+        }
+    }
+
+    /// Integrates kinematics across all slabs sequentially.
+    /// Each slab stays resident within L1/L2 cache while processed linearly.
+    #[inline]
+    pub fn update_kinematics(&mut self) {
+        for slab in self.slabs.iter_mut() {
+            slab.update_kinematics();
+        }
+    }
+
+    /// Clears all entities in all slabs.
+    pub fn clear(&mut self) {
+        for slab in self.slabs.iter_mut() {
+            slab.clear();
+        }
+        self.active_count = 0;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
