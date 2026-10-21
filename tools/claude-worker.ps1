@@ -32,15 +32,15 @@ if ([string]::IsNullOrWhiteSpace($TaskPrompt)) {
         $Lines = Get-Content $TasksFile
         $CurrentSection = $false
         foreach ($Line in $Lines) {
-            if ($Line -match "## ▶ \[CURRENT\]") {
+            if ($Line -match 'CURRENT') {
                 $CurrentSection = $true
                 continue
             }
-            if ($CurrentSection -and $Line -match "## ") {
+            if ($CurrentSection -and $Line -match '^## ') {
                 break
             }
-            if ($CurrentSection -and $Line -match "^\s*-\s*\[\s*\]\s*\*\*(.*?)\*\*") {
-                $TaskPrompt = $matches[1]
+            if ($CurrentSection -and $Line -match '-\s*\[\s*\]\s*(.*)') {
+                $TaskPrompt = $matches[1].Replace('**', '').Trim()
                 break
             }
         }

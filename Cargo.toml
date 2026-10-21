@@ -4,6 +4,7 @@ members = [
     "crates/axiom-render",
     "crates/axiom-cli",
     "crates/axiom-wasm",
+    "crates/axiom-game",
 ]
 resolver = "2"
 

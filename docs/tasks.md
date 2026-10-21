@@ -6,16 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-(모든 배포 및 릴리즈 완료 - 라이브 피드백 수집 및 GitHub Pages 운영 중)
+(T-040 완료 - 다음 태스크는 관제탑이 백로그 T-041에서 승격)
 
 ---
 
 ## ⏳ [BACKLOG]
-(모든 로드맵 태스크 완료 - 대기열 없음)
+- [ ] **T-041: 오픈월드 무한 청크 매장지 탐험과 팩토리 기지 확장 연동**
+- [ ] **T-042: 10만 NPC 주민 영입 및 공장 노동/물류 자동화 배정 시스템**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-040: crates/axiom-game 자원 채굴 및 자동화 물류 기지 건설 루프 프로토타입** (`axiom-game` 신규 크레이트, `FactoryStructure` 64B 정렬 셀, `FactoryGrid<W, H>`, `MiningDrill`/`Belt`/`Inserter`/`Smelter`/`Chest`, 힙 제로 4단계 `step()`, [채굴 ➔ 벨트 ➔ 투입 ➔ 제련 ➔ 철판] 100틱 루프 철판 **47장** 적재 및 자원 보존 검증, 32x32 그리드 틱당 **6.1 µs**, 100틱 양 그리드 100% 비트 일치 해시 `0xF62F1795D5860647` 결정론 검증 통과)
 - [x] **T-039: 웹(WASM) 즉시 배포 & 라이브 피드백 수집 시스템 구축** (`crates/axiom-wasm/index.html`, `web/`, `.github/workflows/deploy-pages.yml`, `tools/deploy-pages.ps1`, 모바일 D-Pad 터치 조작, 스펙 뱃지, 실시간 GitHub Issue 피드백 모달, 원클릭 GitHub Pages 배포 파이프라인 완성)
 - [x] **T-038: Axiom 프로덕션 릴리즈 및 최종 디렉터 인도 보고서** (`Cargo.toml` v1.0.0 판올림, `docs/architecture.md` Section 12 종합 벤치마크 등재, `docs/decisions.md` [D-012] 채택, `docs/audit-report.md` 공식 감사 승인, `docs/dashboard.md` 최신화 완료 및 디렉터 인도 보고서 발행 완료)
 - [x] **T-037: 완전 자율 운영 및 모니터링 데몬 시스템 완성** (`tools/monitor.ps1`, `crates/axiom-cli/src/telemetry.rs`, `docs/dashboard.md`, 실시간 엔진 상태/커밋/테스트/성능 모니터링 데몬 및 자동 갱신 검증 완료)
