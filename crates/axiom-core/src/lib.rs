@@ -8,6 +8,7 @@
 
 #![no_std]
 
+pub mod audio;
 pub mod chunk;
 pub mod combat;
 pub mod effector;
@@ -29,6 +30,10 @@ pub mod tick;
 pub mod time_machine;
 pub mod world_time_machine;
 
+pub use audio::{
+    AudioMixFrame, SoundCategory, SoundEvent, SpatialAudioSimulator, SpatialVoice,
+    DEFAULT_MAX_VOICES, MAX_AUDIO_QUEUE,
+};
 pub use chunk::{
     sample_world_tile, Chunk, ChunkCoord, ChunkManager, ChunkSlot, ChunkStreamStats,
     DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS, DEFAULT_VIEW_RADIUS,
