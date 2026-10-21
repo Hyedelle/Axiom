@@ -1,0 +1,26 @@
+# Axiom Git Attributes
+# Enforce LF for scripts (CRLF breaks bash hooks on Windows). Keep binary files intact.
+* text=auto
+
+# Scripts and hooks MUST have LF
+*.sh text eol=lf
+*.bash text eol=lf
+admin/hooks/* text eol=lf
+admin/* text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.rs text eol=lf
+
+# Binary Assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.glb binary
+*.gltf binary
+*.bin binary
+*.zip binary
+*.dll binary
+*.exe binary
+*.lib binary
+*.pdb binary

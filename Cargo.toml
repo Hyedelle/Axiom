@@ -9,3 +9,19 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Hyedelle <hyedelle@dreamhub.engine>"]
 license = "MIT OR Apache-2.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = 1
+
+[profile.bench]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
