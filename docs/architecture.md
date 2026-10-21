@@ -74,6 +74,23 @@ pub struct Entity {
 ## 5. AX 협업 및 가드레일 (Agent Governance)
 
 - **Disk as Hub**: [docs/tasks.md](tasks.md), [docs/audit-report.md](audit-report.md), [docs/decisions.md](decisions.md)
-- **외부 격리 러너**: `.\tools\run_test.ps1` (로그를 `tmp/`로 격리, 결과 1줄 출력)
+- **외부 격리 러너**: `.\tools\run_test.ps1`, `.\tools\guard.ps1` (로그를 `tmp/`로 격리, 결과 1줄 출력)
 - **헌법 가드레일**: `admin/hooks/pre-commit` (Git 레벨 4대 게이트 자동 차단)
 - **캐시 분리**: `tmp/`, `target/` ➔ `D:\axiom\cache\` 정션 링크
+
+---
+
+## 6. 엔진 4단계 진화 로드맵 (Evolution to Open-World RPG)
+
+Axiom 엔진은 단일 토이 엔진이 아니라 궁극의 오픈월드 RPG를 향해 단계별로 시스템을 정복해 나가는 4단계 아키텍처로 진화합니다 ([D-006](decisions.md)):
+
+```text
+[Phase 1: 룰 & 전투] ➔ [Phase 2: 물류 & 건축] ➔ [Phase 3: 월드 & 탐험] ➔ [Phase 4: THE PINNACLE]
+ 오토배틀러 / 로그라이크      기지/도시 경영 시뮬레이션      절차적 월드/청크 스트리밍       궁극의 결정론적 오픈월드 RPG
+```
+
+1. **Phase 1 (전투 & 규칙)**: 무오차 고정소수점 물리, 1틱 타임 트래블 Undo, 순수 함수 룰 엔진.
+2. **Phase 2 (물류 & 건축)**: 64B DOD 슬랩 10만 엔티티 연산, 대규모 경제/생산 순환 상태 머신.
+3. **Phase 3 (월드 & 탐험)**: 시드 기반 PCG, BVH/공간 분할, 무한 청크 스트리밍, Fog of War.
+4. **Phase 4 (The Ultimate Open-World RPG)**: 10만 명의 백그라운드 실시간 시뮬레이션 NPC, 0.001초 무오차 로딩 & 타임머신 세이브.
+
