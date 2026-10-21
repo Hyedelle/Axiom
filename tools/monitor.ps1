@@ -36,6 +36,13 @@ $LatestHash = (git rev-parse --short HEAD).Trim()
 $LatestSubject = (git log -1 --pretty=format:"%s").Trim()
 $DateStr = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
+# Dynamically parse workspace version from Cargo.toml
+$CargoContent = Get-Content -Path "$ProjectRoot/Cargo.toml" -Raw
+$WorkspaceVersion = "1.0.0"
+if ($CargoContent -match '\[workspace\.package\][\s\S]*?version\s*=\s*"([^"]+)"') {
+    $WorkspaceVersion = $matches[1]
+}
+
 # 3. Generate Dashboard Markdown
 Write-Host "==> [Phase 3/3] Generating Dashboard ($DashboardFile)..." -ForegroundColor Yellow
 
@@ -45,7 +52,7 @@ $DashboardContent = @"
 # Axiom Autonomous Engine Telemetry & Health Dashboard
 
 > **Generated:** $DateStr KST  
-> **Workspace Version:** v0.6.0 | **Autonomous Loop:** ACTIVE & UNINTERRUPTED  
+> **Workspace Version:** v$WorkspaceVersion | **Autonomous Loop:** ACTIVE & UNINTERRUPTED  
 > **Total Verified Commits:** $CommitCount (${LatestHash}: $LatestSubject)  
 > **Mechanical Guard Status:** 100% CONSTITUTIONAL PASS  
 
