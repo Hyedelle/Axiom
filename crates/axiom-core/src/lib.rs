@@ -15,6 +15,7 @@ pub mod fixed;
 pub mod hash;
 pub mod input;
 pub mod logistics;
+pub mod npc_crowd;
 pub mod pcg;
 pub mod spatial;
 pub mod state;
@@ -32,6 +33,9 @@ pub use fixed::{Fixed, FixedVec2};
 pub use hash::{deterministic_hash, Fnv1aHasher};
 pub use input::InputState;
 pub use logistics::{LogisticsCell, LogisticsGrid};
+pub use npc_crowd::{
+    Npc, NpcActivity, NpcCrowdPool, NpcTable, DEFAULT_NPC_TABLE_CAPACITY, TICKS_PER_DAY,
+};
 pub use pcg::{Rng, TileMap, TileType};
 pub use spatial::{GridCell, SpatialGrid};
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};
