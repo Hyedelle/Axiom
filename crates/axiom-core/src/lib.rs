@@ -13,6 +13,7 @@ pub mod fixed;
 pub mod hash;
 pub mod input;
 pub mod state;
+pub mod storage;
 pub mod tick;
 pub mod time_machine;
 
@@ -21,5 +22,6 @@ pub use fixed::{Fixed, FixedVec2};
 pub use hash::{deterministic_hash, Fnv1aHasher};
 pub use input::InputState;
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};
+pub use storage::{EntityTable, DEFAULT_TABLE_CAPACITY};
 pub use tick::{Tick, DELTA_TIME_MICROS, TICK_RATE_HZ};
 pub use time_machine::{RollbackError, TimeMachine};
