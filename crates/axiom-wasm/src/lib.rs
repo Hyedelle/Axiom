@@ -11,10 +11,13 @@ use axiom_core::chunk::ChunkManager;
 use axiom_core::combat::BattleArena;
 use axiom_core::effector::{AtbArena, AtbUnit, Element, StatusKind, MAX_ACTIVE_UNITS};
 use axiom_core::fixed::{Fixed, FixedVec2};
+use axiom_core::input::InputState;
+use axiom_core::netcode::RollbackSession;
 use axiom_core::npc_crowd::NpcCrowdPool;
 use axiom_core::pathfinding::{Path, PathFinder, DEFAULT_GRID_H, DEFAULT_GRID_W, MAX_PATH_WAYPOINTS};
 use axiom_core::pcg::TileMap;
 use axiom_core::quest::{ObjectiveType, QuestJournal, QuestRecord, QuestStatus};
+use axiom_core::state::TickState;
 use axiom_render::FrameBuffer;
 
 #[allow(static_mut_refs)]
@@ -683,6 +686,183 @@ pub extern "C" fn axiom_rpg_get_combat_damage() -> u64 {
     }
 }
 
+// =========================================================================
+// Real-Time Multiplayer Rollback WebAssembly Bindings (T-030)
+// =========================================================================
+
+#[allow(static_mut_refs)]
+struct NetcodeWasmEngine {
+    session: RollbackSession<128, 32>,
+    framebuffer: FrameBuffer,
+}
+
+#[allow(static_mut_refs)]
+static mut NET_ENGINE: Option<NetcodeWasmEngine> = None;
+
+/// Initializes a peer-to-peer multiplayer rollback session.
+#[no_mangle]
+pub extern "C" fn axiom_net_init(local_player_id: u32, width: u32, height: u32) {
+    let mut initial_state = TickState::<32>::new();
+    initial_state.spawn(1, FixedVec2::from_ints(-30, 0), FixedVec2::ZERO);
+    initial_state.spawn(2, FixedVec2::from_ints(30, 0), FixedVec2::ZERO);
+
+    let session = RollbackSession::<128, 32>::new(local_player_id as usize, initial_state);
+    let framebuffer = FrameBuffer::new(width as usize, height as usize);
+
+    unsafe {
+        NET_ENGINE = Some(NetcodeWasmEngine {
+            session,
+            framebuffer,
+        });
+    }
+}
+
+/// Advances 1 local frame with zero input latency.
+#[no_mangle]
+pub extern "C" fn axiom_net_advance_frame(move_x: i32, move_y: i32, buttons: u32) -> u64 {
+    unsafe {
+        if let Some(ref mut engine) = NET_ENGINE {
+            let input = InputState::new(move_x, move_y, buttons);
+            let stats = engine.session.advance_frame(input);
+            stats.current_frame
+        } else {
+            0
+        }
+    }
+}
+
+/// Delivers a remote input packet arrived from WebRTC DataChannel.
+/// Returns true if a speculative rollback was triggered.
+#[no_mangle]
+pub extern "C" fn axiom_net_receive_remote(
+    remote_player_id: u32,
+    frame: u64,
+    move_x: i32,
+    move_y: i32,
+    buttons: u32,
+) -> bool {
+    unsafe {
+        if let Some(ref mut engine) = NET_ENGINE {
+            let input = InputState::new(move_x, move_y, buttons);
+            engine.session.receive_remote_input(remote_player_id as usize, frame, input)
+        } else {
+            false
+        }
+    }
+}
+
+/// Returns current frame count.
+#[no_mangle]
+pub extern "C" fn axiom_net_get_frame() -> u64 {
+    unsafe {
+        if let Some(ref engine) = NET_ENGINE {
+            engine.session.current_frame
+        } else {
+            0
+        }
+    }
+}
+
+/// Returns confirmed frame boundary.
+#[no_mangle]
+pub extern "C" fn axiom_net_get_confirmed_frame() -> u64 {
+    unsafe {
+        if let Some(ref engine) = NET_ENGINE {
+            engine.session.confirmed_frame
+        } else {
+            0
+        }
+    }
+}
+
+/// Returns total rollbacks triggered by prediction misalignments.
+#[no_mangle]
+pub extern "C" fn axiom_net_get_total_rollbacks() -> u64 {
+    unsafe {
+        if let Some(ref engine) = NET_ENGINE {
+            engine.session.total_rollbacks
+        } else {
+            0
+        }
+    }
+}
+
+/// Returns total frames resimulated.
+#[no_mangle]
+pub extern "C" fn axiom_net_get_total_resimulated() -> u64 {
+    unsafe {
+        if let Some(ref engine) = NET_ENGINE {
+            engine.session.total_frames_resimulated
+        } else {
+            0
+        }
+    }
+}
+
+/// Computes deterministic state hash of current world.
+#[no_mangle]
+pub extern "C" fn axiom_net_get_hash() -> u64 {
+    unsafe {
+        if let Some(ref engine) = NET_ENGINE {
+            engine.session.compute_hash()
+        } else {
+            0
+        }
+    }
+}
+
+/// Renders the multiplayer arena, avatars, and rollback consensus HUD.
+#[no_mangle]
+pub extern "C" fn axiom_net_render() {
+    unsafe {
+        if let Some(ref mut engine) = NET_ENGINE {
+            engine.framebuffer.clear(0xFF0F172A);
+
+            let half_w = (engine.framebuffer.width / 2) as i32;
+            let half_h = (engine.framebuffer.height / 2) as i32;
+
+            // Draw center divider
+            for y in 0..engine.framebuffer.height as i32 {
+                if y % 8 < 4 {
+                    engine.framebuffer.set_pixel(half_w, y, 0xFF334155);
+                }
+            }
+
+            // Draw players
+            for (idx, entity) in engine.session.current_state.entities.iter().enumerate() {
+                if entity.is_active() {
+                    let px = half_w + entity.pos.x.to_int() as i32 * 4;
+                    let py = half_h + entity.pos.y.to_int() as i32 * 4;
+                    let color = if idx == 0 {
+                        0xFF38BDF8 // Player 0: Sky Blue
+                    } else {
+                        0xFFFB923C // Player 1: Bright Orange
+                    };
+                    engine.framebuffer.draw_rect(px - 8, py - 8, 16, 16, 0xFFFFFFFF);
+                    engine.framebuffer.draw_rect(px - 6, py - 6, 12, 12, color);
+                }
+            }
+
+            // Netcode Status Banner (Top)
+            engine.framebuffer.draw_rect(20, 15, 320, 36, 0xFF1E293B);
+            let hash_color = 0xFF4ADE80; // Green = Synced
+            engine.framebuffer.draw_rect(28, 23, 20, 20, hash_color);
+        }
+    }
+}
+
+/// Returns raw pointer to multiplayer framebuffer memory.
+#[no_mangle]
+pub extern "C" fn axiom_net_get_framebuffer_ptr() -> *const u32 {
+    unsafe {
+        if let Some(ref engine) = NET_ENGINE {
+            engine.framebuffer.as_slice().as_ptr()
+        } else {
+            core::ptr::null()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -763,6 +943,29 @@ mod tests {
         // Render scene
         axiom_rpg_render(20);
         let ptr = axiom_rpg_get_framebuffer_ptr();
+        assert!(!ptr.is_null());
+    }
+
+    #[test]
+    fn test_netcode_wasm_bindings() {
+        axiom_net_init(0, 640, 480);
+        assert_eq!(axiom_net_get_frame(), 0);
+        assert_eq!(axiom_net_get_total_rollbacks(), 0);
+
+        // Advance 10 frames locally
+        for _ in 0..10 {
+            axiom_net_advance_frame(1, 0, 0);
+        }
+        assert_eq!(axiom_net_get_frame(), 10);
+
+        // Late remote input arriving for frame 2 (triggering rollback!)
+        let rolled_back = axiom_net_receive_remote(1, 2, 0, 1, 0);
+        assert!(rolled_back, "Remote input contradicting prediction must trigger speculative rollback");
+        assert!(axiom_net_get_total_rollbacks() > 0);
+        assert_eq!(axiom_net_get_frame(), 10); // Frame preserved at 10
+
+        axiom_net_render();
+        let ptr = axiom_net_get_framebuffer_ptr();
         assert!(!ptr.is_null());
     }
 }

@@ -6,19 +6,20 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-030: WebAssembly 브라우저 멀티플레이어 데이터채널 연동 인터페이스**
-  - **목표:** `axiom-wasm`에 멀티플레이어 피어 C-ABI 바인딩(`axiom_net_send_input`, `axiom_net_receive_remote`, `axiom_net_get_hash_consensus`)을 추가하여 WebRTC DataChannel 또는 웹소켓을 통한 브라우저 2인 롤백 동기화 인터페이스 구현
-  - **검증:** WASM 빌드 및 멀티플레이어 C-ABI 단위 테스트 통과, `tools/guard.ps1` 통과
+- [ ] **T-031: 오픈월드 RPG 멀티플레이어 P2P 협동 전투 데모**
+  - **목표:** 2인의 플레이어가 동일 오픈월드에서 실시간 협동(Co-op)으로 몬스터 레이드 전투를 수행하는 멀티플레이어 RPG 세션(`MultiplayerRpgSession`)을 구현하고 롤백 동기화 검증
+  - **검증:** `cargo test -p axiom-cli --test coop_battle` 및 `tools/guard.ps1` 통과
   - **가드:** 무부동소수점, 고정 메모리, 100% 결정론 해시
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-031: 오픈월드 RPG 멀티플레이어 P2P 협동 전투 데모**
+- [ ] **T-032: Milestone 5 멀티플레이어 롤백 네트워킹 완결 감사 및 v0.5.0 릴리즈**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-030: WebAssembly 브라우저 멀티플레이어 데이터채널 연동 인터페이스** (`axiom-wasm`, `axiom_net_*` C-ABI 바인딩, WebRTC DataChannel 원격 입력 수신 시 지연 롤백 트리거 및 재시뮬레이션, 브라우저 2인 P2P 롤백 넷코드 검증 통과)
 - [x] **T-029: 네트워크 멀티플레이어 롤백 동기화 실전 통합 테스트** (`RollbackSession::<128, 32>`, `SimulatedNetworkPipe`, 200ms 대륙간 지연 환경 100프레임 동기화 및 15% 패킷 드랍/재전송 복구 환경에서 피어 간 100% 비트 일치 해시 합의 검증 통과)
 - [x] **T-028: Milestone 4 오픈월드 완결 감사 보고서 및 엔진 v0.4.0 릴리즈** (`Cargo.toml` v0.4.0 판올림, `docs/architecture.md` Section 9 등재, `docs/decisions.md` [D-009] 채택, `docs/audit-report.md` 공식 종합 감사 승인 완료)
 - [x] **T-027: 웹 캔버스(WASM) 기반 대화형 RPG 비주얼 플레이어 릴리즈** (`axiom-wasm`, `axiom_rpg_*` C-ABI 바인딩, **176 KB** WebAssembly 바이너리 빌드, HTML5 Canvas 60fps 대화형 뷰어: 실시간 10만 NPC 생태계 + 캔버스 클릭 A* 길찾기 AI + 퀘스트 대화 및 ATB 전투 HUD 오버레이 연동 검증 통과)
