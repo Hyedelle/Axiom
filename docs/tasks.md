@@ -6,20 +6,21 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-011: Phase 1 오토배틀러 완전 자율 AI 밸런싱 시뮬레이터 (Monte Carlo 10,000 Matches)**
-  - **목표:** `crates/axiom-cli`에 몬테카를로(Monte Carlo) 기법으로 10,000회 대전을 10초 만에 헤드리스 시뮬레이션하고, 기물별 승률·처치율·생존율 통계를 산출하여 밸런스 보고서(`tmp/balance_report.md`)를 발행하는 자율 분석 엔진 구현
-  - **검증:** 10,000회 매치 시뮬레이션 완료 및 `tools/guard.ps1` 통과
-  - **가드:** Float 배제, 고정소수점 연산 기반 승률 계산
+- [ ] **T-012: Phase 2 자원 채굴 및 물류 벨트 시뮬레이션 (Factorio/Colony 기초 프로토타입)**
+  - **목표:** `crates/axiom-core`에 자원 광맥(철광석, 석탄), 채굴기(Drill), 컨베이어 벨트(Belt) 엔티티 및 물류 이동 상태 머신을 64B 슬랩 기반으로 구현
+  - **검증:** 1,000개 벨트 아이템 물류 순환 시뮬레이션 및 `tools/guard.ps1` 통과
+  - **가드:** Float 배제, 결정론적 정수 틱 운송
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-012: Phase 2 자원 채굴 및 물류 벨트 시뮬레이션 (Factorio/Colony 기초 프로토타입)**
 - [ ] **T-013: Phase 3 무한 청크(Chunk) 스트리밍 및 공간 인덱서**
+- [ ] **T-014: Phase 4 10만 NPC 생태계 배경 시뮬레이션 프로토타입**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-011: Phase 1 오토배틀러 완전 자율 AI 밸런싱 시뮬레이터** (`MonteCarloBalancer`, 10,000 대전 **187ms** 만에 완료, 기물 승률/통계 분석 보고서 `tmp/balance_report.md` 자율 발행)
 - [x] **T-010: 타임머신 롤백 리플레이 뷰어 CLI 통합** (`AsciiView`, `TimeTravelDemo`, 30틱 진행 후 0.001ms 틱 10 롤백 및 아스키 뷰포트 시각화 검증 완료)
 - [x] **T-009: 웹 브라우저(WASM) 및 실시간 뷰어 연동 파이프라인** (`axiom-wasm`, **44 KB** 초경량 WebAssembly 바이너리 빌드 및 HTML5 캔버스 60fps 무오차 뷰어 데모 완성)
 - [x] **T-008: 시드 기반 절차적 맵 생성기(PCG) 프로토타입** (SplitMix64 정수 PRNG, `TileMap<W, H>`, 2단계 셀룰러 오토마타 지형 클러스터링, 100% 동일 시드 비트 일치 검증 통과)
