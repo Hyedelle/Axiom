@@ -212,6 +212,24 @@ impl<const CAP: usize> BattleArena<CAP> {
             .filter(|u| u.is_alive() && u.team == team)
             .count()
     }
+
+    /// Number of living units across all teams.
+    #[inline(always)]
+    pub fn alive_count(&self) -> usize {
+        self.units.iter().filter(|u| u.is_alive()).count()
+    }
+
+    /// Computes deterministic hash across living units.
+    pub fn compute_hash(&self) -> u64 {
+        let mut h = self.current_tick.wrapping_mul(0x9E3779B97F4A7C15);
+        for unit in &self.units {
+            if unit.is_alive() {
+                h ^= crate::hash::deterministic_hash(unit);
+                h = h.rotate_left(7);
+            }
+        }
+        h
+    }
 }
 
 #[cfg(test)]

@@ -33,7 +33,10 @@ pub use entity::Entity;
 pub use fixed::{Fixed, FixedVec2};
 pub use hash::{deterministic_hash, Fnv1aHasher};
 pub use input::InputState;
-pub use logistics::{LogisticsCell, LogisticsGrid};
+pub use logistics::{
+    LogisticsCell, LogisticsGrid, DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST, ITEM_COAL,
+    ITEM_COPPER_ORE, ITEM_IRON_ORE, ITEM_NONE,
+};
 pub use npc_crowd::{
     Npc, NpcActivity, NpcCrowdPool, NpcTable, DEFAULT_NPC_TABLE_CAPACITY, TICKS_PER_DAY,
 };

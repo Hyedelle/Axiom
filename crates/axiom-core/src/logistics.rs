@@ -302,6 +302,20 @@ impl<const W: usize, const H: usize> LogisticsGrid<W, H> {
             0
         }
     }
+
+    /// Computes deterministic hash across logistics grid cells and inventory.
+    pub fn compute_hash(&self) -> u64 {
+        let mut h = self.current_tick.wrapping_mul(0x9E3779B97F4A7C15) ^ self.total_mined;
+        for row in &self.cells {
+            for cell in row {
+                if cell.kind != CELL_KIND_EMPTY {
+                    h ^= crate::hash::deterministic_hash(cell);
+                    h = h.rotate_left(5);
+                }
+            }
+        }
+        h
+    }
 }
 
 #[cfg(test)]
