@@ -8,6 +8,7 @@
 
 #![no_std]
 
+pub mod combat;
 pub mod entity;
 pub mod fixed;
 pub mod hash;
@@ -18,6 +19,7 @@ pub mod storage;
 pub mod tick;
 pub mod time_machine;
 
+pub use combat::{BattleArena, CombatUnit, DEFAULT_MAX_UNITS};
 pub use entity::Entity;
 pub use fixed::{Fixed, FixedVec2};
 pub use hash::{deterministic_hash, Fnv1aHasher};

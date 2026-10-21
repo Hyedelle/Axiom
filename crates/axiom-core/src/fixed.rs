@@ -12,6 +12,7 @@ impl Fixed {
     pub const FRACTIONAL_BITS: u32 = 16;
     pub const ONE: Self = Self(1 << Self::FRACTIONAL_BITS);
     pub const ZERO: Self = Self(0);
+    pub const MAX: Self = Self(i64::MAX);
 
     #[inline(always)]
     pub const fn from_int(v: i64) -> Self {
@@ -127,6 +128,13 @@ impl FixedVec2 {
             x: Fixed::from_int(x),
             y: Fixed::from_int(y),
         }
+    }
+
+    #[inline(always)]
+    pub fn distance_squared(self, other: Self) -> Fixed {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        (dx * dx) + (dy * dy)
     }
 }
 
