@@ -10,6 +10,7 @@
 
 pub mod chunk;
 pub mod combat;
+pub mod effector;
 pub mod entity;
 pub mod fixed;
 pub mod hash;
@@ -33,6 +34,10 @@ pub use chunk::{
     DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS, DEFAULT_VIEW_RADIUS,
 };
 pub use combat::{BattleArena, CombatUnit, DEFAULT_MAX_UNITS};
+pub use effector::{
+    ActiveStatus, AtbArena, AtbUnit, CombatEffector, Element, StatusKind, ATB_MAX_GAUGE,
+    MAX_ACTIVE_UNITS, MAX_STATUS_EFFECTS,
+};
 pub use entity::Entity;
 pub use fixed::{Fixed, FixedVec2};
 pub use hash::{deterministic_hash, Fnv1aHasher};
