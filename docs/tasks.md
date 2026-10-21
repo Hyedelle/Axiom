@@ -6,7 +6,7 @@
 ---
 
 ## ▶ [CURRENT]
-(모든 작업 완료 - 프로덕션 운영 및 대시보드 무인 감시 모드 가동 중)
+(모든 배포 및 릴리즈 완료 - 라이브 피드백 수집 및 GitHub Pages 운영 중)
 
 ---
 
@@ -16,6 +16,7 @@
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-039: 웹(WASM) 즉시 배포 & 라이브 피드백 수집 시스템 구축** (`crates/axiom-wasm/index.html`, `web/`, `.github/workflows/deploy-pages.yml`, `tools/deploy-pages.ps1`, 모바일 D-Pad 터치 조작, 스펙 뱃지, 실시간 GitHub Issue 피드백 모달, 원클릭 GitHub Pages 배포 파이프라인 완성)
 - [x] **T-038: Axiom 프로덕션 릴리즈 및 최종 디렉터 인도 보고서** (`Cargo.toml` v1.0.0 판올림, `docs/architecture.md` Section 12 종합 벤치마크 등재, `docs/decisions.md` [D-012] 채택, `docs/audit-report.md` 공식 감사 승인, `docs/dashboard.md` 최신화 완료 및 디렉터 인도 보고서 발행 완료)
 - [x] **T-037: 완전 자율 운영 및 모니터링 데몬 시스템 완성** (`tools/monitor.ps1`, `crates/axiom-cli/src/telemetry.rs`, `docs/dashboard.md`, 실시간 엔진 상태/커밋/테스트/성능 모니터링 데몬 및 자동 갱신 검증 완료)
 - [x] **T-036: Milestone 6 대규모 오픈월드 멀티플레이어 완결 감사 및 v0.6.0 릴리즈** (`Cargo.toml` v0.6.0 판올림, `docs/architecture.md` Section 11 등재, `docs/decisions.md` [D-011] 채택, `docs/audit-report.md` 공식 종합 감사 승인 완료)

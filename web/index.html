@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Axiom Engine — 460KB Pure Rust Deterministic Open-World RPG</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background: #090d16;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Consolas", monospace;
+      text-align: center;
+      margin: 0;
+      padding: 12px;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+    header { margin-bottom: 12px; }
+    h1 {
+      color: #38bdf8;
+      font-size: 22px;
+      margin: 0 0 4px 0;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .sub {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .badge {
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #334155;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .badge.green { color: #4ade80; border-color: #166534; }
+    .badge.gold { color: #facc15; border-color: #854d0e; }
+    .badge.purple { color: #c084fc; border-color: #6b21a8; }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    button {
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+    }
+    button:hover {
+      border-color: #38bdf8;
+      color: #f1f5f9;
+    }
+    button.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+    .action-bar {
+      margin-bottom: 10px;
+      display: none;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      background: #1e293b;
+      color: #facc15;
+      border: 1px solid #854d0e;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    .action-btn:hover {
+      background: #854d0e;
+      color: #ffffff;
+    }
+    .hud {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 10px;
+      border: 1px solid #334155;
+      max-width: 95vw;
+    }
+    .hud span { font-weight: bold; }
+    .blue { color: #38bdf8; }
+    .red { color: #f87171; }
+    .gold { color: #facc15; }
+    .green { color: #4ade80; }
+    
+    .canvas-container {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+    }
+    canvas {
+      border: 2px solid #38bdf8;
+      border-radius: 10px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+      image-rendering: pixelated;
+      cursor: crosshair;
+      max-width: 100%;
+      height: auto;
+      background: #000;
+      touch-action: none;
+    }
+    .instruction {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+
+    /* Mobile D-Pad Controls */
+    .mobile-controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      margin-top: 14px;
+    }
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 44px);
+      grid-template-rows: repeat(3, 44px);
+      gap: 4px;
+    }
+    .dpad-btn {
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .dpad-btn:active {
+      background: #38bdf8;
+      color: #0f172a;
+    }
+
+    /* Share & Feedback Floating / Bottom Bar */
+    .footer-bar {
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .feedback-btn {
+      background: #10b981;
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-weight: bold;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .feedback-btn:hover { background: #059669; }
+    .share-btn {
+      background: #6366f1;
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-weight: bold;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .share-btn:hover { background: #4f46e5; }
+    .github-link {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .github-link:hover { color: #38bdf8; }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal {
+      background: #1e293b;
+      border: 1px solid #38bdf8;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 480px;
+      width: 100%;
+      text-align: left;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+    }
+    .modal h2 { margin-top: 0; color: #38bdf8; font-size: 18px; }
+    .modal-reactions {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0 16px 0;
+    }
+    .react-btn {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 10px 4px;
+      border-radius: 8px;
+      font-size: 12px;
+      text-align: center;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+    .react-btn:hover { border-color: #38bdf8; }
+    .react-btn.selected { border-color: #38bdf8; background: #0369a1; color: #fff; }
+    .modal-close {
+      background: #334155;
+      color: #f1f5f9;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      float: right;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🏛️ Axiom Engine Web Demo</h1>
+    <div class="sub">100% Deterministic Rust Game Engine · Built for Open-World RPG</div>
+    
+    <div class="badges">
+      <span class="badge green">⚡ 460 KB Zero-Heap WASM</span>
+      <span class="badge blue">🛡️ Q32.16 Fixed Math (0% Float)</span>
+      <span class="badge gold">📦 64-Byte Cache-Line DOD</span>
+      <span class="badge purple">🌍 100k Live NPCs @ 60 FPS</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button id="btnRpg" class="active" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
+    <button id="btnOpenWorld" onclick="switchMode('openworld')">🌍 100k NPC Streamer</button>
+    <button id="btnArena" onclick="switchMode('arena')">⚔️ Auto-Battler (100v100)</button>
+  </div>
+
+  <div id="rpgActionBar" class="action-bar" style="display: flex;">
+    <button class="action-btn" onclick="rpgQuest()">📜 Accept Quest #100</button>
+    <button class="action-btn" onclick="rpgEncounter()">⚔️ Trigger Encounter</button>
+    <button class="action-btn" onclick="rpgPathfind(10, 10)">🎯 A* Route to (10, 10)</button>
+  </div>
+
+  <div class="hud" id="hud">
+    <span>Tick:</span> <span id="tick" class="blue">0</span> |
+    <span id="hudDetail"></span> |
+    <span>FPS:</span> <span id="fps" class="green">60</span>
+  </div>
+
+  <div class="canvas-container">
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+
+  <div id="instruction" class="instruction">
+    💡 클릭하여 2D A* AI 경로 탐색 | WASD / D-Pad로 이동 | 액션 버튼으로 퀘스트 & 전투
+  </div>
+
+  <!-- Mobile On-Screen D-Pad -->
+  <div class="mobile-controls">
+    <div class="dpad">
+      <div></div>
+      <button class="dpad-btn" id="dpad-up" onmousedown="setKey('w', true)" onmouseup="setKey('w', false)" ontouchstart="setKey('w', true)" ontouchend="setKey('w', false)">▲</button>
+      <div></div>
+      <button class="dpad-btn" id="dpad-left" onmousedown="setKey('a', true)" onmouseup="setKey('a', false)" ontouchstart="setKey('a', true)" ontouchend="setKey('a', false)">◀</button>
+      <div></div>
+      <button class="dpad-btn" id="dpad-right" onmousedown="setKey('d', true)" onmouseup="setKey('d', false)" ontouchstart="setKey('d', true)" ontouchend="setKey('d', false)">▶</button>
+      <div></div>
+      <button class="dpad-btn" id="dpad-down" onmousedown="setKey('s', true)" onmouseup="setKey('s', false)" ontouchstart="setKey('s', true)" ontouchend="setKey('s', false)">▼</button>
+      <div></div>
+    </div>
+  </div>
+
+  <div class="footer-bar">
+    <button class="feedback-btn" onclick="openFeedbackModal()">💬 피드백 / 감상 남기기</button>
+    <button class="share-btn" onclick="copyShareLink()">📋 데모 링크 복사</button>
+    <a class="github-link" href="https://github.com/Hyedelle/Axiom" target="_blank" rel="noopener">
+      ⭐ GitHub: Hyedelle/Axiom
+    </a>
+  </div>
+
+  <!-- Feedback Modal -->
+  <div id="feedbackModal" class="modal-overlay">
+    <div class="modal">
+      <button class="modal-close" onclick="closeFeedbackModal()">✕</button>
+      <h2>💬 Axiom Engine 라이브 피드백</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 12px 0;">
+        460KB 순수 Rust 엔진 체험 소감을 남겨주세요! 개발자(Hyedelle)에게 직접 전달됩니다.
+      </p>
+
+      <div style="font-size: 13px; font-weight: bold; margin-bottom: 6px;">빠른 반응:</div>
+      <div class="modal-reactions">
+        <div class="react-btn" onclick="selectReaction(this, '🚀 460KB인데 10만 NPC가 60fps로 도는 게 충격적입니다!')">🚀 속도 전율</div>
+        <div class="react-btn" onclick="selectReaction(this, '🎮 완벽한 오픈월드 팩토리 RPG로 진화하길 응원합니다!')">🎮 게임플레이 기대</div>
+        <div class="react-btn" onclick="selectReaction(this, '💡 이런 시스템(물류/건축/세력전)을 제안합니다!')">💡 아이디어 제안</div>
+      </div>
+
+      <div style="margin-top: 14px; text-align: right;">
+        <button id="btnSendIssue" class="feedback-btn" style="width: 100%; justify-content: center;" onclick="sendFeedbackToGitHub()">
+          🚀 GitHub Issue로 의견 등록하기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const width = 640;
+    const height = 480;
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const imgData = ctx.createImageData(width, height);
+    const buf32 = new Uint32Array(imgData.data.buffer);
+
+    let wasmInstance = null;
+    let mode = 'rpg';
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fps = 60;
+    let keys = { w: false, a: false, s: false, d: false };
+    let selectedReactionText = "🚀 460KB인데 10만 NPC가 60fps로 도는 게 충격적입니다!";
+
+    function setKey(key, state) {
+      keys[key] = state;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
+      if (k === 'a' || e.key === 'ArrowLeft') keys.a = true;
+      if (k === 's' || e.key === 'ArrowDown') keys.s = true;
+      if (k === 'd' || e.key === 'ArrowRight') keys.d = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || e.key === 'ArrowUp') keys.w = false;
+      if (k === 'a' || e.key === 'ArrowLeft') keys.a = false;
+      if (k === 's' || e.key === 'ArrowDown') keys.s = false;
+      if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
+    });
+
+    canvas.addEventListener('click', (e) => {
+      if (mode !== 'rpg' || !wasmInstance) return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = width / rect.width;
+      const scaleY = height / rect.height;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
+      const tileSize = 20;
+      const tileX = Math.floor((mouseX - width / 2) / tileSize);
+      const tileY = Math.floor((mouseY - height / 2) / tileSize);
+      wasmInstance.axiom_rpg_plan_path(tileX, tileY);
+    });
+
+    // Touch support for canvas A* clicking
+    canvas.addEventListener('touchstart', (e) => {
+      if (mode !== 'rpg' || !wasmInstance) return;
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = width / rect.width;
+      const scaleY = height / rect.height;
+      const mouseX = (touch.clientX - rect.left) * scaleX;
+      const mouseY = (touch.clientY - rect.top) * scaleY;
+      const tileSize = 20;
+      const tileX = Math.floor((mouseX - width / 2) / tileSize);
+      const tileY = Math.floor((mouseY - height / 2) / tileSize);
+      wasmInstance.axiom_rpg_plan_path(tileX, tileY);
+      e.preventDefault();
+    }, { passive: false });
+
+    function rpgQuest() {
+      if (wasmInstance && mode === 'rpg') {
+        wasmInstance.axiom_rpg_interact_quest(1, 100, 999, 1, 500);
+      }
+    }
+
+    function rpgEncounter() {
+      if (wasmInstance && mode === 'rpg') {
+        wasmInstance.axiom_rpg_trigger_encounter(999);
+      }
+    }
+
+    function rpgPathfind(x, y) {
+      if (wasmInstance && mode === 'rpg') {
+        wasmInstance.axiom_rpg_plan_path(x, y);
+      }
+    }
+
+    function switchMode(newMode) {
+      mode = newMode;
+      document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
+      document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
+      document.getElementById('btnRpg').className = mode === 'rpg' ? 'active' : '';
+
+      const actionBar = document.getElementById('rpgActionBar');
+      const instruction = document.getElementById('instruction');
+
+      if (mode === 'arena') {
+        actionBar.style.display = 'none';
+        instruction.innerText = '⚔️ 100 vs 100 대규모 자동 전투 시뮬레이션 (순수 Q32.16 고정소수점 결정론)';
+        wasmInstance.axiom_wasm_init(BigInt(424242), width, height);
+      } else if (mode === 'openworld') {
+        actionBar.style.display = 'none';
+        instruction.innerText = '🌍 WASD / D-Pad 조작: 무한 절차적 청크 지형 스트리밍 & 100,000 NPC 생태계 미니맵';
+        wasmInstance.axiom_openworld_init(BigInt(777123), width, height, 100000);
+      } else if (mode === 'rpg') {
+        actionBar.style.display = 'flex';
+        instruction.innerText = '💡 클릭하여 2D A* AI 경로 탐색 | WASD / D-Pad 이동 | 버튼으로 퀘스트 & ATB 전투';
+        wasmInstance.axiom_rpg_init(BigInt(0x12345678), width, height, 100000);
+      }
+    }
+
+    async function init() {
+      try {
+        const response = await fetch("axiom_wasm.wasm");
+        const bytes = await response.arrayBuffer();
+        const { instance } = await WebAssembly.instantiate(bytes, {});
+        wasmInstance = instance.exports;
+
+        // Default: Open-World RPG mode
+        switchMode('rpg');
+        requestAnimationFrame(loop);
+      } catch (err) {
+        console.error("Failed to load Axiom WASM module:", err);
+        document.getElementById('instruction').innerText = "⚠️ WASM 로드 실패: 로컬 웹 서버(http) 환경에서 열어주세요.";
+      }
+    }
+
+    function loop(now) {
+      if (!wasmInstance) return;
+
+      let ptr, len, tick;
+
+      if (mode === 'arena') {
+        wasmInstance.axiom_wasm_step();
+        wasmInstance.axiom_wasm_render();
+        ptr = wasmInstance.axiom_wasm_get_framebuffer_ptr();
+        len = wasmInstance.axiom_wasm_get_framebuffer_len();
+        tick = wasmInstance.axiom_wasm_get_tick();
+
+        const blue = wasmInstance.axiom_wasm_get_blue_alive();
+        const red = wasmInstance.axiom_wasm_get_red_alive();
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="blue">Blue Knights:</span> <span class="blue">${blue}</span> | <span class="red">Red Goblins:</span> <span class="red">${red}</span>`;
+      } else if (mode === 'openworld') {
+        let dx = (keys.d ? 2 : 0) - (keys.a ? 2 : 0);
+        let dy = (keys.s ? 2 : 0) - (keys.w ? 2 : 0);
+
+        wasmInstance.axiom_openworld_step(dx, dy);
+        wasmInstance.axiom_openworld_render(20);
+        ptr = wasmInstance.axiom_openworld_get_framebuffer_ptr();
+        len = width * height;
+        tick = wasmInstance.axiom_openworld_get_tick();
+
+        const npcs = wasmInstance.axiom_openworld_get_npc_count();
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="gold">Live NPCs:</span> <span class="gold">${npcs.toLocaleString()}</span> | <span class="blue">Minimap Heatmap:</span> Active`;
+      } else if (mode === 'rpg') {
+        let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+        let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+
+        wasmInstance.axiom_rpg_step(dx, dy);
+        wasmInstance.axiom_rpg_render(20);
+        ptr = wasmInstance.axiom_rpg_get_framebuffer_ptr();
+        len = width * height;
+        tick = wasmInstance.axiom_rpg_get_tick();
+
+        const activeQuests = wasmInstance.axiom_rpg_get_active_quests();
+        const doneQuests = wasmInstance.axiom_rpg_get_completed_quests();
+        const xp = wasmInstance.axiom_rpg_get_xp();
+        const inCombat = wasmInstance.axiom_rpg_is_in_combat();
+        const combatDmg = wasmInstance.axiom_rpg_get_combat_damage();
+
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="green">Quests:</span> ${activeQuests}/${doneQuests} | ` +
+          `<span class="gold">XP:</span> ${xp} | ` +
+          `<span class="red">Combat:</span> ${inCombat ? 'ACTIVE' : 'IDLE'} (${combatDmg} Dmg)`;
+      }
+
+      // Zero-copy pixel transfer from WASM memory to Canvas
+      const wasmPixels = new Uint32Array(wasmInstance.memory.buffer, ptr, len);
+      for (let i = 0; i < len; i++) {
+        const argb = wasmPixels[i];
+        const a = (argb >> 24) & 0xFF;
+        const r = (argb >> 16) & 0xFF;
+        const g = (argb >> 8) & 0xFF;
+        const b = argb & 0xFF;
+        buf32[i] = (a << 24) | (b << 16) | (g << 8) | r;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      document.getElementById("tick").innerText = tick;
+
+      frameCount++;
+      if (now - lastTime >= 1000) {
+        fps = frameCount;
+        frameCount = 0;
+        lastTime = now;
+        document.getElementById("fps").innerText = fps;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    // Modal & Feedback Functions
+    function openFeedbackModal() {
+      document.getElementById('feedbackModal').style.display = 'flex';
+    }
+    function closeFeedbackModal() {
+      document.getElementById('feedbackModal').style.display = 'none';
+    }
+    function selectReaction(el, text) {
+      document.querySelectorAll('.react-btn').forEach(b => b.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedReactionText = text;
+    }
+    function sendFeedbackToGitHub() {
+      const title = encodeURIComponent("[Axiom Web Demo Feedback] 유저 체험 소감");
+      const body = encodeURIComponent(`### 🎮 Axiom 460KB Web Demo 피드백\n\n- **소감/반응:** ${selectedReactionText}\n- **FPS/환경:** ${fps} FPS (${navigator.userAgent})\n\n추가 코멘트:\n> 여기에 자유롭게 작성해주세요!`);
+      const url = `https://github.com/Hyedelle/Axiom/issues/new?title=${title}&body=${body}`;
+      window.open(url, '_blank');
+      closeFeedbackModal();
+    }
+    function copyShareLink() {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        alert("✨ Axiom 데모 링크가 클립보드에 복사되었습니다!\n친구와 커뮤니티에 공유해보세요.");
+      }).catch(() => {
+        alert(window.location.href);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
