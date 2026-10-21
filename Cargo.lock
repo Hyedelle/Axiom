@@ -4,25 +4,25 @@ version = 4
 
 [[package]]
 name = "axiom-cli"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "axiom-core",
 ]
 
 [[package]]
 name = "axiom-core"
-version = "0.1.0"
+version = "0.3.0"
 
 [[package]]
 name = "axiom-render"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "axiom-core",
 ]
 
 [[package]]
 name = "axiom-wasm"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "axiom-core",
  "axiom-render",
