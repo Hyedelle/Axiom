@@ -14,18 +14,37 @@
     }
     h1 { color: #38bdf8; margin-bottom: 5px; }
     .sub { color: #94a3b8; font-size: 14px; margin-bottom: 15px; }
+    .controls {
+      margin-bottom: 12px;
+    }
+    button {
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #38bdf8;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 0 5px;
+    }
+    button.active {
+      background: #38bdf8;
+      color: #0f172a;
+    }
     .hud {
       display: inline-block;
       background: #1e293b;
       padding: 10px 20px;
       border-radius: 8px;
-      font-size: 16px;
+      font-size: 15px;
       margin-bottom: 15px;
       border: 1px solid #334155;
     }
     .hud span { font-weight: bold; }
     .blue { color: #38bdf8; }
     .red { color: #f87171; }
+    .gold { color: #facc15; }
     canvas {
       border: 2px solid #38bdf8;
       border-radius: 8px;
@@ -37,14 +56,22 @@
 <body>
   <h1>🏛️ Axiom Engine Web Viewer</h1>
   <div class="sub">100% Deterministic Rust Simulation + Zero-Copy FrameBuffer Rendering</div>
-  <div class="hud">
+
+  <div class="controls">
+    <button id="btnArena" class="active" onclick="switchMode('arena')">Phase 1: Auto-Battler Arena</button>
+    <button id="btnOpenWorld" onclick="switchMode('openworld')">Phase 4: Open-World & 100k NPC Explorer</button>
+  </div>
+
+  <div class="hud" id="hud">
     Tick: <span id="tick">0</span> |
-    <span class="blue">Blue Knights:</span> <span id="blue" class="blue">50</span> |
-    <span class="red">Red Goblins:</span> <span id="red" class="red">50</span> |
+    <span id="hudDetail"></span> |
     FPS: <span id="fps">60</span>
   </div>
   <br>
   <canvas id="canvas" width="640" height="480"></canvas>
+  <div style="color: #64748b; font-size: 13px; margin-top: 8px;">
+    (Open-World Mode: Use WASD / Arrow keys to explore infinite procedural chunks)
+  </div>
 
   <script>
     const width = 640;
@@ -55,9 +82,39 @@
     const buf32 = new Uint32Array(imgData.data.buffer);
 
     let wasmInstance = null;
+    let mode = 'arena'; // 'arena' or 'openworld'
     let lastTime = performance.now();
     let frameCount = 0;
     let fps = 60;
+    let keys = { w: false, a: false, s: false, d: false };
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
+      if (k === 'a' || e.key === 'ArrowLeft') keys.a = true;
+      if (k === 's' || e.key === 'ArrowDown') keys.s = true;
+      if (k === 'd' || e.key === 'ArrowRight') keys.d = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || e.key === 'ArrowUp') keys.w = false;
+      if (k === 'a' || e.key === 'ArrowLeft') keys.a = false;
+      if (k === 's' || e.key === 'ArrowDown') keys.s = false;
+      if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
+    });
+
+    function switchMode(newMode) {
+      mode = newMode;
+      document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
+      document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
+
+      if (mode === 'arena') {
+        wasmInstance.axiom_wasm_init(BigInt(424242), width, height);
+      } else {
+        wasmInstance.axiom_openworld_init(BigInt(777123), width, height, 100000);
+      }
+    }
 
     async function init() {
       try {
@@ -66,9 +123,8 @@
         const { instance } = await WebAssembly.instantiate(bytes, {});
         wasmInstance = instance.exports;
 
-        // Initialize simulation: seed=424242, 640x480 resolution
-        wasmInstance.axiom_wasm_init(BigInt(424242), width, height);
-
+        // Start with Auto-Battler Arena
+        switchMode('arena');
         requestAnimationFrame(loop);
       } catch (err) {
         console.error("Failed to load Axiom WASM module:", err);
@@ -78,18 +134,36 @@
     function loop(now) {
       if (!wasmInstance) return;
 
-      // 1. Step simulation (60Hz discrete tick)
-      wasmInstance.axiom_wasm_step();
+      let ptr, len, tick;
 
-      // 2. Render to internal FrameBuffer
-      wasmInstance.axiom_wasm_render();
+      if (mode === 'arena') {
+        wasmInstance.axiom_wasm_step();
+        wasmInstance.axiom_wasm_render();
+        ptr = wasmInstance.axiom_wasm_get_framebuffer_ptr();
+        len = wasmInstance.axiom_wasm_get_framebuffer_len();
+        tick = wasmInstance.axiom_wasm_get_tick();
 
-      // 3. Zero-copy copy from WASM memory to Canvas
-      const ptr = wasmInstance.axiom_wasm_get_framebuffer_ptr();
-      const len = wasmInstance.axiom_wasm_get_framebuffer_len();
+        const blue = wasmInstance.axiom_wasm_get_blue_alive();
+        const red = wasmInstance.axiom_wasm_get_red_alive();
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="blue">Blue Knights:</span> <span class="blue">${blue}</span> | <span class="red">Red Goblins:</span> <span class="red">${red}</span>`;
+      } else {
+        let dx = (keys.d ? 2 : 0) - (keys.a ? 2 : 0);
+        let dy = (keys.s ? 2 : 0) - (keys.w ? 2 : 0);
+
+        wasmInstance.axiom_openworld_step(dx, dy);
+        wasmInstance.axiom_openworld_render(20);
+        ptr = wasmInstance.axiom_openworld_get_framebuffer_ptr();
+        len = width * height;
+        tick = wasmInstance.axiom_openworld_get_tick();
+
+        const npcs = wasmInstance.axiom_openworld_get_npc_count();
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="gold">Live NPCs:</span> <span class="gold">${npcs.toLocaleString()}</span> | <span class="blue">Minimap Heatmap:</span> Active`;
+      }
+
+      // Zero-copy pixel transfer from WASM memory to Canvas
       const wasmPixels = new Uint32Array(wasmInstance.memory.buffer, ptr, len);
-
-      // ARGB -> RGBA conversion for HTML5 canvas
       for (let i = 0; i < len; i++) {
         const argb = wasmPixels[i];
         const a = (argb >> 24) & 0xFF;
@@ -100,10 +174,7 @@
       }
       ctx.putImageData(imgData, 0, 0);
 
-      // 4. Update HUD
-      document.getElementById("tick").innerText = wasmInstance.axiom_wasm_get_tick();
-      document.getElementById("blue").innerText = wasmInstance.axiom_wasm_get_blue_alive();
-      document.getElementById("red").innerText = wasmInstance.axiom_wasm_get_red_alive();
+      document.getElementById("tick").innerText = tick;
 
       frameCount++;
       if (now - lastTime >= 1000) {

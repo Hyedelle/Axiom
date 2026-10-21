@@ -54,6 +54,110 @@ impl FrameBuffer {
         }
     }
 
+    /// Renders loaded procedural chunks onto the viewport relative to camera position.
+    pub fn render_chunks<const S: usize, const MAX_CHUNKS: usize>(
+        &mut self,
+        chunk_mgr: &axiom_core::chunk::ChunkManager<S, MAX_CHUNKS>,
+        camera_pos: axiom_core::fixed::FixedVec2,
+        tile_size: usize,
+    ) {
+        let cam_x = camera_pos.x.to_int() as i32;
+        let cam_y = camera_pos.y.to_int() as i32;
+        let half_w = (self.width / 2) as i32;
+        let half_h = (self.height / 2) as i32;
+
+        for slot in &chunk_mgr.slots {
+            if !slot.active {
+                continue;
+            }
+            let chunk_origin_x = slot.chunk.coord.x * S as i32;
+            let chunk_origin_y = slot.chunk.coord.y * S as i32;
+
+            for ly in 0..S {
+                for lx in 0..S {
+                    let world_tile_x = chunk_origin_x + lx as i32;
+                    let world_tile_y = chunk_origin_y + ly as i32;
+
+                    let screen_x = half_w + (world_tile_x - cam_x) * tile_size as i32;
+                    let screen_y = half_h + (world_tile_y - cam_y) * tile_size as i32;
+
+                    // Frustum culling check
+                    if screen_x + tile_size as i32 <= 0
+                        || screen_x >= self.width as i32
+                        || screen_y + tile_size as i32 <= 0
+                        || screen_y >= self.height as i32
+                    {
+                        continue;
+                    }
+
+                    let color = match slot.chunk.tiles[ly][lx] {
+                        axiom_core::pcg::TileType::Plains => 0xFF3CB371, // Medium Sea Green
+                        axiom_core::pcg::TileType::Forest => 0xFF195E35, // Forest Green
+                        axiom_core::pcg::TileType::Rock => 0xFF708090,   // Slate Grey
+                        axiom_core::pcg::TileType::Water => 0xFF1E90FF,  // Dodger Blue
+                    };
+
+                    self.draw_rect(screen_x, screen_y, tile_size as i32, tile_size as i32, color);
+                }
+            }
+        }
+    }
+
+    /// Renders a real-time minimap density scatter of 100,000 NPCs.
+    pub fn render_npc_minimap<const SLABS: usize>(
+        &mut self,
+        pool: &axiom_core::npc_crowd::NpcCrowdPool<SLABS>,
+        minimap_x: i32,
+        minimap_y: i32,
+        minimap_w: usize,
+        minimap_h: usize,
+        world_scale: i32,
+    ) {
+        // Draw minimap background border
+        self.draw_rect(
+            minimap_x - 1,
+            minimap_y - 1,
+            minimap_w as i32 + 2,
+            minimap_h as i32 + 2,
+            0xFF2F4F4F, // Dark Slate Gray Border
+        );
+        self.draw_rect(
+            minimap_x,
+            minimap_y,
+            minimap_w as i32,
+            minimap_h as i32,
+            0xCC111111, // Semi-dark transparent background
+        );
+
+        let scale = if world_scale > 0 { world_scale } else { 1 };
+
+        for slab in &pool.slabs {
+            if slab.active_count == 0 {
+                continue;
+            }
+            for npc in &slab.npcs {
+                if !npc.is_active() {
+                    continue;
+                }
+                let wx = (npc.pos.x.to_int() / scale as i64) as i32;
+                let wy = (npc.pos.y.to_int() / scale as i64) as i32;
+
+                let mx = minimap_x + wx.rem_euclid(minimap_w as i32);
+                let my = minimap_y + wy.rem_euclid(minimap_h as i32);
+
+                let color = match npc.activity {
+                    axiom_core::npc_crowd::NpcActivity::Rest => 0xFF4169E1,      // Royal Blue
+                    axiom_core::npc_crowd::NpcActivity::Commute => 0xFFFFD700,   // Gold
+                    axiom_core::npc_crowd::NpcActivity::Work => 0xFFFF8C00,      // Dark Orange
+                    axiom_core::npc_crowd::NpcActivity::Socialize => 0xFF32CD32, // Lime Green
+                    axiom_core::npc_crowd::NpcActivity::Idle => 0xFFD3D3D3,      // Light Gray
+                };
+
+                self.set_pixel(mx, my, color);
+            }
+        }
+    }
+
     /// Renders all active entities from a multi-slab pool onto the framebuffer.
     /// Converts Q32.16 fixed-point coordinates into screen coordinates.
     pub fn render_slab_pool<const SLABS: usize>(

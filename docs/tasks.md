@@ -6,20 +6,21 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-019: WASM 웹 뷰어와 오픈월드 통합 데모 연동 (10만 NPC 미니맵 + 청크 시각화)**
-  - **목표:** `crates/axiom-wasm`에 오픈월드 지형 청크 및 10만 NPC의 밀도 히트맵/위치를 HTML5 Canvas로 초당 60fps 렌더링하는 WebAssembly 브릿지 함수 바인딩 구현
-  - **검증:** WASM 빌드 크기 60KB 이하 유지 및 브라우저 미니맵 렌더러 파이프라인 검증 통과
-  - **가드:** Float 절대 배제, DOM 직접 조작 금지, 순수 TypedArray 메모리 공유
+- [ ] **T-020: Milestone 3 분산 네트워크 롤백 넷코드(Lockstep/GGPO) 프로토타입**
+  - **목표:** `crates/axiom-core`에 네트워크 지연 환경에서 클라이언트 간 입력 스트림 합의, 미확정 입력 예측 실행, 패킷 도착 시 로컬 롤백 및 재시뮬레이션을 수행하는 결정론적 넷코드 모듈(`RollbackNetcode`) 구현
+  - **검증:** 인위적 100ms 지연 및 10% 패킷 손실 환경에서 두 피어 간 상태 해시 100% 동기화 검증 및 `tools/guard.ps1` 통과
+  - **가드:** Float 절대 배제, 완전 비트 일치 보장
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-020: Milestone 3 분산 네트워크 롤백 넷코드(Lockstep/GGPO) 프로토타입**
 - [ ] **T-021: 고정소수점 2D A* 길찾기(NavMesh) 및 장애물 회피 시스템**
+- [ ] **T-022: 대규모 오픈월드 저장/불러오기(Save/Load) 무손실 직렬화 벤치마크**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-019: WASM 웹 뷰어와 오픈월드 통합 데모 연동** (`axiom-wasm`, `FrameBuffer::render_npc_minimap`, HTML5 Canvas 실시간 10만 NPC 활동별 컬러 히트맵 및 무한 청크 실시간 탐험 WASM 바인딩 검증 통과)
 - [x] **T-018: Phase 4 심층 플레이어 상호작용 및 퀘스트/다이얼로그 상태기계 설계** (`QuestRecord`, `QuestJournal`, `DialogueSession`, 64B 정렬, 퀘스트 수락·진행·완료 및 20틱 타임머신 롤백 100% 비트 일치 복원 검증 통과)
 - [x] **T-017: Milestone 2 완성 보고서 및 아키텍처 문서 동기화** (`docs/architecture.md`, `docs/decisions.md` [D-007] 동기화 완료: 10만 NPC 생태계, 무한 청크 스트리밍, 4,096셀 공장 물류, 200기 전투 통합 **1,761 FPS** 실측 명세 공식 등재)
 - [x] **T-016: 오픈월드 RPG 통합 헤드리스 플레이세션 검증** (`HeadlessSession`, 10만 NPC + 무한 청크 + 4,096셀 공장 물류 + 200유닛 전투를 틱당 **0.567ms = 567µs**에 동시 시뮬레이션 — 60fps 예산의 3.4%만 사용, **1,761 FPS** 속도 및 100% 비트 일치 결정론 마스터 해시 검증 통과)
