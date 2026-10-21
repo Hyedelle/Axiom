@@ -17,6 +17,7 @@ pub mod input;
 pub mod logistics;
 pub mod npc_crowd;
 pub mod pcg;
+pub mod quest;
 pub mod spatial;
 pub mod state;
 pub mod storage;
@@ -41,6 +42,10 @@ pub use npc_crowd::{
     Npc, NpcActivity, NpcCrowdPool, NpcTable, DEFAULT_NPC_TABLE_CAPACITY, TICKS_PER_DAY,
 };
 pub use pcg::{Rng, TileMap, TileType};
+pub use quest::{
+    DialogueAction, DialogueChoice, DialogueNode, DialogueSession, ObjectiveType, QuestJournal,
+    QuestRecord, QuestStatus, DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS,
+};
 pub use spatial::{GridCell, SpatialGrid};
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};
 pub use storage::{EntitySlabPool, EntityTable, DEFAULT_TABLE_CAPACITY};
