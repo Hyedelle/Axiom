@@ -6,19 +6,20 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-027: 웹 캔버스(WASM) 기반 대화형 RPG 비주얼 플레이어 릴리즈**
-  - **목표:** `axiom-wasm`에 오픈월드 RPG 통합 세션 바인딩을 추가하여 브라우저에서 HTML5 Canvas 기반으로 실시간 10만 NPC 생태계 뷰포트 + 플레이어 A* 이동 + 퀘스트/ATB 전투 인카운터를 60fps로 대화형 조작 가능한 시각화 웹 데모 구현
-  - **검증:** WASM 빌드 및 바인딩 테스트 통과, `tools/guard.ps1` 통과
-  - **가드:** 무부동소수점, 제로 힙 할당 루프, 100% 결정론 렌더링
+- [ ] **T-028: Milestone 4 오픈월드 완결 감사 보고서 및 엔진 v0.4.0 릴리즈**
+  - **목표:** Phase 1~4 오픈월드 RPG 완결 서브시스템을 집대성하고 `Cargo.toml` v0.4.0 판올림, `docs/architecture.md`, `docs/decisions.md` [D-009] 최신화 및 공식 종합 감사 보고서(`docs/audit-report.md`) 발행
+  - **검증:** `tools/guard.ps1` 통과 및 버전 태그 준비
+  - **가드:** 문서 무결성 및 무결점 커밋
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-028: Milestone 4 오픈월드 완결 감사 보고서 및 엔진 v0.4.0 릴리즈**
+- [ ] **T-029: 네트워크 멀티플레이어 롤백 동기화 실전 통합 테스트**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-027: 웹 캔버스(WASM) 기반 대화형 RPG 비주얼 플레이어 릴리즈** (`axiom-wasm`, `axiom_rpg_*` C-ABI 바인딩, **176 KB** WebAssembly 바이너리 빌드, HTML5 Canvas 60fps 대화형 뷰어: 실시간 10만 NPC 생태계 + 캔버스 클릭 A* 길찾기 AI + 퀘스트 대화 및 ATB 전투 HUD 오버레이 연동 검증 통과)
 - [x] **T-026: 오픈월드 RPG 완결 데모 (무한 탐험 + 길찾기 AI + 퀘스트 + ATB 전투)** (`OpenWorldRpgSession`, `RpgReport`, 10만 NPC + 무한 청크 + 퀘스트 대화 트리 + 2D A* 길찾기 AI + ATB 원소 전투 + 3D 공간 음향 + 6.13MB 무손실 바이너리 저장/로드 100% 비트 일치 복원 및 크로스 세션 결정론 검증 통과)
 - [x] **T-025: Milestone 3 종합 회고 및 엔진 v0.3.0 배포 릴리즈** (`Cargo.toml` v0.3.0 판올림, `docs/architecture.md`, `docs/decisions.md` [D-008], `docs/audit-report.md` 공식 감사 보고서 발행 완료)
 - [x] **T-024: 오픈월드 오디오/사운드 이벤트 헤드리스 시뮬레이터** (`SpatialAudioSimulator`, 역제곱 거리 감쇄 및 스테레오 패닝, 1,000개 사운드 이벤트 공간화 믹싱 **47.3 µs = 0.047ms** 만에 완료 — 이벤트당 **0.05 µs** 초고속 연산 및 100% 비트 일치 검증 통과)

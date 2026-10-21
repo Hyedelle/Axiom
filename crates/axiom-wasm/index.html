@@ -26,11 +26,22 @@
       font-weight: bold;
       border-radius: 6px;
       cursor: pointer;
-      margin: 0 5px;
+      margin: 0 4px;
     }
     button.active {
       background: #38bdf8;
       color: #0f172a;
+    }
+    .action-bar {
+      margin-bottom: 10px;
+      display: none;
+    }
+    .action-btn {
+      background: #334155;
+      color: #facc15;
+      border: 1px solid #facc15;
+      padding: 6px 12px;
+      font-size: 13px;
     }
     .hud {
       display: inline-block;
@@ -45,11 +56,13 @@
     .blue { color: #38bdf8; }
     .red { color: #f87171; }
     .gold { color: #facc15; }
+    .green { color: #4ade80; }
     canvas {
       border: 2px solid #38bdf8;
       border-radius: 8px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
       image-rendering: pixelated;
+      cursor: crosshair;
     }
   </style>
 </head>
@@ -58,8 +71,15 @@
   <div class="sub">100% Deterministic Rust Simulation + Zero-Copy FrameBuffer Rendering</div>
 
   <div class="controls">
-    <button id="btnArena" class="active" onclick="switchMode('arena')">Phase 1: Auto-Battler Arena</button>
-    <button id="btnOpenWorld" onclick="switchMode('openworld')">Phase 4: Open-World & 100k NPC Explorer</button>
+    <button id="btnArena" class="active" onclick="switchMode('arena')">Phase 1: Auto-Battler</button>
+    <button id="btnOpenWorld" onclick="switchMode('openworld')">Phase 3: 100k NPC Streamer</button>
+    <button id="btnRpg" onclick="switchMode('rpg')">Phase 4: Open-World RPG</button>
+  </div>
+
+  <div id="rpgActionBar" class="action-bar">
+    <button class="action-btn" onclick="rpgQuest()">📜 Accept Quest #100</button>
+    <button class="action-btn" onclick="rpgEncounter()">⚔️ Trigger Encounter</button>
+    <button class="action-btn" onclick="rpgPathfind(10, 10)">🎯 A* Route to (10, 10)</button>
   </div>
 
   <div class="hud" id="hud">
@@ -69,8 +89,8 @@
   </div>
   <br>
   <canvas id="canvas" width="640" height="480"></canvas>
-  <div style="color: #64748b; font-size: 13px; margin-top: 8px;">
-    (Open-World Mode: Use WASD / Arrow keys to explore infinite procedural chunks)
+  <div id="instruction" style="color: #64748b; font-size: 13px; margin-top: 8px;">
+    (Phase 1 Mode: 100v100 deterministic auto-battler simulation)
   </div>
 
   <script>
@@ -82,7 +102,7 @@
     const buf32 = new Uint32Array(imgData.data.buffer);
 
     let wasmInstance = null;
-    let mode = 'arena'; // 'arena' or 'openworld'
+    let mode = 'arena'; // 'arena', 'openworld', or 'rpg'
     let lastTime = performance.now();
     let frameCount = 0;
     let fps = 60;
@@ -104,15 +124,56 @@
       if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
     });
 
+    canvas.addEventListener('click', (e) => {
+      if (mode !== 'rpg' || !wasmInstance) return;
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const tileSize = 20;
+      const tileX = Math.floor((mouseX - width / 2) / tileSize);
+      const tileY = Math.floor((mouseY - height / 2) / tileSize);
+      wasmInstance.axiom_rpg_plan_path(tileX, tileY);
+    });
+
+    function rpgQuest() {
+      if (wasmInstance && mode === 'rpg') {
+        wasmInstance.axiom_rpg_interact_quest(1, 100, 999, 1, 500);
+      }
+    }
+
+    function rpgEncounter() {
+      if (wasmInstance && mode === 'rpg') {
+        wasmInstance.axiom_rpg_trigger_encounter(999);
+      }
+    }
+
+    function rpgPathfind(x, y) {
+      if (wasmInstance && mode === 'rpg') {
+        wasmInstance.axiom_rpg_plan_path(x, y);
+      }
+    }
+
     function switchMode(newMode) {
       mode = newMode;
       document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
       document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
+      document.getElementById('btnRpg').className = mode === 'rpg' ? 'active' : '';
+
+      const actionBar = document.getElementById('rpgActionBar');
+      const instruction = document.getElementById('instruction');
 
       if (mode === 'arena') {
+        actionBar.style.display = 'none';
+        instruction.innerText = '(Phase 1 Mode: 100v100 deterministic auto-battler simulation)';
         wasmInstance.axiom_wasm_init(BigInt(424242), width, height);
-      } else {
+      } else if (mode === 'openworld') {
+        actionBar.style.display = 'none';
+        instruction.innerText = '(Phase 3 Mode: Use WASD / Arrow keys to explore infinite procedural chunks & 100k NPCs)';
         wasmInstance.axiom_openworld_init(BigInt(777123), width, height, 100000);
+      } else if (mode === 'rpg') {
+        actionBar.style.display = 'block';
+        instruction.innerText = '(Phase 4 Mode: Click terrain for A* Pathfinding | Use Action buttons for Quests & Combat)';
+        wasmInstance.axiom_rpg_init(BigInt(0x12345678), width, height, 100000);
       }
     }
 
@@ -147,7 +208,7 @@
         const red = wasmInstance.axiom_wasm_get_red_alive();
         document.getElementById('hudDetail').innerHTML =
           `<span class="blue">Blue Knights:</span> <span class="blue">${blue}</span> | <span class="red">Red Goblins:</span> <span class="red">${red}</span>`;
-      } else {
+      } else if (mode === 'openworld') {
         let dx = (keys.d ? 2 : 0) - (keys.a ? 2 : 0);
         let dy = (keys.s ? 2 : 0) - (keys.w ? 2 : 0);
 
@@ -160,6 +221,26 @@
         const npcs = wasmInstance.axiom_openworld_get_npc_count();
         document.getElementById('hudDetail').innerHTML =
           `<span class="gold">Live NPCs:</span> <span class="gold">${npcs.toLocaleString()}</span> | <span class="blue">Minimap Heatmap:</span> Active`;
+      } else if (mode === 'rpg') {
+        let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+        let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+
+        wasmInstance.axiom_rpg_step(dx, dy);
+        wasmInstance.axiom_rpg_render(20);
+        ptr = wasmInstance.axiom_rpg_get_framebuffer_ptr();
+        len = width * height;
+        tick = wasmInstance.axiom_rpg_get_tick();
+
+        const activeQuests = wasmInstance.axiom_rpg_get_active_quests();
+        const doneQuests = wasmInstance.axiom_rpg_get_completed_quests();
+        const xp = wasmInstance.axiom_rpg_get_xp();
+        const inCombat = wasmInstance.axiom_rpg_is_in_combat();
+        const combatDmg = wasmInstance.axiom_rpg_get_combat_damage();
+
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="green">Quests (Act/Done):</span> ${activeQuests}/${doneQuests} | ` +
+          `<span class="gold">XP:</span> ${xp} | ` +
+          `<span class="red">Combat:</span> ${inCombat ? 'ACTIVE' : 'IDLE'} (${combatDmg} Dmg)`;
       }
 
       // Zero-copy pixel transfer from WASM memory to Canvas
