@@ -229,7 +229,7 @@ impl FactoryStructure {
     /// Attempts to push `item` into this structure (belt slot, smelter input, chest).
     /// Returns `true` on success; the cell is left untouched on failure.
     #[inline]
-    fn try_accept(&mut self, item: ItemType) -> bool {
+    pub(crate) fn try_accept(&mut self, item: ItemType) -> bool {
         match &mut self.kind {
             StructureKind::Belt(b) => {
                 if b.item.is_none() {
@@ -264,7 +264,7 @@ impl FactoryStructure {
 
     /// Attempts to take one item out of this structure (belt slot, smelter output, chest).
     #[inline]
-    fn try_take(&mut self) -> ItemType {
+    pub(crate) fn try_take(&mut self) -> ItemType {
         match &mut self.kind {
             StructureKind::Belt(b) => {
                 let item = b.item;
