@@ -71,10 +71,8 @@ if (-not $ClaudeCmd) {
     $ClaudeCmd = "claude"
 }
 
-$Proc = Start-Process -FilePath $ClaudeCmd -ArgumentList @("-p", $SinglePrompt, "--dangerously-skip-permissions") -NoNewWindow -PassThru -RedirectStandardOutput $TmpLog -RedirectStandardError $TmpErr
-$Proc.WaitForExit()
-
-$ExitCode = $Proc.ExitCode
+cmd.exe /c "`"$ClaudeCmd`" -p `"$SinglePrompt`" --dangerously-skip-permissions < NUL > `"$TmpLog`" 2> `"$TmpErr`""
+$ExitCode = $LASTEXITCODE
 Write-Host "    [Claude Finished] Exit Code: $ExitCode" -ForegroundColor $(if ($ExitCode -eq 0) { "Green" } else { "Red" })
 
 if (Test-Path $TmpLog) {
