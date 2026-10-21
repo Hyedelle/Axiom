@@ -6,19 +6,20 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-032: Milestone 5 멀티플레이어 롤백 네트워킹 완결 감사 및 v0.5.0 릴리즈**
-  - **목표:** 분산 멀티플레이어 롤백 네트워킹(GGPO + P2P Co-op Raid + WASM WebRTC DataChannel)을 집대성하고 `Cargo.toml` v0.5.0 판올림, `docs/architecture.md`, `docs/decisions.md` [D-010] 최신화 및 공식 감사 보고서(`docs/audit-report.md`) 발행
-  - **검증:** `tools/guard.ps1` 통과 및 버전 태그 준비
-  - **가드:** 문서 무결성 및 무결점 커밋
+- [ ] **T-033: 오픈월드 RPG 멀티플레이어 3D 공간 음향 및 보이스 패킷 시뮬레이션**
+  - **목표:** 복수의 플레이어가 서로 다른 위치에서 이동/전투할 때 청자(Listener) 위치에 따른 상대적 3D 공간 음향 감쇄 및 스테레오 패닝을 피어별로 독립 연산하고 무오차 검증
+  - **검증:** `cargo test -p axiom-cli --test spatial_net_audio` 및 `tools/guard.ps1` 통과
+  - **가드:** 무부동소수점, 고정 메모리, 100% 결정론 해시
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-033: 오픈월드 RPG 멀티플레이어 3D 공간 음향 및 보이스 패킷 시뮬레이션**
+- [ ] **T-034: 오픈월드 RPG 멀티플레이어 청크 동적 호스팅 & 동기화**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-032: Milestone 5 멀티플레이어 롤백 네트워킹 완결 감사 및 v0.5.0 릴리즈** (`Cargo.toml` v0.5.0 판올림, `docs/architecture.md` Section 10 등재, `docs/decisions.md` [D-010] 채택, `docs/audit-report.md` 공식 감사 승인 완료)
 - [x] **T-031: 오픈월드 RPG 멀티플레이어 P2P 협동 전투 데모** (`MultiplayerRaidPeer`, 2인 협동 P2P 레이드 보스 드래곤 토벌, 지연된 원격 명령 수신 시 과거 프레임으로 롤백 및 재시뮬레이션 후 양방향 피어 간 100% 비트 일치 해시 합의 검증 통과)
 - [x] **T-030: WebAssembly 브라우저 멀티플레이어 데이터채널 연동 인터페이스** (`axiom-wasm`, `axiom_net_*` C-ABI 바인딩, WebRTC DataChannel 원격 입력 수신 시 지연 롤백 트리거 및 재시뮬레이션, 브라우저 2인 P2P 롤백 넷코드 검증 통과)
 - [x] **T-029: 네트워크 멀티플레이어 롤백 동기화 실전 통합 테스트** (`RollbackSession::<128, 32>`, `SimulatedNetworkPipe`, 200ms 대륙간 지연 환경 100프레임 동기화 및 15% 패킷 드랍/재전송 복구 환경에서 피어 간 100% 비트 일치 해시 합의 검증 통과)
