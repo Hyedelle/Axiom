@@ -1,0 +1,23 @@
+#!/bin/sh
+# Axiom Constitutional Pre-Commit Hook
+# Active via: git config core.hooksPath admin/hooks
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+echo "==> [Gate 1~3] 헌법 및 무결성 검증 (admin/check_constitution.sh)..."
+if ! sh admin/check_constitution.sh; then
+    echo "[FAIL] Axiom 헌법 검증에 실패하여 커밋이 거부되었습니다." >&2
+    exit 1
+fi
+
+echo "==> [Gate 4] 외부 러너 테스트 검증 (tools/run_test.ps1)..."
+powershell -ExecutionPolicy Bypass -File tools/run_test.ps1
+test_exit=$?
+
+if [ $test_exit -ne 0 ]; then
+    echo "[FAIL] 단위 테스트를 통과하지 못해 커밋이 거부되었습니다. (Exit Code: $test_exit)" >&2
+    exit 1
+fi
+
+echo "==> [PASS] 모든 Axiom 헌법 및 단위 테스트를 통과했습니다."
+exit 0
