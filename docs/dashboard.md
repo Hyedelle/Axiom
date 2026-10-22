@@ -1,8 +1,8 @@
 ﻿# Axiom Autonomous Engine Telemetry & Health Dashboard
 
-> **Generated:** 2026-10-22 08:59:11 KST  
+> **Generated:** 2026-10-22 09:15:25 KST  
 > **Workspace Version:** v1.0.0 | **Autonomous Loop:** ACTIVE & UNINTERRUPTED  
-> **Total Verified Commits:** 51 (d41e5ef: chore(monitor): update telemetry dashboard and claude worker after T-040)  
+> **Total Verified Commits:** 53 (dd74028: feat(game): implement NPC colony workforce and factory labour assignment (T-042))  
 > **Mechanical Guard Status:** 100% CONSTITUTIONAL PASS  
 
 ---
@@ -36,11 +36,11 @@
 ## Recent Commit History
 
 ``text
+dd74028 feat(game): implement NPC colony workforce and factory labour assignment (T-042)
+dc27876 feat(game): implement multi-chunk procedural factory base expansion (T-041)
 d41e5ef chore(monitor): update telemetry dashboard and claude worker after T-040
 7028c76 feat(game): implement deterministic factory base-building loop prototype (T-040)
 ed100c3 feat(agent): implement headless Claude Code worker bridge for autonomous collaboration
-7be94d4 chore(audit): finalize pre-Track 1 comprehensive inspection and sync telemetry
-a69919c fix(deploy): improve powershell error handling in deploy script
 ``
 
 ---
