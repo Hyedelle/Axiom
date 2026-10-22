@@ -17,6 +17,8 @@
 
 use axiom_core::deterministic_hash;
 
+use crate::defense::{BaseHeart, Turret, Wall, TURRET_AMMO_CAP};
+
 // ---------------------------------------------------------------------------
 // Items
 // ---------------------------------------------------------------------------
@@ -51,6 +53,23 @@ impl ItemType {
     #[inline(always)]
     pub const fn is_none(self) -> bool {
         matches!(self, ItemType::None)
+    }
+
+    /// Turret damage multiplier in percent for this item as ammo; `0` = not ammo.
+    #[inline(always)]
+    pub const fn ammo_damage_pct(self) -> u16 {
+        match self {
+            ItemType::IronOre => 100,
+            ItemType::IronPlate => 150,
+            ItemType::CopperPlate => 200,
+            _ => 0,
+        }
+    }
+
+    /// Whether a turret can load this item.
+    #[inline(always)]
+    pub const fn is_ammo(self) -> bool {
+        self.ammo_damage_pct() > 0
     }
 }
 
@@ -177,6 +196,12 @@ pub enum StructureKind {
     Inserter(Inserter),
     Smelter(Smelter),
     Chest(Chest),
+    /// Defence barrier (T-043, see [`crate::defense`]).
+    Wall(Wall),
+    /// Ammo-fed automatic gun (T-043).
+    Turret(Turret),
+    /// Defence objective (T-043).
+    BaseHeart(BaseHeart),
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +209,8 @@ pub enum StructureKind {
 // ---------------------------------------------------------------------------
 
 /// Padding so that the cell is exactly one 64-byte cache line.
-/// `StructureKind` is 20 bytes (tag + largest payload); 20 + 4 + 40 = 64.
+/// `StructureKind` is 20 bytes (tag + largest 16-byte payload: `MiningDrill` / `Turret`);
+/// 20 + 4 + 40 = 64.
 const STRUCTURE_RESERVED: usize = 40;
 
 /// One factory tile. Exactly 64 bytes, 64-byte aligned (one L1 cache line per tile).
@@ -257,6 +283,19 @@ impl FactoryStructure {
                 c.item = item;
                 c.quantity = c.quantity.saturating_add(1);
                 true
+            }
+            StructureKind::Turret(t) => {
+                if !item.is_ammo() {
+                    return false;
+                }
+                let compatible = t.ammo == 0 || t.ammo_item == item;
+                if compatible && t.ammo < TURRET_AMMO_CAP {
+                    t.ammo_item = item;
+                    t.ammo += 1;
+                    true
+                } else {
+                    false
+                }
             }
             _ => false,
         }
@@ -356,7 +395,7 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
     // ---- placement -------------------------------------------------------
 
     #[inline(always)]
-    fn set(&mut self, x: usize, y: usize, kind: StructureKind) {
+    pub(crate) fn set(&mut self, x: usize, y: usize, kind: StructureKind) {
         if x < W && y < H {
             self.cells[y][x] = FactoryStructure::with_kind(kind);
         }
@@ -577,10 +616,11 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
             if item.is_none() {
                 continue;
             }
-            // Belts may only feed belts and chests directly (inserters feed machines).
+            // Belts may only feed belts, chests and turret magazines directly
+            // (inserters feed machines).
             let target_ok = matches!(
                 self.cells[ty][tx].kind,
-                StructureKind::Belt(_) | StructureKind::Chest(_)
+                StructureKind::Belt(_) | StructureKind::Chest(_) | StructureKind::Turret(_)
             );
             if !target_ok {
                 continue;

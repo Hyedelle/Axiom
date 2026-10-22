@@ -615,6 +615,18 @@ impl<const S: usize, const MC: usize, const MF: usize> WorldFactory<S, MC, MF> {
         self.with_grid_at(tx, ty, |g, x, y| g.place_chest(x, y))
     }
 
+    pub fn place_wall_at(&mut self, tx: i64, ty: i64) -> bool {
+        self.with_grid_at(tx, ty, |g, x, y| g.place_wall(x, y))
+    }
+
+    pub fn place_turret_at(&mut self, tx: i64, ty: i64) -> bool {
+        self.with_grid_at(tx, ty, |g, x, y| g.place_turret(x, y))
+    }
+
+    pub fn place_base_heart_at(&mut self, tx: i64, ty: i64) -> bool {
+        self.with_grid_at(tx, ty, |g, x, y| g.place_base_heart(x, y))
+    }
+
     /// Structure kind at a world tile (`Empty` if the chunk is unclaimed).
     pub fn structure_at(&self, tx: i64, ty: i64) -> StructureKind {
         match self.locate(tx, ty) {

@@ -6,17 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-(T-042 완료 - 다음 태스크는 관제탑이 백로그 T-043에서 승격)
+(T-043 완료 - 다음 태스크는 관제탑이 백로그 T-044에서 승격)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-043: 거점 방어(Base Defense) & 몬스터 웨이브 오토배틀러 연동**
 - [ ] **T-044: WebAssembly 웹 캔버스 팩토리 기지 대화형 건설 인터페이스 릴리즈**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-043: 거점 방어(Base Defense) & 몬스터 웨이브 오토배틀러 연동** (`crates/axiom-game/src/defense.rs`, `StructureKind::Wall`/`Turret`/`BaseHeart` 16B 페이로드로 `FactoryStructure` 64B 셀 유지, `FactoryGrid::place_wall/place_turret/place_base_heart` 및 `WorldFactory::*_at` 배치, 포탑 탄약(철광석 100%/철판 150%/구리판 200%) 벨트 직결·인서터 투입·인접 체스트 자동 보급(`TURRET_AMMO_CAP` 20), `WaveDirector<CAP>` 64B 정렬 `repr(C)` 시드 `Rng` 가장자리 스폰 주기 웨이브(10틱 첫 웨이브, 50틱 간격, 4+2n 성장), `axiom_core::combat::BattleArena`/`CombatUnit` 몬스터 슬랩 연동, 정수 제곱거리 포탑 자동 사격 및 몬스터 최근접 방어 타일 공격, 벽/포탑 `hp` 소진 시 잔해 `Chest`(석재 4/철판 6) 생성, 하트 파괴 시 `base_fallen`, 힙 제로 `tick`/`tick_world`, 8개 단위 테스트 및 100틱 2웨이브 10기 전멸·하트 무피해 100% 비트 일치 해시 `0xF4D127AA8361ED57` 결정론 검증 통과)
 - [x] **T-042: 10만 NPC 주민 영입 및 공장 노동/물류 자동화 배정 시스템** (`crates/axiom-game/src/worker.rs`, `WorkerRole` Miner/SmelterOperator/Hauler/Technician, `WorkerAssignment` 64B 정렬 `repr(C)` 레코드, `ColonyWorkforce<CAP>` 플랫 슬랩 고용/배정/해제, `axiom_core::Npc` 에너지 ↔ 스태미나 양방향 동기화(`hire`/`sync_npc`), 정수 생산성 버프(기본 +25%/+20% + 숙련도 5%/레벨) `MiningDrill`/`Smelter`/`Inserter`/`Belt` 속도 적용, 스태미나 소모(2/틱)·휴식(5/틱) 히스테리시스(100/600), `Hauler` 인력 물류 운반 자원 보존 검증, `WorldFactory` 청크 퇴출 시 Idle 폴백, 힙 제로 `tick`/`tick_world`, 13개 단위 테스트 및 100틱 100% 비트 일치 해시 `0xE3FD24FCCCC2FD94` 결정론 검증 통과)
 - [x] **T-041: 오픈월드 무한 청크 매장지 탐험과 팩토리 기지 확장 연동** (`crates/axiom-game/src/world_factory.rs`, `WorldFactory<CHUNK_SIZE, ACTIVE_CHUNKS>`, 절차적 시드 기반 `generate_ore_veins` 4대 광맥 스폰, 청크 경계 `CrossChunkLogistics` 무손실 벨트 아이템 이송, 플레이어 원거리 이동 청크 퇴출 시에도 기지 생산 불변 보존 검증, 100틱 다중 청크 100% 비트 일치 해시 `0x199049755F60B310` 결정론 검증 통과)
 - [x] **T-040: crates/axiom-game 자원 채굴 및 자동화 물류 기지 건설 루프 프로토타입** (`axiom-game` 신규 크레이트, `FactoryStructure` 64B 정렬 셀, `FactoryGrid<W, H>`, `MiningDrill`/`Belt`/`Inserter`/`Smelter`/`Chest`, 힙 제로 4단계 `step()`, [채굴 ➔ 벨트 ➔ 투입 ➔ 제련 ➔ 철판] 100틱 루프 철판 **47장** 적재 및 자원 보존 검증, 32x32 그리드 틱당 **6.1 µs**, 100틱 양 그리드 100% 비트 일치 해시 `0xF62F1795D5860647` 결정론 검증 통과)
