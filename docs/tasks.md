@@ -6,25 +6,24 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-048: 범용 C-ABI 및 WASM Engine SDK 아키텍처 구축 (`crates/axiom-sdk`)**
+- [ ] **T-049: 팩토리 RPG를 신규 데이터 드리븐 SDK 위의 예제 게임으로 리팩토링**
   - **목표:**
-    - 외부 언어(TypeScript, C#, Python 등) 및 WASM 캔버스에서 엔진을 직접 제어할 수 있는 **데이터 드리븐 Engine SDK 크레이트(`axiom-sdk`)** 생성.
-    - 엔진 생명주기 API: `axiom_engine_create`, `axiom_engine_destroy`, `axiom_engine_tick`, `axiom_engine_state_hash`.
-    - 스키마 등록 C-ABI: `axiom_schema_register_type`, `axiom_schema_register_recipe`.
-    - 타일 엔티티 그리드 조작 C-ABI: `axiom_grid_set_tile`, `axiom_grid_get_tile`, `axiom_grid_push_item`, `axiom_grid_pop_item`.
-    - 64바이트 정렬 메모리 포인터 직접 전달로 제로-카피(Zero-Copy) 버퍼 인터페이스 구현.
-    - 100% 무부동소수점, 무할당, 결정론적 C-ABI 호출 검증.
+    - 기존 `axiom-game` 및 `axiom-wasm`의 하드코딩된 도메인 로직을 신규 `axiom-sdk` 스키마 및 C-ABI를 활용하는 순수 클라이언트 예제 구조로 재정렬.
+    - 엔진 코어는 100% 도메인 프리 범용 엔진으로 보존되고, 게임 콘텐츠(광석, 드릴, 제련소, 포탑, 몬스터)는 데이터 드리븐 스키마 등록을 통해 구동됨을 실증.
+    - 웹 캔버스 플레이어 및 GitHub Pages 배포와의 완전한 호환성 유지.
+    - 무부동소수점, 제로-힙, 결정론적 시뮬레이션 검증.
   - **시공:** Antigravity (총괄 관제탑)
-  - **검증:** `cargo test -p axiom-sdk` 및 `tools/guard.ps1` 통과
+  - **검증:** `cargo test --workspace` 및 `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-049: 팩토리 RPG를 신규 데이터 드리븐 SDK 위의 예제 게임으로 리팩토링**
+- [ ] **T-050: Axiom Engine v1.2.0 범용 엔진 아키텍처 공식 감사 및 릴리즈**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-048: 범용 C-ABI 및 WASM Engine SDK 아키텍처 구축 (`crates/axiom-sdk`)** (`crates/axiom-sdk`, `EngineContext` 범용 컨텍스트, `axiom_engine_*` 생명주기 API, `axiom_schema_*` 런타임 스키마/레시피 등록 C-ABI, `axiom_grid_*` 64B 제로-카피 타일 조작 및 버퍼 포인터 연동, FNV-1a 엔진 상태 해시, 3개 단위 C-ABI 테스트 및 무부동소수점 무결성 검증 완료)
 - [x] **T-047: 범용 타일 엔티티 및 공간 그리드 컴포넌트 파이프라인 (`crates/axiom-core/src/tile_entity.rs`)** (`crates/axiom-core/src/tile_entity.rs`, `TileCell` 64B 정렬 레코드, `TileGrid<W, H>` 고정 슬랩 2D 무할당 평면 그리드, O(1) 좌표 접근 및 이웃 탐색, `process_recipes` 데이터 드리븐 제작 파이프라인, FNV-1a 그리드 결정론 해시 검증, 5개 신규 단위 테스트 및 무부동소수점 무결성 검증 완료)
 - [x] **T-046: 데이터 드리븐 스키마 정의 및 무할당 룩업 테이블 (`crates/axiom-core/src/schema.rs`)** (`crates/axiom-core/src/schema.rs`, `TypeDefinition` 64B 정렬 레코드, `RecipeDefinition` 64B 변환 규칙, `SchemaHeader` 64B 바이너리 헤더, `TypeRegistry<CAP>`/`RecipeRegistry<CAP>` 고정 슬랩 무할당 O(1) 룩업, FNV-1a 무할당 해시, 직렬화/역직렬화 및 31개 단위 테스트 100% 통과, 무부동소수점 무결성 검증 완료)
 - [x] **T-045: 오픈월드 팩토리 RPG 통합 마일스톤 완결 및 프로덕션 v1.1.0 릴리즈** (`crates/axiom-game/src/defense.rs` 성벽 회피 미로 길찾기(Mazing) 및 성벽 집중 타격 돌파 로직 추가, `crates/axiom-wasm/index.html` 하드웨어 오프스크린 더블 버퍼링 및 고속 픽셀 블릿(0.05ms) 적용, `Cargo.toml` v1.1.0 공식 판올림, `docs/architecture.md` Section 13 등재, `docs/decisions.md` [D-014] 채택, `docs/audit-report.md` 공식 종합 감사 승인, GitHub Pages 원클릭 라이브 배포 완료)

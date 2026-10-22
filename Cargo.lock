@@ -28,6 +28,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "axiom-sdk"
+version = "1.1.0"
+dependencies = [
+ "axiom-core",
+]
+
+[[package]]
 name = "axiom-wasm"
 version = "1.1.0"
 dependencies = [
