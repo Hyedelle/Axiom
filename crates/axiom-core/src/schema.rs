@@ -304,6 +304,20 @@ impl<const CAP: usize> RecipeRegistry<CAP> {
         true
     }
 
+    /// Finds a recipe by its unique ID.
+    #[inline(always)]
+    pub fn find_by_id(&self, id: u16) -> Option<&RecipeDefinition> {
+        if id == 0 {
+            return None;
+        }
+        for i in 0..self.count {
+            if self.recipes[i].id == id {
+                return Some(&self.recipes[i]);
+            }
+        }
+        None
+    }
+
     /// Finds the first matching recipe that consumes `input_id`.
     #[inline(always)]
     pub fn find_by_input(&self, input_id: u16) -> Option<&RecipeDefinition> {

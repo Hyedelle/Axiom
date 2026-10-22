@@ -28,6 +28,7 @@ pub mod spatial;
 pub mod state;
 pub mod storage;
 pub mod tick;
+pub mod tile_entity;
 pub mod time_machine;
 pub mod world_time_machine;
 
@@ -78,6 +79,7 @@ pub use spatial::{GridCell, SpatialGrid};
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};
 pub use storage::{EntitySlabPool, EntityTable, DEFAULT_TABLE_CAPACITY};
 pub use tick::{Tick, DELTA_TIME_MICROS, TICK_RATE_HZ};
+pub use tile_entity::{tile_flags, TileCell, TileGrid};
 pub use time_machine::{RollbackError, TimeMachine};
 pub use world_time_machine::{
     WorldSnapshot, WorldTimeMachine, DEFAULT_WORLD_ROLLBACK_CAPACITY,
