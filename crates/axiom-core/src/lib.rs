@@ -22,6 +22,7 @@ pub mod npc_crowd;
 pub mod pathfinding;
 pub mod pcg;
 pub mod quest;
+pub mod schema;
 pub mod serialization;
 pub mod spatial;
 pub mod state;
@@ -68,6 +69,10 @@ pub use quest::{
 };
 pub use serialization::{
     SaveHeader, SerializationError, WorldSerializer, AXM_MAGIC, AXM_VERSION,
+};
+pub use schema::{
+    category as schema_category, RecipeDefinition, RecipeRegistry, SchemaHeader, TypeDefinition,
+    TypeRegistry, DEFAULT_RECIPE_REGISTRY_CAPACITY, DEFAULT_TYPE_REGISTRY_CAPACITY, SCHEMA_MAGIC,
 };
 pub use spatial::{GridCell, SpatialGrid};
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};

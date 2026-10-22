@@ -1,8 +1,8 @@
 ﻿# Axiom Autonomous Engine Telemetry & Health Dashboard
 
-> **Generated:** 2026-10-22 10:17:46 KST  
+> **Generated:** 2026-10-22 10:49:19 KST  
 > **Workspace Version:** v1.1.0 | **Autonomous Loop:** ACTIVE & UNINTERRUPTED  
-> **Total Verified Commits:** 57 (2f37b10: feat(wasm): implement interactive factory base defense web canvas player and deploy live (T-044))  
+> **Total Verified Commits:** 59 (911cdec: fix(wasm): auto-equip newly placed turrets with ammo and enlarge ammo chest stock)  
 > **Mechanical Guard Status:** 100% CONSTITUTIONAL PASS  
 
 ---
@@ -36,11 +36,11 @@
 ## Recent Commit History
 
 ``text
+911cdec fix(wasm): auto-equip newly placed turrets with ammo and enlarge ammo chest stock
+f07b3be feat(release): Axiom v1.1.0 Open-World Factory RPG milestone release (T-045)
 2f37b10 feat(wasm): implement interactive factory base defense web canvas player and deploy live (T-044)
 aeb402e chore(monitor): update telemetry dashboard after T-043
 c9a1acf feat(game): implement base defense and monster wave auto-battler (T-043)
-7f1930d chore: calibrate debug pathfinding benchmark tolerance and update dashboard
-dd74028 feat(game): implement NPC colony workforce and factory labour assignment (T-042)
 ``
 
 ---

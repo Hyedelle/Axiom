@@ -6,16 +6,26 @@
 ---
 
 ## ▶ [CURRENT]
-(모든 마일스톤 및 태스크 100% 완결 - Axiom v1.1.0 프로덕션 릴리즈 완료)
+- [ ] **T-047: 범용 타일 엔티티 및 공간 그리드 컴포넌트 파이프라인 (`crates/axiom-core/src/tile_entity.rs`)**
+  - **목표:**
+    - 하드코딩된 공장 건물 종류(`StructureKind`)를 대체하는 **데이터 드리븐 타일 엔티티 파이프라인** 구현.
+    - `TileCell` (64B 캐시라인 일치 구조: `type_id`, `state_flags`, `inventory: [ItemId; 4]`, `work_progress: u16`, `hp: u16`, `custom_payload: [u8; 32]`).
+    - `SpatialGrid<CAP_W, CAP_H>` (무할당 평면 배열 슬랩, O(1) 좌표 접근, 이웃 탐색, 틱 일괄 순회 파이프라인).
+    - `SchemaRegistry`와 결합한 범용 변환 및 틱 프로세서 검증.
+    - 100% 무부동소수점(`Fixed`/정수만 사용), 제로-힙 무결성 검증.
+  - **시공:** Antigravity (총괄 관제탑)
+  - **검증:** `cargo test -p axiom-core` 및 `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-(전체 로드맵 완료)
+- [ ] **T-048: 범용 C-ABI 및 WASM Engine SDK 아키텍처 구축 (`crates/axiom-sdk`)**
+- [ ] **T-049: 팩토리 RPG를 신규 데이터 드리븐 SDK 위의 예제 게임으로 리팩토링**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-046: 데이터 드리븐 스키마 정의 및 무할당 룩업 테이블 (`crates/axiom-core/src/schema.rs`)** (`crates/axiom-core/src/schema.rs`, `TypeDefinition` 64B 정렬 레코드, `RecipeDefinition` 64B 변환 규칙, `SchemaHeader` 64B 바이너리 헤더, `TypeRegistry<CAP>`/`RecipeRegistry<CAP>` 고정 슬랩 무할당 O(1) 룩업, FNV-1a 무할당 해시, 직렬화/역직렬화 및 31개 단위 테스트 100% 통과, 무부동소수점 무결성 검증 완료)
 - [x] **T-045: 오픈월드 팩토리 RPG 통합 마일스톤 완결 및 프로덕션 v1.1.0 릴리즈** (`crates/axiom-game/src/defense.rs` 성벽 회피 미로 길찾기(Mazing) 및 성벽 집중 타격 돌파 로직 추가, `crates/axiom-wasm/index.html` 하드웨어 오프스크린 더블 버퍼링 및 고속 픽셀 블릿(0.05ms) 적용, `Cargo.toml` v1.1.0 공식 판올림, `docs/architecture.md` Section 13 등재, `docs/decisions.md` [D-014] 채택, `docs/audit-report.md` 공식 종합 감사 승인, GitHub Pages 원클릭 라이브 배포 완료)
 - [x] **T-044: WebAssembly 웹 캔버스 팩토리 기지 대화형 건설 인터페이스 릴리즈** (`crates/axiom-wasm/src/lib.rs`, `axiom_factory_*` C-ABI 15개 엔드포인트 연동, 32x32 기지 캔버스 실시간 래스터라이징(벨트·아이템·채굴기·제련소 연기·포탑 궤적선·몬스터 체력바·베이스 하트 코어), `index.html` 팩토리 건설 툴바(드릴/벨트/투입기/제련소/상자/벽/포탑/철거/회전), 실시간 마우스 클릭 및 터치 배치, 16명 주민 자동 배치 연동, 11개 단위 테스트 및 100틱 비트 일치 결정론 통과, 581KB 경량 WASM 빌드 및 GitHub Pages 원클릭 라이브 배포 완료)
 - [x] **T-043: 거점 방어(Base Defense) & 몬스터 웨이브 오토배틀러 연동** (`crates/axiom-game/src/defense.rs`, `StructureKind::Wall`/`Turret`/`BaseHeart` 16B 페이로드로 `FactoryStructure` 64B 셀 유지, `FactoryGrid::place_wall/place_turret/place_base_heart` 및 `WorldFactory::*_at` 배치, 포탑 탄약(철광석 100%/철판 150%/구리판 200%) 벨트 직결·인서터 투입·인접 체스트 자동 보급(`TURRET_AMMO_CAP` 20), `WaveDirector<CAP>` 64B 정렬 `repr(C)` 시드 `Rng` 가장자리 스폰 주기 웨이브(10틱 첫 웨이브, 50틱 간격, 4+2n 성장), `axiom_core::combat::BattleArena`/`CombatUnit` 몬스터 슬랩 연동, 정수 제곱거리 포탑 자동 사격 및 몬스터 최근접 방어 타일 공격, 벽/포탑 `hp` 소진 시 잔해 `Chest`(석재 4/철판 6) 생성, 하트 파괴 시 `base_fallen`, 힙 제로 `tick`/`tick_world`, 8개 단위 테스트 및 100틱 2웨이브 10기 전멸·하트 무피해 100% 비트 일치 해시 `0xF4D127AA8361ED57` 결정론 검증 통과)
