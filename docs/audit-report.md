@@ -43,6 +43,27 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T060] 무손실 정수배 픽셀 스케일러 & 전체화면 모드 (1x/2x/F11) [완료]
+- **목표:** QHD/4K 고해상도 모니터에서 레트로 픽셀 아트의 흐림/왜곡 없는 무손실 정수배(Integer Scaling 1x/2x) 래스터라이징 및 F11 전체화면 토글 지원.
+- **대상 파일:**
+  1. `crates/axiom-render/src/framebuffer.rs`:
+     - `upscale_nearest_2x(src: &[u32], src_w: usize, src_h: usize, dst: &mut [u32])`:
+       - 1픽셀을 2x2 정수 블록으로 고속 복제 (순수 정수 연산, 0 float)
+       - `dst` 크기: `(src_w * 2) * (src_h * 2)`
+  2. `crates/axiom-cli/src/desktop.rs`:
+     - 창 크기 및 스케일 상태 관리 (`ScaleMode: 1x, 2x, Fullscreen`)
+     - `F10` 키: 1x (704x544) ↔ 2x (1408x1088) 스케일 토글
+     - `F11` 키: 전체화면(Fullscreen) 토글
+     - 사이드바 범례에 `F10:SCL`, `F11:FULL` 추가
+  3. 신규 단위 테스트:
+     - `crates/axiom-render/src/framebuffer.rs`: `test_upscale_nearest_2x_exactness`
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 원천 배제, 순수 정수/비트 연산
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
 ### [RECIPE-20261022-T059] Glenn Fiedler 'Fix Your Timestep' 누적기 루프 (`crates/axiom-cli/src/desktop.rs`) [완료]
 - **목표:** Windows OS Sleep Jitter 및 144Hz/240Hz 게이밍 모니터에서 발생하는 마이크로 스터터링(저더)을 완전히 박멸하고, 60Hz 불변 틱 시뮬레이션과 모니터 주사율 렌더링을 완전히 분리하는 누적기(Accumulator) 루프 구축.
 - **대상 파일:**

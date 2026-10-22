@@ -958,7 +958,9 @@ impl DesktopEngine {
         draw_text(fb, "F3:PROF", rx, 204, 0xFF38BDF8);
         draw_text(fb, "F5:QSAVE", rx, 214, 0xFF38BDF8);
         draw_text(fb, "F9:QLOAD", rx, 224, 0xFF38BDF8);
-        draw_text(fb, "ESC:EXIT", rx, 234, 0xFF94A3B8);
+        draw_text(fb, "F10:SCL", rx, 234, 0xFF38BDF8);
+        draw_text(fb, "F11:FULL", rx, 244, 0xFF38BDF8);
+        draw_text(fb, "ESC:EXIT", rx, 254, 0xFF94A3B8);
 
         // 7. Top Header Bar (Heart HP & Status)
         fb.draw_rect(GRID_OFFSET_X, 0, GRID_PIXEL_SIZE, 16, 0xFF0F172A);
@@ -1087,21 +1089,53 @@ impl DesktopEngine {
     }
 }
 
-/// Main desktop window runner.
-pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
+/// Screen scale and presentation mode for Desktop Studio.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScaleMode {
+    X1,
+    X2,
+    Fullscreen,
+}
+
+impl ScaleMode {
+    /// Returns the descriptive label of the scale mode.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::X1 => "1X (704x544)",
+            Self::X2 => "2X (1408x1088)",
+            Self::Fullscreen => "FULLSCREEN",
+        }
+    }
+}
+
+/// Helper to construct a new desktop window with the specified scale mode.
+pub fn create_desktop_window(mode: ScaleMode) -> Result<Window, minifb::Error> {
+    let (scale, resize, borderless) = match mode {
+        ScaleMode::X1 => (minifb::Scale::X1, false, false),
+        ScaleMode::X2 => (minifb::Scale::X2, false, false),
+        ScaleMode::Fullscreen => (minifb::Scale::FitScreen, true, true),
+    };
+
     let mut window = Window::new(
-        "Axiom Native Engine v1.3.0 - Desktop Studio",
+        "Axiom Native Engine v1.4.0 - Desktop Studio",
         WIN_WIDTH,
         WIN_HEIGHT,
         WindowOptions {
-            resize: false,
-            scale: minifb::Scale::X1,
+            resize,
+            scale,
+            borderless,
+            scale_mode: minifb::ScaleMode::AspectRatioStretch,
             ..WindowOptions::default()
         },
     )?;
-
-    // Smooth target refresh rate (144 FPS) decoupled from simulation tick rate
     window.set_target_fps(144);
+    Ok(window)
+}
+
+/// Main desktop window runner.
+pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
+    let mut scale_mode = ScaleMode::X1;
+    let mut window = create_desktop_window(scale_mode)?;
 
     let seed = 0xABCD_9999_7777;
     let mut engine = DesktopEngine::new(seed);
@@ -1118,7 +1152,7 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
     let mut accumulator = Duration::ZERO;
 
     println!("🚀 [Axiom Desktop Studio] Launched in 704x544 native window at {} Hz fixed simulation.", TICK_RATE_HZ);
-    println!("   Controls: WASD (Move), 1~8 (Tool), R (Rotate), LMB (Build), RMB (Clear), F3 (Profiler), F5 (Save), F9 (Load), ESC (Exit)");
+    println!("   Controls: WASD (Move), 1~8 (Tool), R (Rotate), LMB (Build), RMB (Clear), F3 (Profiler), F5 (Save), F9 (Load), F10 (Scale), F11 (Fullscreen), ESC (Exit)");
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let current_time = std::time::Instant::now();
@@ -1201,6 +1235,48 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         if window.is_key_pressed(Key::F9, KeyRepeat::No) {
             if let Err(e) = engine.load_from_file("saves/quick.axiom") {
                 engine.set_notification(format!("[LOAD FAILED: {}]", e), 120);
+            }
+        }
+
+        // F10: Toggle 1x / 2x Scale
+        if window.is_key_pressed(Key::F10, KeyRepeat::No) {
+            let next_mode = match scale_mode {
+                ScaleMode::X1 => ScaleMode::X2,
+                ScaleMode::X2 => ScaleMode::X1,
+                ScaleMode::Fullscreen => ScaleMode::X2,
+            };
+            match create_desktop_window(next_mode) {
+                Ok(new_win) => {
+                    window = new_win;
+                    scale_mode = next_mode;
+                    previous_time = std::time::Instant::now();
+                    accumulator = Duration::ZERO;
+                    engine.set_notification(format!("[SCALE: {}]", scale_mode.as_str()), 90);
+                }
+                Err(e) => {
+                    engine.set_notification(format!("[SCALE FAILED: {}]", e), 120);
+                }
+            }
+        }
+
+        // F11: Toggle Fullscreen
+        if window.is_key_pressed(Key::F11, KeyRepeat::No) {
+            let next_mode = if scale_mode == ScaleMode::Fullscreen {
+                ScaleMode::X1
+            } else {
+                ScaleMode::Fullscreen
+            };
+            match create_desktop_window(next_mode) {
+                Ok(new_win) => {
+                    window = new_win;
+                    scale_mode = next_mode;
+                    previous_time = std::time::Instant::now();
+                    accumulator = Duration::ZERO;
+                    engine.set_notification(format!("[DISPLAY: {}]", scale_mode.as_str()), 90);
+                }
+                Err(e) => {
+                    engine.set_notification(format!("[FULLSCREEN FAILED: {}]", e), 120);
+                }
             }
         }
 
@@ -1502,5 +1578,63 @@ mod tests {
 
         assert_eq!(clamp_ticks, 60, "1,000ms effective simulation time with clamped spike must yield exactly 60 ticks");
         assert_eq!(clamp_engine.tick, 60);
+    }
+
+    #[test]
+    fn test_scale_mode_transitions_and_labels() {
+        assert_eq!(ScaleMode::X1.as_str(), "1X (704x544)");
+        assert_eq!(ScaleMode::X2.as_str(), "2X (1408x1088)");
+        assert_eq!(ScaleMode::Fullscreen.as_str(), "FULLSCREEN");
+
+        // F10 logic: X1 -> X2 -> X1, Fullscreen -> X2
+        let f10_step = |mode: ScaleMode| match mode {
+            ScaleMode::X1 => ScaleMode::X2,
+            ScaleMode::X2 => ScaleMode::X1,
+            ScaleMode::Fullscreen => ScaleMode::X2,
+        };
+
+        assert_eq!(f10_step(ScaleMode::X1), ScaleMode::X2);
+        assert_eq!(f10_step(ScaleMode::X2), ScaleMode::X1);
+        assert_eq!(f10_step(ScaleMode::Fullscreen), ScaleMode::X2);
+
+        // F11 logic: non-Fullscreen -> Fullscreen, Fullscreen -> X1
+        let f11_step = |mode: ScaleMode| {
+            if mode == ScaleMode::Fullscreen {
+                ScaleMode::X1
+            } else {
+                ScaleMode::Fullscreen
+            }
+        };
+
+        assert_eq!(f11_step(ScaleMode::X1), ScaleMode::Fullscreen);
+        assert_eq!(f11_step(ScaleMode::X2), ScaleMode::Fullscreen);
+        assert_eq!(f11_step(ScaleMode::Fullscreen), ScaleMode::X1);
+    }
+
+    #[test]
+    fn test_desktop_software_upscale_2x_buffer() {
+        let mut fb = FrameBuffer::new(WIN_WIDTH, WIN_HEIGHT);
+        // Paint test patterns
+        fb.set_pixel(0, 0, 0xFF0A0F1D);
+        fb.set_pixel(WIN_WIDTH as i32 - 1, WIN_HEIGHT as i32 - 1, 0xFF14B8A6);
+
+        let up = fb.to_upscaled_2x();
+        assert_eq!(up.width, WIN_WIDTH * 2);
+        assert_eq!(up.height, WIN_HEIGHT * 2);
+        assert_eq!(up.pixels.len(), (WIN_WIDTH * 2) * (WIN_HEIGHT * 2));
+
+        // Top-left 2x2 should match (0, 0)
+        assert_eq!(up.pixels[0], 0xFF0A0F1D);
+        assert_eq!(up.pixels[1], 0xFF0A0F1D);
+        assert_eq!(up.pixels[up.width], 0xFF0A0F1D);
+        assert_eq!(up.pixels[up.width + 1], 0xFF0A0F1D);
+
+        // Bottom-right 2x2 should match (WIN_WIDTH - 1, WIN_HEIGHT - 1)
+        let last_row_start = (up.height - 1) * up.width;
+        let last_idx = last_row_start + up.width - 1;
+        assert_eq!(up.pixels[last_idx], 0xFF14B8A6);
+        assert_eq!(up.pixels[last_idx - 1], 0xFF14B8A6);
+        assert_eq!(up.pixels[last_idx - up.width], 0xFF14B8A6);
+        assert_eq!(up.pixels[last_idx - up.width - 1], 0xFF14B8A6);
     }
 }

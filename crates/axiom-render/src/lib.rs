@@ -6,5 +6,5 @@
 pub mod framebuffer;
 pub mod sprites;
 
-pub use framebuffer::FrameBuffer;
+pub use framebuffer::{upscale_nearest_2x, FrameBuffer};
 pub use sprites::*;

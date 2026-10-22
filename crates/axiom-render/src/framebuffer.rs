@@ -267,6 +267,56 @@ impl FrameBuffer {
     pub fn as_mut_slice(&mut self) -> &mut [u32] {
         &mut self.pixels
     }
+
+    /// Creates a 2x nearest-neighbor upscaled copy of this framebuffer.
+    pub fn to_upscaled_2x(&self) -> Self {
+        let mut dst = Self::new(self.width * 2, self.height * 2);
+        upscale_nearest_2x(&self.pixels, self.width, self.height, &mut dst.pixels);
+        dst
+    }
+}
+
+/// Upscales a source pixel buffer by a factor of 2 using nearest-neighbor replication.
+///
+/// Replicates each source pixel into a 2x2 square in the destination buffer.
+/// Destination width must be `src_w * 2`, and destination height must be `src_h * 2`.
+/// Zero floats, bounds checked and cache-friendly.
+///
+/// # Panics
+/// Panics if `src.len() < src_w * src_h` or `dst.len() < (src_w * 2) * (src_h * 2)`.
+pub fn upscale_nearest_2x(src: &[u32], src_w: usize, src_h: usize, dst: &mut [u32]) {
+    let dst_w = src_w * 2;
+    let dst_h = src_h * 2;
+    let total_src = src_w * src_h;
+    let total_dst = dst_w * dst_h;
+
+    assert!(
+        src.len() >= total_src,
+        "Source buffer too small: required {}, got {}",
+        total_src,
+        src.len()
+    );
+    assert!(
+        dst.len() >= total_dst,
+        "Destination buffer too small: required {}, got {}",
+        total_dst,
+        dst.len()
+    );
+
+    for sy in 0..src_h {
+        let src_row = &src[sy * src_w..(sy + 1) * src_w];
+        let dst_row0_start = (sy * 2) * dst_w;
+        let dst_row1_start = dst_row0_start + dst_w;
+
+        for sx in 0..src_w {
+            let px = src_row[sx];
+            let dx = sx * 2;
+            dst[dst_row0_start + dx] = px;
+            dst[dst_row0_start + dx + 1] = px;
+            dst[dst_row1_start + dx] = px;
+            dst[dst_row1_start + dx + 1] = px;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -348,5 +398,64 @@ mod tests {
         fb.clear(0xFF000000);
         fb.draw_sprite_16x16_tinted(0, 0, &sprite, 0xFFFF0000);
         assert_eq!(fb.pixels[0], 0xFFFF0000);
+    }
+
+    #[test]
+    fn test_upscale_nearest_2x_exactness() {
+        let src_w = 4;
+        let src_h = 4;
+        let mut src = vec![0u32; src_w * src_h];
+        for y in 0..src_h {
+            for x in 0..src_w {
+                src[y * src_w + x] = 0xFF00_0000 | ((y as u32) << 8) | (x as u32);
+            }
+        }
+
+        let dst_w = src_w * 2;
+        let dst_h = src_h * 2;
+        let mut dst = vec![0u32; dst_w * dst_h];
+
+        upscale_nearest_2x(&src, src_w, src_h, &mut dst);
+
+        for sy in 0..src_h {
+            for sx in 0..src_w {
+                let expected = src[sy * src_w + sx];
+                let dy0 = sy * 2;
+                let dy1 = dy0 + 1;
+                let dx0 = sx * 2;
+                let dx1 = dx0 + 1;
+
+                assert_eq!(dst[dy0 * dst_w + dx0], expected, "Mismatch at ({}, {})", dx0, dy0);
+                assert_eq!(dst[dy0 * dst_w + dx1], expected, "Mismatch at ({}, {})", dx1, dy0);
+                assert_eq!(dst[dy1 * dst_w + dx0], expected, "Mismatch at ({}, {})", dx0, dy1);
+                assert_eq!(dst[dy1 * dst_w + dx1], expected, "Mismatch at ({}, {})", dx1, dy1);
+            }
+        }
+    }
+
+    #[test]
+    fn test_framebuffer_to_upscaled_2x() {
+        let mut fb = FrameBuffer::new(2, 2);
+        fb.set_pixel(0, 0, 0xFF112233);
+        fb.set_pixel(1, 0, 0xFF445566);
+        fb.set_pixel(0, 1, 0xFF778899);
+        fb.set_pixel(1, 1, 0xFFAABBCC);
+
+        let up = fb.to_upscaled_2x();
+        assert_eq!(up.width, 4);
+        assert_eq!(up.height, 4);
+        assert_eq!(up.pixels.len(), 16);
+
+        // Top-left 2x2 should all be 0xFF112233
+        assert_eq!(up.pixels[0 * 4 + 0], 0xFF112233);
+        assert_eq!(up.pixels[0 * 4 + 1], 0xFF112233);
+        assert_eq!(up.pixels[1 * 4 + 0], 0xFF112233);
+        assert_eq!(up.pixels[1 * 4 + 1], 0xFF112233);
+
+        // Bottom-right 2x2 should all be 0xFFAABBCC
+        assert_eq!(up.pixels[2 * 4 + 2], 0xFFAABBCC);
+        assert_eq!(up.pixels[2 * 4 + 3], 0xFFAABBCC);
+        assert_eq!(up.pixels[3 * 4 + 2], 0xFFAABBCC);
+        assert_eq!(up.pixels[3 * 4 + 3], 0xFFAABBCC);
     }
 }
