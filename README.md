@@ -1,4 +1,4 @@
-# 🏛️ Axiom Engine (액시엄) v1.3.0
+# 🏛️ Axiom Engine (액시엄) v1.4.0
 
 [![CI / Guard Verification](https://github.com/Hyedelle/Axiom/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/Hyedelle/Axiom/actions)
 [![Live Web Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?style=flat&logo=googlechrome)](https://hyedelle.github.io/Axiom/)
@@ -8,8 +8,24 @@
 
 > **"수학적 공리(Axiom)처럼 오차 없는 절대 결정론과 극한의 L1 캐시 효율을 지향하는 AI-Native 범용 게임/시뮬레이션 엔진"**  
 > **Creator:** Hyedelle  
-> **Core Stack:** Pure Rust (`#![no_std]` Core) · Data-Oriented Design (DOD) · Q32.16 Fixed-Point · WebRTC DataChannel · WebAssembly  
+> **Core Stack:** Pure Rust (`#![no_std]` Core) · Data-Oriented Design (DOD) · Q32.16 Fixed-Point · Native Desktop Studio (`minifb`) · WebRTC DataChannel · WebAssembly  
 > **Live Web Player:** **[https://hyedelle.github.io/Axiom/](https://hyedelle.github.io/Axiom/)**
+
+---
+
+## 🖥️ 1인 인디 개발자 네이티브 스튜디오 (Desktop Studio)
+
+외부 웹 브라우저 없이, 로컬 데스크톱에서 단 한 줄로 60/144 FPS 인터랙티브 게임 창을 즉시 띄우고 실시간 마우스/키보드로 게임을 개발 및 플레이할 수 있습니다.
+
+```powershell
+# Windows 네이티브 데스크톱 스튜디오 실행 (1초 팝업)
+cargo run -p axiom-cli
+```
+
+* **16x16 픽셀 스프라이트 아틀라스**: 단색 네모 탈피, 4프레임 벨트 이동/채굴기 회전/제련소 불꽃/하트 펄스/고블린 픽셀 아트 애니메이션.
+* **디스크 퀵세이브/퀵로드**: `F5` 원클릭 빠른 저장 / `F9` 빠른 불러오기 (`saves/quick.axiom` 100% 무손실 바이너리).
+* **실시간 인게임 프로파일러**: `F3` 키로 마이크로초 단위 시뮬레이션/렌더링 시간, FPS, 엔티티 수, FNV-1a 상태 해시, 60프레임 스파크라인 바 차트 토글.
+* **완전한 조작계**: 마우스 좌클릭(배치), 우클릭(철거), WASD(이동), 1~8키(도구 선택), R키(회전), ESC(종료).
 
 ---
 

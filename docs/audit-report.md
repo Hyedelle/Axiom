@@ -8,21 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-22 12:20 KST
-- **감사 대상:** Axiom Engine v1.3.0 WebRTC DataChannel 및 결정론적 그리드 롤백 넷코드 릴리즈 감사 (`axiom-core`, `axiom-sdk`, `axiom-wasm` + WebRTC P2P DataChannel)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64-bit frame_tags 무한 링 버퍼, 16B GridAction, GGPO 그리드 롤백 통과 (v1.3.0 공식 승인)**
+- **일시:** 2026-10-22 13:30 KST
+- **감사 대상:** Axiom Engine v1.4.0 1인 인디 개발자 실사용 네이티브 스튜디오 및 픽셀 스프라이트 릴리즈 감사 (`axiom-cli`, `axiom-render`, `axiom-game`, `axiom-core`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 60 FPS 네이티브 윈도우, 무손실 F5/F9 퀵세이브, 16x16 스프라이트 아틀라스, F3 프로파일러 통과 (v1.4.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core`, `axiom-sdk`, `axiom-game`, `axiom-wasm` 전체 코드베이스 0건 (`tools/guard.ps1` 통과)
-  2. **16B 캐시라인 정렬 `GridAction`**: 플레이어 ID, 액션 종류, X/Y, 타입 ID, 파라미터 1/2로 구성된 16바이트 정밀 레코드 및 컴파일 타임 크기 단언 검증 완료
-  3. **64비트 `frame_tags` 무한 링 버퍼 탈동기화 방지**: `GridInputQueue` 및 `PlayerInputQueue` 링 버퍼 랩어라운드 발생 시 과거 프레임과 현재 프레임 혼동 완벽 차단
-  4. **공간 그리드 분산 롤백 세션 (`GridRollbackSession`)**: 200ms 대륙간 네트워크 지연 및 15% 패킷 드랍 환경에서도 원격 액션 지연 도착 시 즉각 롤백 후 전방 재시뮬레이션을 수행하여 피어 간 100% 비트 일치 `state_hash` 합의 달성
-  5. **범용 C-ABI SDK 바인딩 (`axiom_grid_net_*`)**: 10개 엔드포인트 연동 (세션 생성/해제, 액션 큐잉, 원격 패킷 수신, 롤백 스텝, 확정 프레임, 상태 해시)
-  6. **브라우저 WebRTC P2P DataChannel 플레이어 (`axiom-wasm`)**: 24바이트 초경량 바이너리 패킷 통신, 32×32 협동 기지 렌더링, 플레이어 테두리 분리(P0 Sky Blue / P1 Orange), 0~300ms 지연/0~30% 드랍율 모의 네트워크 내장
-  7. **전체 워크스페이스 단위 테스트 100% 통과**: 50개 단위 테스트 및 FFI 테스트 올패스
+  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core`, `axiom-sdk`, `axiom-game`, `axiom-render` 전체 코드베이스 0건 (`tools/guard.ps1` 통과)
+  2. **`minifb` 기반 60/144 FPS 네이티브 윈도우 러너**: `cargo run -p axiom-cli` 단 한 줄로 1초 만에 704x544 독립 창 구동, 마우스 좌/우 클릭 및 WASD/R/1~8 조작
+  3. **디스크 기반 무손실 퀵세이브/퀵로드 영속성**: 64B `SaveFileHeader` 매직 헤더(`0x4D4F495841564153`), 32x32 기지 및 몬스터/웨이브 F5 퀵세이브 및 F9 퀵로드 100% 비트 일치 복원
+  4. **16x16 결정론적 픽셀 스프라이트 아틀라스 (`sprites.rs`)**: 벨트 4프레임 흐름, 채굴기 4프레임 회전, 제련소 4프레임 불꽃, 하트 4프레임 펄스, 포탑/벽/고블린 픽셀 아트 및 초고속 알파 블릿
+  5. **인게임 실시간 프로파일러 & F3 오버레이**: `sim_time_us`, `render_time_us`, FPS, 활성 구조물/몬스터/아이템 수 계측 및 60프레임 스파크라인 바 차트 시각화
+  6. **헤드리스 벤치마크 및 CI 완전 호환**: `--benchmark` 플래그를 통한 100% 비트 일치 결정론 리플레이어 및 밸런싱 시뮬레이터 보존
+  7. **전체 워크스페이스 단위 테스트 100% 통과**: 51개 단위 테스트 및 FFI 테스트 올패스
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261022-v1.3.0] Axiom Engine v1.3.0 WebRTC DataChannel & Rollback Netcode 종합 감사
+- **일시:** 2026-10-22 12:20 KST
+- **판정:** 🟢 **ALL CLEAR (v1.3.0 릴리즈 승인)**
+- **검증:** 16B GridAction, 64-bit frame_tags 무한 링 버퍼, GridRollbackSession, WebRTC DataChannel 24B 바이너리 패킷 송수신 완료.
 
 ### [AUDIT-20261022-v1.2.0] Axiom Engine v1.2.0 Universal Data-Driven Engine Architecture 종합 감사
 - **일시:** 2026-10-22 10:55 KST

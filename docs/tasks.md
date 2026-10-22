@@ -6,15 +6,19 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-058: 1인 인디 개발자 실사용 완결 감사 및 Axiom Engine v1.4.0 릴리즈**
+- [ ] **IDLE: Milestone 8 완료 — 1인 인디 개발자 실사용 네이티브 스튜디오 및 픽셀 스프라이트 파이프라인 완성**
+  - **상태:** Axiom Engine v1.4.0 릴리즈 및 최종 감사 통과.
+  - **시공:** Antigravity (총괄 관제탑)
 
 ---
 
 ## ⏳ [BACKLOG]
+(Empty / Ready for next milestone)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-058: 1인 인디 개발자 실사용 완결 감사 및 Axiom Engine v1.4.0 릴리즈** (`Cargo.toml` v1.4.0 공식 판올림, `docs/architecture.md` Section 16 등재, `docs/decisions.md` [D-018]~[D-021] 동기화, `docs/audit-report.md` [AUDIT-20261022-v1.4.0] 공식 승인, 네이티브 윈도우/디스크 세이브/스프라이트 아틀라스/F3 프로파일러 완결)
 - [x] **T-057: 1인 개발자를 위한 실시간 인게임 프로파일러 & 디버그 오버레이 (F3)** (`crates/axiom-cli/src/desktop.rs`, `ProfilerMetrics` 구조체, F3 핫키 HUD 토글, `std::time::Instant` sim/render 마이크로초 계측, 실시간 FPS 및 60프레임 스파크라인 바 그래프 래스터라이저, `compute_state_hash` FNV-1a 결정론 해시, `draw_rect_blend` 순수 정수 알파 블렌딩, 사이드바 `F3:PROF` 추가, `test_desktop_profiler_metrics_collection` 통과, `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-056: 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`)** (`crates/axiom-render/src/sprites.rs`, `const fn parse_sprite` 컴파일 타임 16x16 비트맵 슬랩, 벨트/채굴기/제련소/하트 4프레임 애니메이션, 성벽/상자/포탑/투입기/광맥/고블린 픽셀 아트, `FrameBuffer::draw_sprite_16x16` 알파 마스킹 및 `draw_sprite_16x16_tinted`, `desktop.rs` 704x544 뷰포트 연동, 단위 테스트 통과)
 - [x] **T-055: 실사용 디스크 세이브/로드(F5/F9) 및 슬롯 파일 영속성 (`saves/*.axiom`)** (`crates/axiom-cli/src/desktop.rs`, `SaveFileHeader` 64B 매직 헤더 `0x4D4F495841564153`, `save_to_file`/`load_from_file`, F5 퀵세이브 / F9 퀵로드 핫키, 인게임 HUD 비주얼 알림 배너, 단위 테스트 `test_desktop_save_load_roundtrip` 비트 일치 검증 통과)
