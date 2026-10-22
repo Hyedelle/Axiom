@@ -286,20 +286,33 @@
     <div class="badges">
       <span class="badge green">⚡ 595 KB Pure Rust WASM</span>
       <span class="badge blue">🏭 Factorio + RPG Base Defense</span>
+      <span class="badge gold">🥊 Punch-Out Mecha Boxing</span>
       <span class="badge gold">📦 64-Byte Cache-Line DOD</span>
       <span class="badge purple">🌍 100k Live NPCs @ 60 FPS</span>
     </div>
   </header>
 
   <div class="controls">
-    <button id="btnFactory" class="active" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
+    <button id="btnBoxing" class="active" onclick="switchMode('boxing')">🥊 Mecha Boxing (Punch-Out)</button>
+    <button id="btnFactory" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
     <button id="btnCoop" onclick="switchMode('coop')">🌐 P2P Co-op Factory</button>
     <button id="btnRpg" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
     <button id="btnOpenWorld" onclick="switchMode('openworld')">🌍 100k NPC Streamer</button>
     <button id="btnArena" onclick="switchMode('arena')">⚔️ Auto-Battler (100v100)</button>
   </div>
 
-  <div id="factoryActionBar" class="action-bar" style="display: flex;">
+  <div id="boxingActionBar" class="action-bar" style="display: flex; flex-wrap: wrap; gap: 6px;">
+    <button class="action-btn" onclick="sendBoxingInput(5)">⬅️ Slip Left (A)</button>
+    <button class="action-btn" onclick="sendBoxingInput(4)" style="color: #4ade80; border-color: #166534;">🛡️ Guard (S)</button>
+    <button class="action-btn" onclick="sendBoxingInput(6)">➡️ Slip Right (D)</button>
+    <button class="action-btn" onclick="sendBoxingInput(1)" style="color: #38bdf8; border-color: #0284c7;">🥊 Jab (J)</button>
+    <button class="action-btn" onclick="sendBoxingInput(2)" style="color: #f59e0b; border-color: #b45309;">💥 Cross (K)</button>
+    <button class="action-btn" onclick="sendBoxingInput(3)" style="color: #ef4444; border-color: #b91c1c;">🔥 Hook (L)</button>
+    <button class="action-btn" onclick="sendBoxingInput(7)" style="color: #c084fc; border-color: #7e22ce; font-weight: bold;">⚡ 2D Cut-In (Space)</button>
+    <button class="action-btn" onclick="switchMode('boxing')" style="color: #94a3b8;">🔄 Rematch</button>
+  </div>
+
+  <div id="factoryActionBar" class="action-bar" style="display: none;">
     <button class="action-btn active" id="tool-drill" onclick="setFactoryTool(2)">⛏️ Drill</button>
     <button class="action-btn" id="tool-belt" onclick="setFactoryTool(1)">➡️ Belt</button>
     <button class="action-btn" id="tool-inserter" onclick="setFactoryTool(7)">🦾 Inserter</button>
@@ -440,12 +453,86 @@
     const buf32 = new Uint32Array(imgData.data.buffer);
 
     let wasmInstance = null;
-    let mode = 'factory';
+    let mode = 'boxing';
     let lastTime = performance.now();
     let frameCount = 0;
     let fps = 60;
     let keys = { w: false, a: false, s: false, d: false };
-    let selectedReactionText = "🚀 595KB 순수 Rust 엔진에 팩토리 기지 건설과 방어전까지 작동하는 게 놀랍습니다!";
+    let selectedReactionText = "🥊 순수 Rust 네이티브 복싱 엔진에 2D 카툰 컷인과 Punch-Out 손맛이 웹에서 60FPS로 돌아갑니다!";
+
+    let boxingPendingAction = 0;
+    function sendBoxingInput(code) {
+      boxingPendingAction = code;
+      getAudioContext(); // user gesture unlock
+    }
+
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playBoxingSfx(code) {
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const t = ctx.currentTime;
+
+        if (code === 1) {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(180, t);
+          osc.frequency.exponentialRampToValueAtTime(50, t + 0.08);
+          gain.gain.setValueAtTime(0.35, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+          osc.start(t);
+          osc.stop(t + 0.08);
+        } else if (code === 2) {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(360, t);
+          osc.frequency.exponentialRampToValueAtTime(60, t + 0.22);
+          gain.gain.setValueAtTime(0.5, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.22);
+          osc.start(t);
+          osc.stop(t + 0.22);
+        } else if (code === 3) {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(450, t);
+          osc.frequency.exponentialRampToValueAtTime(900, t + 0.07);
+          gain.gain.setValueAtTime(0.25, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.07);
+          osc.start(t);
+          osc.stop(t + 0.07);
+        } else if (code === 4) {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(220, t);
+          osc.frequency.exponentialRampToValueAtTime(110, t + 0.05);
+          gain.gain.setValueAtTime(0.25, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+          osc.start(t);
+          osc.stop(t + 0.05);
+        } else if (code === 5) {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(130, t);
+          osc.frequency.exponentialRampToValueAtTime(35, t + 0.18);
+          gain.gain.setValueAtTime(0.45, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
+          osc.start(t);
+          osc.stop(t + 0.18);
+        } else if (code === 6 || code === 7) {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(240, t);
+          osc.frequency.exponentialRampToValueAtTime(30, t + 0.5);
+          gain.gain.setValueAtTime(0.6, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+          osc.start(t);
+          osc.stop(t + 0.5);
+        }
+      } catch (e) {}
+    }
 
     let selectedTool = 2; // Default: Mining Drill
     let selectedDir = 1; // Default: East
@@ -542,6 +629,15 @@
 
     window.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
+      if (mode === 'boxing') {
+        if (k === 'a' || e.key === 'ArrowLeft') sendBoxingInput(5);
+        else if (k === 'd' || e.key === 'ArrowRight') sendBoxingInput(6);
+        else if (k === 's' || e.key === 'ArrowDown') sendBoxingInput(4);
+        else if (k === 'j' || k === 'z') sendBoxingInput(1);
+        else if (k === 'k' || k === 'x') sendBoxingInput(2);
+        else if (k === 'l' || k === 'c') sendBoxingInput(3);
+        else if (e.key === ' ' || e.code === 'Space') { sendBoxingInput(7); e.preventDefault(); }
+      }
       if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
       if (k === 'a' || e.key === 'ArrowLeft') keys.a = true;
       if (k === 's' || e.key === 'ArrowDown') keys.s = true;
@@ -658,6 +754,8 @@
 
     function switchMode(newMode) {
       mode = newMode;
+      const btnBoxing = document.getElementById('btnBoxing');
+      if (btnBoxing) btnBoxing.className = mode === 'boxing' ? 'active' : '';
       document.getElementById('btnFactory').className = mode === 'factory' ? 'active' : '';
       const btnCoop = document.getElementById('btnCoop');
       if (btnCoop) btnCoop.className = mode === 'coop' ? 'active' : '';
@@ -665,13 +763,23 @@
       document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
       document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
 
+      const boxingBar = document.getElementById('boxingActionBar');
       const factoryBar = document.getElementById('factoryActionBar');
       const coopBar = document.getElementById('coopActionBar');
       const rpgBar = document.getElementById('rpgActionBar');
       const instruction = document.getElementById('instruction');
 
-      if (mode === 'factory') {
-        factoryBar.style.display = 'flex';
+      if (boxingBar) boxingBar.style.display = 'none';
+      if (factoryBar) factoryBar.style.display = 'none';
+      if (coopBar) coopBar.style.display = 'none';
+      if (rpgBar) rpgBar.style.display = 'none';
+
+      if (mode === 'boxing') {
+        if (boxingBar) boxingBar.style.display = 'flex';
+        instruction.innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
+        wasmInstance.axiom_boxing_init(BigInt(Date.now()), width, height);
+      } else if (mode === 'factory') {
+        if (factoryBar) factoryBar.style.display = 'flex';
         if (coopBar) coopBar.style.display = 'none';
         rpgBar.style.display = 'none';
         instruction.innerText = '🏭 캔버스 클릭: 구조물 건설/철거 | R키: 회전 | WASD: 기지 탐험 | 몬스터 웨이브 방어!';
@@ -894,8 +1002,8 @@
         const { instance } = await WebAssembly.instantiate(bytes, {});
         wasmInstance = instance.exports;
 
-        // Default: Factory Base Defense mode!
-        switchMode('factory');
+        // Default: Mecha Boxing mode!
+        switchMode('boxing');
         requestAnimationFrame(loop);
       } catch (err) {
         console.error("Failed to load Axiom WASM module:", err);
@@ -908,7 +1016,34 @@
 
       let ptr, len, tick;
 
-      if (mode === 'factory') {
+      if (mode === 'boxing') {
+        let action = boxingPendingAction || 0;
+        boxingPendingAction = 0; // consume action
+        if (!action && keys.s) {
+          action = 4; // hold guard
+        }
+
+        const ev = wasmInstance.axiom_boxing_step(action);
+        wasmInstance.axiom_boxing_render();
+        ptr = wasmInstance.axiom_boxing_get_framebuffer_ptr();
+        len = wasmInstance.axiom_boxing_get_framebuffer_len();
+        tick = wasmInstance.axiom_boxing_get_tick();
+
+        const playerHp = wasmInstance.axiom_boxing_get_player_hp();
+        const playerHeat = wasmInstance.axiom_boxing_get_player_heat();
+        const oppHp = wasmInstance.axiom_boxing_get_opponent_hp();
+        const score = wasmInstance.axiom_boxing_get_score();
+        const isKo = wasmInstance.axiom_boxing_is_ko();
+
+        if (ev > 0) playBoxingSfx(ev);
+
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="green">Player HP:</span> ${playerHp}/100 | ` +
+          `<span class="gold">Core Heat:</span> ${playerHeat}/100 | ` +
+          `<span class="red">Opponent HP:</span> ${oppHp}/120 | ` +
+          `<span class="blue">Score:</span> ${score}` +
+          (isKo ? ` | <span class="gold" style="font-weight:bold;">🏆 KNOCKOUT!</span>` : '');
+      } else if (mode === 'factory') {
         let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
         let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
 

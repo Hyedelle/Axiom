@@ -22,6 +22,8 @@ use axiom_core::schema::{RecipeDefinition, RecipeRegistry};
 use axiom_core::state::TickState;
 pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
+use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine};
+use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::FrameBuffer;
 
 #[allow(static_mut_refs)]
@@ -2076,9 +2078,357 @@ pub extern "C" fn axiom_factory_get_cursor_y() -> i32 {
     factory_engine().map(|e| e.cursor_y).unwrap_or(0)
 }
 
+// ============================================================================
+// Track 2: Native Mecha Boxing Web Bridge
+// ============================================================================
+
+struct BoxingWasmEngine {
+    engine: BoxingRingEngine,
+    framebuffer: FrameBuffer,
+    cutin_frames: u16,
+    cutin_kind: CutinKind,
+    feedback_timer: u16,
+    feedback_msg: &'static str,
+    feedback_color: u32,
+}
+
+static mut BOXING: Option<Box<BoxingWasmEngine>> = None;
+
+#[inline(always)]
+fn boxing_engine() -> Option<&'static mut BoxingWasmEngine> {
+    unsafe { (*core::ptr::addr_of_mut!(BOXING)).as_deref_mut() }
+}
+
+/// Initializes the mecha boxing simulation and framebuffer.
+#[no_mangle]
+pub extern "C" fn axiom_boxing_init(seed: u64, width: u32, height: u32) {
+    let engine = BoxingRingEngine::new(seed);
+    let framebuffer = FrameBuffer::new(width as usize, height as usize);
+    unsafe {
+        BOXING = Some(Box::new(BoxingWasmEngine {
+            engine,
+            framebuffer,
+            cutin_frames: 0,
+            cutin_kind: CutinKind::OverheatMeltdown,
+            feedback_timer: 0,
+            feedback_msg: "FIGHT START! [A/D: SLIP, S: GUARD, J/K/L: PUNCH, SPACE: CUTIN]",
+            feedback_color: 0xFFFBBF24,
+        }));
+    }
+}
+
+/// Advances the boxing simulation by 1 frame.
+/// Input codes: 0: Idle, 1: Jab, 2: Cross, 3: Hook, 4: Guard, 5: SlipLeft, 6: SlipRight, 7: Finisher
+/// Returns event code: 0: None, 1: PunchHit, 2: CounterHit, 3: Evaded, 4: Blocked, 5: PlayerHit, 6: OpponentDown, 7: PlayerDown
+#[no_mangle]
+pub extern "C" fn axiom_boxing_step(action_code: u32) -> u32 {
+    let engine = match boxing_engine() {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let action = match action_code {
+        1 => ActionKind::Jab,
+        2 => ActionKind::Cross,
+        3 => ActionKind::Hook,
+        4 => ActionKind::Guard,
+        5 => ActionKind::SlipLeft,
+        6 => ActionKind::SlipRight,
+        7 => {
+            if engine.cutin_frames == 0 && engine.engine.player.heat <= engine.engine.player.max_heat {
+                engine.cutin_frames = 40;
+                engine.cutin_kind = CutinKind::OverheatMeltdown;
+            }
+            ActionKind::Finisher
+        }
+        _ => ActionKind::Idle,
+    };
+
+    let event = engine.engine.step(action);
+
+    let event_code = match event {
+        BoxingEvent::None => 0,
+        BoxingEvent::PlayerPunched { is_counter, .. } => {
+            if is_counter {
+                engine.feedback_msg = "COUNTER CRITICAL! [150% DMG]";
+                engine.feedback_color = 0xFFF97316;
+                2
+            } else {
+                engine.feedback_msg = "PUNCH HIT!";
+                engine.feedback_color = 0xFFFBBF24;
+                1
+            }
+        }
+        BoxingEvent::PlayerEvaded => {
+            engine.feedback_msg = "SLIP EVADED! COUNTER NOW!";
+            engine.feedback_color = 0xFF38BDF8;
+            3
+        }
+        BoxingEvent::PlayerBlocked { .. } => {
+            engine.feedback_msg = "BLOCKED! [80% DAMAGE ABSORB]";
+            engine.feedback_color = 0xFF10B981;
+            4
+        }
+        BoxingEvent::PlayerStruck { .. } => {
+            engine.feedback_msg = "HEAVY IMPACT TAKEN!";
+            engine.feedback_color = 0xFFEF4444;
+            5
+        }
+        BoxingEvent::OpponentDowned => {
+            engine.feedback_msg = "KNOCKOUT! ENEMY DOWN!";
+            engine.feedback_color = 0xFFF59E0B;
+            6
+        }
+        BoxingEvent::PlayerDowned => {
+            engine.feedback_msg = "SYSTEM OVERLOAD! KNOCKED DOWN!";
+            engine.feedback_color = 0xFFDC2626;
+            7
+        }
+    };
+
+    if event_code != 0 {
+        engine.feedback_timer = 60;
+    } else if engine.feedback_timer > 0 {
+        engine.feedback_timer -= 1;
+    }
+
+    if engine.cutin_frames > 0 {
+        engine.cutin_frames -= 1;
+    }
+
+    event_code
+}
+
+/// Renders the boxing scene to the framebuffer.
+#[no_mangle]
+pub extern "C" fn axiom_boxing_render() {
+    let engine = match boxing_engine() {
+        Some(e) => e,
+        None => return,
+    };
+
+    let fb = &mut engine.framebuffer;
+    let w = fb.width as i32;
+    let h = fb.height as i32;
+
+    let s = engine.engine.camera_shake as i32;
+    let shake_x = if s > 0 { (((engine.engine.tick as i32 & 0x7) - 4) * s) / 3 } else { 0 };
+    let shake_y = if s > 0 { ((((engine.engine.tick as i32 >> 3) & 0x7) - 4) * s) / 3 } else { 0 };
+
+    fb.clear(0xFF07090E);
+
+    let ring_cx = w / 2 + shake_x;
+    let ring_cy = h / 2 + 35 + shake_y;
+
+    // Ring canvas floor (perspective trapezoid)
+    for y in (ring_cy - 120)..(ring_cy + 120) {
+        let dy = y - (ring_cy - 120);
+        let half_span = 140 + (dy * 90) / 240;
+        for x in (ring_cx - half_span)..(ring_cx + half_span) {
+            let checker = ((x / 32) + (y / 16)) % 2 == 0;
+            let col = if checker { 0xFF141923 } else { 0xFF181F2C };
+            fb.set_pixel(x, y, col);
+        }
+        fb.set_pixel(ring_cx - half_span, y, 0xFF0A0D14);
+        fb.set_pixel(ring_cx + half_span, y, 0xFF0A0D14);
+    }
+
+    // Ring Ropes
+    for &ry in &[ring_cy - 70, ring_cy - 30, ring_cy + 10] {
+        fb.draw_rect(ring_cx - 220, ry, 440, 3, 0xFFDC2626);
+        fb.draw_rect(ring_cx - 220, ry + 1, 440, 1, 0xFFFCA5A5);
+    }
+
+    // Opponent Mecha
+    let opp_base_x = ring_cx;
+    let opp_base_y = ring_cy - 50;
+    let is_telegraph = engine.engine.ai_phase == AiPhase::Telegraph;
+    let is_hit = engine.engine.opponent.action.kind == ActionKind::HitStagger;
+    let is_opp_down = engine.engine.opponent.action.kind == ActionKind::Down;
+
+    let opp_y = if is_opp_down { opp_base_y + 40 } else { opp_base_y };
+    let opp_tint = if is_hit {
+        0xFFFFFFFF
+    } else if is_telegraph {
+        0xFFEF4444
+    } else {
+        0xFF38BDF8
+    };
+
+    fb.draw_rect(opp_base_x - 28, opp_y - 48, 56, 48, 0xFF0F172A);
+    fb.draw_rect(opp_base_x - 25, opp_y - 45, 50, 42, opp_tint);
+    fb.draw_rect(opp_base_x - 25, opp_y - 25, 50, 22, 0xFF1E3A8A);
+
+    fb.draw_rect(opp_base_x - 16, opp_y - 74, 32, 24, 0xFF0F172A);
+    fb.draw_rect(opp_base_x - 14, opp_y - 72, 28, 20, 0xFF64748B);
+
+    let eye_col = if is_telegraph { 0xFFFF0000 } else { 0xFF00FFCC };
+    fb.draw_rect(opp_base_x - 10, opp_y - 66, 20, 6, eye_col);
+
+    if !is_opp_down {
+        let l_punch = if engine.engine.opponent.action.kind == ActionKind::Jab { 20 } else { 0 };
+        let r_punch = if engine.engine.opponent.action.kind == ActionKind::Cross || engine.engine.opponent.action.kind == ActionKind::Hook { 30 } else { 0 };
+
+        fb.draw_rect(opp_base_x - 48, opp_y - 35 + l_punch, 20, 20, 0xFF0F172A);
+        fb.draw_rect(opp_base_x - 46, opp_y - 33 + l_punch, 16, 16, 0xFFDC2626);
+
+        fb.draw_rect(opp_base_x + 28, opp_y - 35 + r_punch, 20, 20, 0xFF0F172A);
+        fb.draw_rect(opp_base_x + 30, opp_y - 33 + r_punch, 16, 16, 0xFFDC2626);
+    }
+
+    // Player Mecha
+    let player_base_x = ring_cx + engine.engine.player.x_offset_px as i32;
+    let player_base_y = ring_cy + 110;
+    let is_guard = engine.engine.player.action.kind == ActionKind::Guard;
+    let is_player_hit = engine.engine.player.action.kind == ActionKind::HitStagger;
+    let is_player_down = engine.engine.player.action.kind == ActionKind::Down;
+
+    let player_y = if is_player_down { player_base_y + 50 } else { player_base_y };
+    let player_col = if is_player_hit { 0xFFFFFFFF } else { 0xFF1E293B };
+
+    fb.draw_rect(player_base_x - 44, player_y - 64, 88, 70, 0xFF020617);
+    fb.draw_rect(player_base_x - 40, player_y - 60, 80, 62, player_col);
+    fb.draw_rect(player_base_x - 20, player_y - 50, 40, 40, 0xFF0F172A);
+
+    let heat_ratio = (engine.engine.player.heat as i32 * 10) / (engine.engine.player.max_heat as i32).max(1);
+    let heat_col = if heat_ratio > 7 { 0xFFEF4444 } else if heat_ratio > 3 { 0xFFF97316 } else { 0xFF06B6D4 };
+    fb.draw_rect(player_base_x - 8, player_y - 38, 16, 16, heat_col);
+
+    if !is_player_down {
+        let punch_y = match engine.engine.player.action.kind {
+            ActionKind::Jab => -45,
+            ActionKind::Cross => -55,
+            ActionKind::Hook => -50,
+            ActionKind::Finisher => -70,
+            _ => 0,
+        };
+
+        let (glove_l_x, glove_l_y) = if is_guard { (player_base_x - 16, player_y - 56) } else { (player_base_x - 52, player_y - 40 + punch_y) };
+        let (glove_r_x, glove_r_y) = if is_guard { (player_base_x + 2, player_y - 56) } else { (player_base_x + 34, player_y - 40 + punch_y) };
+
+        fb.draw_rect(glove_l_x, glove_l_y, 24, 24, 0xFF020617);
+        fb.draw_rect(glove_l_x + 2, glove_l_y + 2, 20, 20, 0xFF2563EB);
+
+        fb.draw_rect(glove_r_x, glove_r_y, 24, 24, 0xFF020617);
+        fb.draw_rect(glove_r_x + 2, glove_r_y + 2, 20, 20, 0xFF2563EB);
+    }
+
+    // HUD Elements
+    fb.draw_rect_blend(w / 2 - 180, 12, 360, 26, 0xDD0B0F19);
+    fb.draw_rect(w / 2 - 176, 16, 352, 18, 0xFF1E293B);
+    let opp_ratio = (engine.engine.opponent.hp as usize * 352) / (engine.engine.opponent.max_hp as usize).max(1);
+    fb.draw_rect(w / 2 - 176, 16, opp_ratio as i32, 18, 0xFFDC2626);
+    fb.draw_text(w / 2 - 170, 21, "OPPONENT: DUMMY-MK2", 0xFFFFFFFF);
+
+    if engine.feedback_timer > 0 {
+        let msg_len = (engine.feedback_msg.len() as i32) * 4;
+        let bx = (w - msg_len) / 2;
+        fb.draw_rect_blend(bx - 12, 44, msg_len + 24, 18, 0xEE0B0F19);
+        fb.draw_text(bx, 49, engine.feedback_msg, engine.feedback_color);
+    }
+
+    // Bottom Left Player HP & Heat Gauges
+    let bottom_y = h - 90;
+    fb.draw_rect_blend(16, bottom_y, 200, 80, 0xEE0B0F19);
+    fb.draw_text(24, bottom_y + 8, "PLAYER INTEGRITY (HP)", 0xFFE2E8F0);
+    fb.draw_rect(24, bottom_y + 18, 180, 12, 0xFF1E293B);
+    let hp_ratio = (engine.engine.player.hp as usize * 180) / (engine.engine.player.max_hp as usize).max(1);
+    fb.draw_rect(24, bottom_y + 18, hp_ratio as i32, 12, 0xFF10B981);
+
+    fb.draw_text(24, bottom_y + 36, "CORE HEAT (RISK)", 0xFFF97316);
+    fb.draw_rect(24, bottom_y + 46, 180, 10, 0xFF1E293B);
+    let heat_ratio = (engine.engine.player.heat as usize * 180) / (engine.engine.player.max_heat as usize).max(1);
+    let heat_bar_col = if engine.engine.player.heat > 80 { 0xFFDC2626 } else { 0xFFF97316 };
+    fb.draw_rect(24, bottom_y + 46, heat_ratio as i32, 10, heat_bar_col);
+
+    let score_str = alloc::format!("SCORE: {}", engine.engine.score);
+    fb.draw_text(24, bottom_y + 62, &score_str, 0xFFFBBF24);
+
+    // Bottom Right Controls Hint
+    fb.draw_rect_blend(w - 230, bottom_y, 214, 80, 0xEE0B0F19);
+    fb.draw_text(w - 222, bottom_y + 8, "PUNCH-OUT CONTROLS", 0xFFFBBF24);
+    fb.draw_text(w - 222, bottom_y + 22, "A / D : SLIP WEAVE", 0xFFE2E8F0);
+    fb.draw_text(w - 222, bottom_y + 36, "S     : GUARD BLOCK", 0xFFE2E8F0);
+    fb.draw_text(w - 222, bottom_y + 50, "J/K/L : JAB/CROSS/HOOK", 0xFF38BDF8);
+    fb.draw_text(w - 222, bottom_y + 64, "SPACE : 2D ANIME CUTIN", 0xFFF43F5E);
+
+    // 2D Anime Cut-in Overlay
+    if engine.cutin_frames > 0 {
+        let permille = (40 - engine.cutin_frames) as u32 * 1000 / 40;
+        render_cutin_overlay(fb, engine.cutin_kind, permille, ring_cx, ring_cy);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_framebuffer_ptr() -> *const u32 {
+    boxing_engine().map(|e| e.framebuffer.as_slice().as_ptr()).unwrap_or(core::ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_framebuffer_len() -> u32 {
+    boxing_engine().map(|e| e.framebuffer.as_slice().len() as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_tick() -> u64 {
+    boxing_engine().map(|e| e.engine.tick).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_player_hp() -> u32 {
+    boxing_engine().map(|e| e.engine.player.hp as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_player_heat() -> u32 {
+    boxing_engine().map(|e| e.engine.player.heat as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_opponent_hp() -> u32 {
+    boxing_engine().map(|e| e.engine.opponent.hp as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_score() -> u32 {
+    boxing_engine().map(|e| e.engine.score).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_is_ko() -> u32 {
+    boxing_engine()
+        .map(|e| {
+            if e.engine.opponent.action.kind == ActionKind::Down
+                || e.engine.player.action.kind == ActionKind::Down
+            {
+                1
+            } else {
+                0
+            }
+        })
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_boxing_wasm_lifecycle_and_exports() {
+        axiom_boxing_init(42, 640, 480);
+        assert_eq!(axiom_boxing_get_tick(), 0);
+        assert_eq!(axiom_boxing_get_player_hp(), 100);
+        assert_eq!(axiom_boxing_get_opponent_hp(), 120);
+        assert_eq!(axiom_boxing_get_framebuffer_len(), 640 * 480);
+
+        // Step jab and render
+        let _ev = axiom_boxing_step(1); // Jab
+        axiom_boxing_render();
+        assert_eq!(axiom_boxing_get_tick(), 1);
+        let ptr = axiom_boxing_get_framebuffer_ptr();
+        assert!(!ptr.is_null());
+        assert_eq!(axiom_boxing_is_ko(), 0);
+    }
 
     #[test]
     fn test_wasm_lifecycle_and_exports() {
