@@ -11,19 +11,15 @@ $ErrorActionPreference = "Continue"
 $ProjectRoot = (Resolve-Path "$PSScriptRoot/..").Path
 Set-Location $ProjectRoot
 
-$SecretKeyPath = "C:\Dreamhub\.secrets\anthropic_api_key.txt"
-if (-not (Test-Path $SecretKeyPath)) {
-    $SecretKeyPath = "C:\Dreamhub\Project\.secrets\anthropic_api_key.txt"
-}
-if (-not (Test-Path $SecretKeyPath)) {
-    Write-Error "[FAIL] Anthropic API key not found in C:\Dreamhub\.secrets or C:\Dreamhub\Project\.secrets"
-    exit 1
-}
+# 1. Enforce Claude.ai Max Subscription (Clear any API key to prevent pay-as-you-go billing)
+[System.Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", $null, "Process")
+[System.Environment]::SetEnvironmentVariable("CLAUDE_CODE_USE_API_KEY", $null, "Process")
 
-# 1. Setup Process Environment for Headless Claude Code
-$ApiKey = (Get-Content $SecretKeyPath -Raw).Trim()
-[System.Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", $ApiKey, "Process")
-[System.Environment]::SetEnvironmentVariable("CLAUDE_CODE_USE_API_KEY", "1", "Process")
+# Verify Claude.ai OAuth credentials exist
+$CredsPath = Join-Path $env:USERPROFILE ".claude\.credentials.json"
+if (-not (Test-Path $CredsPath)) {
+    Write-Warning "[WARN] ~/.claude/.credentials.json not found. Run 'claude' and log in with your Claude.ai account first."
+}
 
 # 2. Extract Task from docs/tasks.md if not explicitly specified
 if ([string]::IsNullOrWhiteSpace($TaskPrompt)) {
@@ -68,7 +64,7 @@ Write-Host "==> [1/2] Invoking Claude Code non-interactively..." -ForegroundColo
 
 $ClaudeCmd = (Get-Command claude.cmd -ErrorAction SilentlyContinue).Source
 if (-not $ClaudeCmd) {
-    $ClaudeCmd = "claude"
+    $ClaudeCmd = "claude.cmd"
 }
 
 & $ClaudeCmd -p $SinglePrompt --dangerously-skip-permissions > $TmpLog 2> $TmpErr
