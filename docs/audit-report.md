@@ -48,6 +48,30 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T063] 빌드 타임 바이너리 에셋 파이프라인 (`build.rs` & `.atlas` 슬랩)
+- **목표:** Rust 소스 코드(`sprites.rs`) 안에 1,470줄로 하드코딩된 비트맵 데이터를 외부 에셋 정의로 분리하고, `build.rs`를 통해 컴파일 타임에 64B 정렬 고정 슬랩 바이너리(`sprites.atlas`)로 패킹하여 `include_bytes!`로 제로-카피 로드하는 상용 에셋 파이프라인 구축.
+- **대상 파일:**
+  1. `crates/axiom-render/build.rs` (신규 파일):
+     - `crates/axiom-render/assets/sprites/` 디렉터리 내 에셋 정의를 순회/파싱
+     - 64B 정렬 `AtlasHeader`: 매직 `0x41544C415358414D` ("AXMATLAS"), 버전, 스프라이트 개수, FNV-1a 체크섬
+     - 각 스프라이트를 정확히 256개 u32 (`1,024` 바이트 = 16개 64B 캐시 라인) 배열로 바이너리 직렬화
+     - `$OUT_DIR/sprites.atlas` 파일로 출력
+  2. `crates/axiom-render/Cargo.toml`:
+     - `build = "build.rs"` 명시
+  3. `crates/axiom-render/src/sprites.rs`:
+     - 1,470줄의 하드코딩된 문자열 배열 제거
+     - `static ATLAS_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/sprites.atlas"));`
+     - 정렬된 슬랩 인덱싱 함수 `get_sprite_by_index(idx: usize) -> &'static [u32; 256]`
+     - 기존 `get_animated_sprite(kind, dir, tick)` 및 `render_structure_sprite` 인터페이스 100% 호환 유지
+  4. 신규 단위 테스트:
+     - `crates/axiom-render/src/sprites.rs`: `test_baked_atlas_binary_integrity` (매직 헤더 및 256-word 스프라이트 슬랩 무결성 검증)
+- **불변식 및 헌법 규정:**
+  - 런타임 힙 할당 0, 부동소수점(`f32/f64`) 원천 배제
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
 ### [RECIPE-20261022-T061] 초경량 네이티브 오디오 출력 연동 (SFX: 발사, 채굴, 타격, 피격) [완료]
 - **목표:** 타격감과 몰입감을 위해 외부 무거운 오디오 라이브러리 없이, 0 의존성 순수 절차적 PCM 신디사이저와 Windows 비동기 네이티브 사운드 출력(`winmm PlaySound`)을 연동.
 - **대상 파일:**

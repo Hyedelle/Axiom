@@ -6,14 +6,19 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **IDLE: Milestone 9 완료 — 상용 출시급 네이티브 게임 루프, 정수배 스케일러 및 오디오 파이프라인 완성**
-  - **상태:** Axiom Engine v1.5.0 릴리즈 및 최종 감사 통과.
-  - **시공:** Antigravity (총괄 관제탑)
+- [ ] **T-063: 빌드 타임 바이너리 에셋 파이프라인 (`crates/axiom-render/build.rs` & `.atlas` 슬랩)**
+  - **목표:**
+    - 1,470줄의 하드코딩된 스프라이트 데이터를 `crates/axiom-render/assets/sprites/` 에셋 디렉터리로 분리.
+    - `crates/axiom-render/build.rs`: 빌드 타임에 에셋을 파싱하여 64B 정렬 고정 크기 바이너리 슬랩 파일(`sprites.atlas`)로 빌드.
+    - `crates/axiom-render/src/sprites.rs`: `include_bytes!` 기반 제로-카피 정렬 슬랩 로더 구축 및 Rust 소스 코드 경량화.
+  - **시공:** ⚡ Claude Code (현장 특수 시공팀)
+  - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-(Empty / Ready for next milestone)
+- [ ] **T-064: 3대 신규 기물(레이저 터렛, 고속 벨트, 필터 투입기) 및 웨이브 몬스터 다양화**
+- [ ] **T-065: 스팀(Steam) 출시용 단일 배포 바이너리 패키징 스크립트**
 
 ---
 
