@@ -43,6 +43,29 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T059] Glenn Fiedler 'Fix Your Timestep' 누적기 루프 (`crates/axiom-cli/src/desktop.rs`) [완료]
+- **목표:** Windows OS Sleep Jitter 및 144Hz/240Hz 게이밍 모니터에서 발생하는 마이크로 스터터링(저더)을 완전히 박멸하고, 60Hz 불변 틱 시뮬레이션과 모니터 주사율 렌더링을 완전히 분리하는 누적기(Accumulator) 루프 구축.
+- **대상 파일:**
+  1. `crates/axiom-cli/src/desktop.rs`:
+     - 상수 정의:
+       - `TICK_RATE_HZ: u64 = 60`
+       - `DT_FIXED: Duration = Duration::from_nanos(1_000_000_000 / 60)` (~16.666ms)
+       - `MAX_ACCUMULATOR: Duration = Duration::from_millis(100)` (나선형 시간 지연 클램핑)
+     - `run_desktop_window()` 메인 루프 개편:
+       - 고정 딜레이 슬립 의존 제거 (`limit_update_rate` 대신 VSync 또는 무제한 가변 주사율 루프)
+       - `previous_time` 및 `accumulator: Duration` 누적 관리
+       - `while accumulator >= DT_FIXED { engine.step(); accumulator -= DT_FIXED; }`
+       - 프레임버퍼 렌더링은 매 디스플레이 프레임마다 1회 수행
+       - `ProfilerMetrics`에 `ups`(Updates Per Second, 초당 틱 갱신 수) 및 `fps` 분리 계측 탑재
+  2. 신규 단위 테스트:
+     - `crates/axiom-cli/src/desktop.rs`: `test_timestep_accumulator_logic` (가변 델타 타임 인가 시 정확한 60Hz 틱 횟수 보장 검증)
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 원천 배제, 순수 정수/Duration 시간 연산
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
 ### [RECIPE-20261022-T057] 1인 개발자를 위한 실시간 인게임 프로파일러 & 디버그 오버레이 (F3) [완료]
 - **목표:** 1인 인디 개발자가 게임플레이 중 즉각적인 성능 병목과 시스템 상태를 진단할 수 있도록, F3 핫키 토글 인게임 실시간 프로파일러 HUD 오버레이 구축.
 - **대상 파일:**

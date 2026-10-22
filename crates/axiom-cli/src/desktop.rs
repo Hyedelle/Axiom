@@ -30,6 +30,10 @@ pub const GRID_OFFSET_X: i32 = 96; // 96 px left sidebar
 pub const GRID_OFFSET_Y: i32 = (WIN_HEIGHT as i32 - GRID_PIXEL_SIZE) / 2; // 16 px
 pub const RIGHT_SIDEBAR_X: i32 = GRID_OFFSET_X + GRID_PIXEL_SIZE; // 608 px
 
+pub const TICK_RATE_HZ: u64 = 60;
+pub const DT_FIXED: Duration = Duration::from_nanos(1_000_000_000 / TICK_RATE_HZ); // 16,666,666 ns
+pub const MAX_ACCUMULATOR: Duration = Duration::from_millis(100); // 100ms clamp prevents spiral of death
+
 pub const SAVE_MAGIC: u64 = 0x4D4F_4958_4156_4153; // "SAVAXIOM"
 pub const SAVE_VERSION: u32 = 0x0001_0300; // v1.3.0
 
@@ -69,6 +73,7 @@ pub struct ProfilerMetrics {
     pub sim_time_us: u64,
     pub render_time_us: u64,
     pub fps: u32,
+    pub ups: u32,
     pub active_structures: usize,
     pub active_monsters: usize,
     pub active_items: usize,
@@ -83,6 +88,7 @@ impl Default for ProfilerMetrics {
             sim_time_us: 0,
             render_time_us: 0,
             fps: 0,
+            ups: 0,
             active_structures: 0,
             active_monsters: 0,
             active_items: 0,
@@ -291,8 +297,8 @@ impl DesktopEngine {
             ^ self.tick.rotate_left(37)
     }
 
-    /// Updates profiler telemetry metrics with current simulation time, render time, and FPS.
-    pub fn update_profiler_metrics(&mut self, sim_time_us: u64, render_time_us: u64, fps: u32) {
+    /// Updates profiler telemetry metrics with current simulation time, render time, FPS, and UPS.
+    pub fn update_profiler_metrics(&mut self, sim_time_us: u64, render_time_us: u64, fps: u32, ups: u32) {
         let frame_time_us = sim_time_us.saturating_add(render_time_us);
         self.profiler.sim_time_us = sim_time_us;
         self.profiler.render_time_us = render_time_us;
@@ -302,6 +308,11 @@ impl DesktopEngine {
             (1_000_000 / frame_time_us).min(999) as u32
         } else {
             60
+        };
+        self.profiler.ups = if ups > 0 {
+            ups
+        } else {
+            TICK_RATE_HZ as u32
         };
         self.profiler.record_frame(frame_time_us);
 
@@ -1026,8 +1037,8 @@ impl DesktopEngine {
 
         // 4. Telemetry metrics
         let line1 = format!(
-            "SIM: {} us | RENDER: {} us | FPS: {}",
-            self.profiler.sim_time_us, self.profiler.render_time_us, self.profiler.fps
+            "SIM: {} us | RENDER: {} us | FPS: {} | UPS: {}",
+            self.profiler.sim_time_us, self.profiler.render_time_us, self.profiler.fps, self.profiler.ups
         );
         draw_text(fb, &line1, x + 8, y + 17, 0xFFE2E8F0);
 
@@ -1089,10 +1100,8 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
-    // 60 FPS fixed target rate (~16.6ms)
-    #[allow(deprecated)]
-    window.limit_update_rate(Some(Duration::from_micros(16600)));
-    window.set_target_fps(60);
+    // Smooth target refresh rate (144 FPS) decoupled from simulation tick rate
+    window.set_target_fps(144);
 
     let seed = 0xABCD_9999_7777;
     let mut engine = DesktopEngine::new(seed);
@@ -1100,13 +1109,26 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
     let mut framebuffer = FrameBuffer::new(WIN_WIDTH, WIN_HEIGHT);
 
     let mut frame_counter = 0u32;
+    let mut tick_counter = 0u32;
     let mut current_fps = 60u32;
+    let mut current_ups = 60u32;
     let mut fps_timer = std::time::Instant::now();
 
-    println!("🚀 [Axiom Desktop Studio] Launched in 704x544 native window at 60 FPS.");
+    let mut previous_time = std::time::Instant::now();
+    let mut accumulator = Duration::ZERO;
+
+    println!("🚀 [Axiom Desktop Studio] Launched in 704x544 native window at {} Hz fixed simulation.", TICK_RATE_HZ);
     println!("   Controls: WASD (Move), 1~8 (Tool), R (Rotate), LMB (Build), RMB (Clear), F3 (Profiler), F5 (Save), F9 (Load), ESC (Exit)");
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        let current_time = std::time::Instant::now();
+        let mut delta_time = current_time.duration_since(previous_time);
+        previous_time = current_time;
+        if delta_time > MAX_ACCUMULATOR {
+            delta_time = MAX_ACCUMULATOR;
+        }
+        accumulator += delta_time;
+
         // --- 1. Keyboard Input Handling ---
         // WASD Cursor Navigation
         if window.is_key_pressed(Key::W, KeyRepeat::Yes) || window.is_key_pressed(Key::Up, KeyRepeat::Yes) {
@@ -1201,9 +1223,14 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // --- 3. Simulation Step ---
+        // --- 3. Simulation Step (Fixed Timestep Accumulator Loop) ---
         let sim_start = std::time::Instant::now();
-        engine.step();
+        let mut ticks_this_frame = 0u32;
+        while accumulator >= DT_FIXED {
+            engine.step();
+            accumulator -= DT_FIXED;
+            ticks_this_frame += 1;
+        }
         let sim_time_us = sim_start.elapsed().as_micros() as u64;
 
         // --- 4. Render Scene into FrameBuffer ---
@@ -1211,15 +1238,18 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         engine.render(&mut framebuffer);
         let render_time_us = render_start.elapsed().as_micros() as u64;
 
-        // FPS tracking
+        // FPS and UPS tracking
         frame_counter += 1;
+        tick_counter += ticks_this_frame;
         if fps_timer.elapsed() >= std::time::Duration::from_secs(1) {
             current_fps = frame_counter;
+            current_ups = tick_counter;
             frame_counter = 0;
+            tick_counter = 0;
             fps_timer = std::time::Instant::now();
         }
 
-        engine.update_profiler_metrics(sim_time_us, render_time_us, current_fps);
+        engine.update_profiler_metrics(sim_time_us, render_time_us, current_fps, current_ups);
 
         // --- 5. Push Frame to Desktop Window ---
         window.update_with_buffer(framebuffer.as_slice(), WIN_WIDTH, WIN_HEIGHT)?;
@@ -1345,17 +1375,18 @@ mod tests {
         assert!(!engine.show_profiler);
 
         // 2. Metric calculation & recording
-        engine.update_profiler_metrics(1250, 2400, 60);
+        engine.update_profiler_metrics(1250, 2400, 60, 60);
         assert_eq!(engine.profiler.sim_time_us, 1250);
         assert_eq!(engine.profiler.render_time_us, 2400);
         assert_eq!(engine.profiler.fps, 60);
+        assert_eq!(engine.profiler.ups, 60);
         assert!(engine.profiler.active_structures > 0);
         assert_ne!(engine.profiler.state_hash, 0);
 
         // 3. History buffer wrapping
         // Add 70 frames (total 71 frames recorded into 60-slot ring buffer)
         for i in 1..=70 {
-            engine.update_profiler_metrics(500 + i as u64, 1000 + i as u64, 60);
+            engine.update_profiler_metrics(500 + i as u64, 1000 + i as u64, 60, 60);
         }
         // Initial 1 + 70 = 71 samples. 71 % 60 = 11.
         assert_eq!(engine.profiler.history_idx, 11);
@@ -1370,7 +1401,7 @@ mod tests {
 
         // Advance simulation and verify hash changes deterministically
         engine.step();
-        engine.update_profiler_metrics(400, 800, 60);
+        engine.update_profiler_metrics(400, 800, 60, 60);
         let hash_b = engine.compute_state_hash();
         assert_ne!(hash_b, 0);
         assert_ne!(hash_a, hash_b, "Advancing engine tick must yield distinct state hash");
@@ -1382,5 +1413,94 @@ mod tests {
         // Verify overlay pixels in profiler region (x=108..604, y=12..112)
         let sample_pixel = fb.pixels[20 * WIN_WIDTH + 150];
         assert_ne!(sample_pixel, 0, "Overlay must draw pixels into framebuffer");
+    }
+
+    #[test]
+    fn test_timestep_accumulator_logic() {
+        let mut engine = DesktopEngine::new(0xABCD_1234);
+        let mut accumulator = Duration::ZERO;
+        let mut total_ticks = 0u32;
+
+        // 1. Simulate 1,000ms with various fluctuating delta times (5ms, 16.6ms, 33ms, etc.)
+        // Construct fluctuating delta times totaling exactly 1,000,000,000 ns (1 second)
+        let pattern_ms = [5, 16, 33, 8, 24, 12, 17, 31, 14, 20];
+        let mut remaining_ns = 1_000_000_000u64; // 1,000ms
+        let mut idx = 0;
+        let mut deltas = Vec::new();
+
+        while remaining_ns > 0 {
+            let ms = pattern_ms[idx % pattern_ms.len()];
+            let ns = (ms as u64) * 1_000_000;
+            if ns <= remaining_ns {
+                deltas.push(Duration::from_nanos(ns));
+                remaining_ns -= ns;
+            } else {
+                deltas.push(Duration::from_nanos(remaining_ns));
+                remaining_ns = 0;
+            }
+            idx += 1;
+        }
+
+        for dt in deltas {
+            let mut delta = dt;
+            if delta > MAX_ACCUMULATOR {
+                delta = MAX_ACCUMULATOR;
+            }
+            accumulator += delta;
+            while accumulator >= DT_FIXED {
+                engine.step();
+                accumulator -= DT_FIXED;
+                total_ticks += 1;
+            }
+        }
+
+        // Exactly 60 ticks must execute for 1,000ms of simulated time
+        assert_eq!(total_ticks, 60, "Fluctuating deltas totaling 1,000ms must execute exactly 60 ticks");
+        assert_eq!(engine.tick, 60);
+
+        // 2. Test clamping on 120ms lag spike
+        let mut clamp_engine = DesktopEngine::new(0x5678);
+        let mut clamp_acc = Duration::ZERO;
+        let mut clamp_ticks = 0u32;
+
+        // 120ms spike exceeds MAX_ACCUMULATOR (100ms)
+        let spike = Duration::from_millis(120);
+        let mut dt = spike;
+        if dt > MAX_ACCUMULATOR {
+            dt = MAX_ACCUMULATOR;
+        }
+        clamp_acc += dt;
+        while clamp_acc >= DT_FIXED {
+            clamp_engine.step();
+            clamp_acc -= DT_FIXED;
+            clamp_ticks += 1;
+        }
+        // Clamped to 100ms: 100ms / 16.666ms = 6 ticks (unclamped 120ms would be 7 ticks)
+        assert_eq!(clamp_ticks, 6, "120ms spike clamped to 100ms must yield 6 ticks");
+
+        // Complete 1,000ms effective time (100ms + 900ms = 1,000ms)
+        let mut rem_effective = 900_000_000u64; // 900ms in ns
+        let mut p_idx = 0;
+        while rem_effective > 0 {
+            let ms = pattern_ms[p_idx % pattern_ms.len()];
+            let ns = (ms as u64) * 1_000_000;
+            let step_ns = ns.min(rem_effective);
+            rem_effective -= step_ns;
+
+            let mut step_dt = Duration::from_nanos(step_ns);
+            if step_dt > MAX_ACCUMULATOR {
+                step_dt = MAX_ACCUMULATOR;
+            }
+            clamp_acc += step_dt;
+            while clamp_acc >= DT_FIXED {
+                clamp_engine.step();
+                clamp_acc -= DT_FIXED;
+                clamp_ticks += 1;
+            }
+            p_idx += 1;
+        }
+
+        assert_eq!(clamp_ticks, 60, "1,000ms effective simulation time with clamped spike must yield exactly 60 ticks");
+        assert_eq!(clamp_engine.tick, 60);
     }
 }
