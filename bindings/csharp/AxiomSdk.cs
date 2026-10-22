@@ -173,6 +173,27 @@ namespace Axiom.Engine
         [FieldOffset(48)] public ulong Payload2;
         [FieldOffset(56)] public ulong Payload3;
 
+        /// <summary>Direction (0: North, 1: East, 2: South, 3: West) stored in Payload0 byte 0.</summary>
+        public byte Direction
+        {
+            get { return (byte)(Payload0 & 0xFF); }
+            set { Payload0 = (Payload0 & ~0xFFUL) | (ulong)value; }
+        }
+
+        /// <summary>Transporter Mode (0: Standard Belt, 1: Inserter/Pull) stored in Payload0 byte 1.</summary>
+        public byte TransporterMode
+        {
+            get { return (byte)((Payload0 >> 8) & 0xFF); }
+            set { Payload0 = (Payload0 & ~(0xFFUL << 8)) | (((ulong)value) << 8); }
+        }
+
+        /// <summary>Target item type for miner/producer stored in Payload0 bytes 2..3.</summary>
+        public ushort TargetItem
+        {
+            get { return (ushort)((Payload0 >> 16) & 0xFFFF); }
+            set { Payload0 = (Payload0 & ~(0xFFFFUL << 16)) | (((ulong)value) << 16); }
+        }
+
         public static TileCell Create(uint typeId, ushort hp = 100, ushort maxHp = 100, uint flags = TileFlags.Active)
         {
             TileCell cell = default(TileCell);
@@ -251,6 +272,17 @@ namespace Axiom.Engine
         public static Fixed operator -(Fixed a, Fixed b)
         {
             return new Fixed(a.Raw - b.Raw);
+        }
+
+        public static Fixed operator *(Fixed a, Fixed b)
+        {
+            return new Fixed((a.Raw * b.Raw) >> FractionalBits);
+        }
+
+        public static Fixed operator /(Fixed a, Fixed b)
+        {
+            if (b.Raw == 0) throw new DivideByZeroException();
+            return new Fixed((a.Raw << FractionalBits) / b.Raw);
         }
 
         public override string ToString()

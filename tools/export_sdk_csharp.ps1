@@ -229,10 +229,37 @@ if (-not $success) {
 Write-Host "   $report" -ForegroundColor Gray
 Write-Host "[PASS] Full C# / Unity FFI verification suite passed 100%!" -ForegroundColor Green
 
+# 7. Compile & Run Standalone Native C# Smoke Test Binary (Unity IL2CPP Simulation)
+$CscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+$SmokeTestSrc = Join-Path $BindingsDir "AxiomSmokeTest.cs"
+$SmokeTestExe = Join-Path $BindingsDir "AxiomSmokeTest.exe"
+
+if ((Test-Path $CscPath) -and (Test-Path $SmokeTestSrc)) {
+    Write-Host "--> 5. Compiling & Executing Standalone Native C# Smoke Test (T-069)..." -ForegroundColor Cyan
+    & $CscPath /nologo /platform:x64 /unsafe /target:exe /out:$SmokeTestExe $CSharpFile $SmokeTestSrc | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[FAIL] Failed to compile AxiomSmokeTest.exe" -ForegroundColor Red
+        exit 1
+    }
+    
+    # Run in bindings directory so axiom_sdk.dll resolves immediately
+    Push-Location $BindingsDir
+    try {
+        & .\AxiomSmokeTest.exe
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[FAIL] AxiomSmokeTest.exe returned non-zero exit code: $LASTEXITCODE" -ForegroundColor Red
+            exit 1
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host " 🎉 C# / Unity FFI Bindings Successfully Exported & Verified!" -ForegroundColor Green
 Write-Host " - C# Source:  $CSharpFile" -ForegroundColor White
 Write-Host " - Native DLL: $TargetDll ($DllSizeKb KB)" -ForegroundColor White
+Write-Host " - Smoke Test: $SmokeTestExe" -ForegroundColor White
 Write-Host "============================================================" -ForegroundColor Green
 
 exit 0

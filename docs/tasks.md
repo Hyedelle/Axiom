@@ -6,20 +6,21 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-069: Unity `steel-the-show` 프로젝트 연동 스모크 테스트 및 FFI 실전 검증**
+- [ ] **T-070: 무한 절차적 오픈월드 청크 스트리밍 & 바이옴 PCG (Phase 3 본격 진입)**
   - **목표:**
-    - `bindings/csharp/AxiomSdk.cs` 및 `axiom_sdk.dll`을 실제 Unity 프로젝트에 투입하여 틱 시뮬레이션/롤백 넷코드 실전 구동 확인
-  - **시공:** 🏛️ Antigravity (총괄 관제탑)
+    - 64x64 정적 그리드를 넘어, 무한 좌표계를 지원하는 64B L1 정렬 청크 매니저와 시드 결정론 바이옴 PCG 생성 파이프라인 구축
+  - **시공:** ⚡ Claude Code (현장 특수 시공팀)
   - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-070: 무한 절차적 오픈월드 청크 스트리밍 & 바이옴 PCG (Phase 3 본격 진입)**
+- [ ] **T-071: 절차적 바이옴 동적 몬스터 스폰 및 거점 영역 방어 (Phase 3)**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-069: Unity 6 / IL2CPP 호환 C# FFI 스모크 테스트 및 무오염 독립 검증 체계** (`bindings/csharp/AxiomSdk.cs`, `bindings/csharp/AxiomSmokeTest.cs`, `tools/export_sdk_csharp.ps1`, `docs/decisions.md` [D-031], 외부 게임 프로젝트 무수정/무오염 원칙 엄수 하에 엔진 내부 64비트 C# 컴파일러(`csc.exe`) 기반 독립 스모크 테스트 스위트 구축, 4대 게이트 자동 검증: [Gate 1] 64B L1 캐시 정렬 및 `TileCell` 8개 필드 오프셋 정합성, [Gate 2] 순수 정수/고정소수점(`Fixed`) 사칙연산(`+`, `-`, `*`, `/`) 무부동소수점 검증, [Gate 3] 채굴-벨트-제련-가공 200틱 시뮬레이션 및 결정론 상태 해시 `0xC066AEFEB0CF7E63`, [Gate 4] 2프레임 네트워크 지연 환경 P2P GGPO 투기적 롤백 및 양 피어 상태 해시 합의 `0xA76EEE60E807ABA4`, `TileCell` 편의 프로퍼티 `Direction`/`TransporterMode`/`TargetItem` 추가, 총 소요 시간 19ms 전 게이트 통과, `tools/guard.ps1` 통과)
 - [x] **T-068: 10만 엔티티 초고속 무할당 공간 분할 가속기 (`SpatialIndex`, 64B L1 Cache)** (`crates/axiom-core/src/spatial_index.rs`, `crates/axiom-core/src/spatial.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/benchmark_spatial_index.rs`, `SpatialIndex<BUCKETS, MAX_ENTITIES>` 64B 정렬 SoA 슬랩(16,384 버킷 64KB 헤드 테이블 + `next`/`entity_ids`/`cell_keys`/`positions`) 단 1회 힙 할당 후 틱당 재할당 0, 정수 전용 셀 해싱 및 `cell_keys` 정확 소유권 검증으로 해시 충돌 무오류, 음수 좌표 `div_euclid` 지원, `query_radius` i128 제곱거리 오버플로 방어, `query_aabb` 포함 직사각형 쿼리, `find_closest` 동심 링 확장 + 최소 ID 결정론 타이브레이크 및 정수 `isqrt` 거리 반환, 광역 쿼리 시 선형 SoA 스캔 자동 전환, 단위 테스트 `test_spatial_index_100k_entities` 100,000개 브루트포스 대조 100% 일치 및 clear/재삽입 리플레이 동일성, `test_spatial_index_aabb_and_closest`, 벤치마크 삽입 3.0ms / clear 17µs / 반경 쿼리 평균 2.2µs / 최근접 탐색 평균 1.9µs (debug, 1ms 목표 대비 500배 여유), `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-067: 데이터 드리븐 팩토리/게임플레이 스키마 정의 및 무할당 런타임 변환 엔진 (`schema.rs`, `tile_entity.rs`)** (`crates/axiom-core/src/schema.rs`, `crates/axiom-core/src/tile_entity.rs`, `crates/axiom-sdk/src/lib.rs`, `TileGrid::step_simulation` 4단계 힙 제로 결정론 파이프라인 구현, `PRODUCER` 전방 자동 사출/생산, `TRANSPORTER` 2단계 충돌 없는 전방 이송 및 인서터 후방 흡입 모드, `RecipeRegistry` 무할당 다원 레시피 가공, `COMBATANT` 원거리 피해 타격, `test_data_driven_production_and_logistics_pipeline` 채굴-벨트-제련-투입-상자 100% 데이터 드리븐 실증, C# 바인딩 `axiom_sdk.dll` 연동 검증 및 `tools/guard.ps1` 통과)
 - [x] **T-066: Unity / C# FFI 바인딩 및 DLL 배포 파이프라인 (`bindings/csharp/AxiomSdk.cs` & `tools/export_sdk_csharp.ps1`)** (`bindings/csharp/AxiomSdk.cs`, `crates/axiom-sdk/src/lib.rs`, `tools/export_sdk_csharp.ps1`, Unity 6 및 C# 5+ / IL2CPP 완벽 호환 P/Invoke 래퍼 완성, 64B L1 캐시 정렬 구조체 `TileCell`/`TypeDefinition`/`RecipeDefinition` 및 16B `GridAction` 크기/오프셋 100% 일치, 호스트 스택 비정렬 포인터 방어 `read_unaligned`/`write_unaligned` 안전화, `AxiomEngine` 및 `AxiomRollbackSession` 고수준 `IDisposable` 객체 제공, `tools/export_sdk_csharp.ps1` 인메모리 C# 100틱 시뮬레이션 및 P2P 롤백 넷코드 무인 검증 통과, `tools/guard.ps1` 무결성 검증 완료)
