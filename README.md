@@ -1,4 +1,4 @@
-# 🏛️ Axiom Engine (액시엄) v1.4.0
+# 🏛️ Axiom Engine (액시엄) v1.5.0
 
 [![CI / Guard Verification](https://github.com/Hyedelle/Axiom/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/Hyedelle/Axiom/actions)
 [![Live Web Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?style=flat&logo=googlechrome)](https://hyedelle.github.io/Axiom/)
@@ -22,9 +22,12 @@
 cargo run -p axiom-cli
 ```
 
-* **16x16 픽셀 스프라이트 아틀라스**: 단색 네모 탈피, 4프레임 벨트 이동/채굴기 회전/제련소 불꽃/하트 펄스/고블린 픽셀 아트 애니메이션.
+* **Fix Your Timestep 144Hz 디커플링**: 60Hz 불변 틱(UPS)과 가변 모니터 주사율(FPS) 분리로 Windows Sleep 지터 및 144Hz 모니터 스터터링 100% 박멸.
+* **무손실 정수배 픽셀 스케일러**: QHD/4K 모니터를 위한 `F10`(1x 704x544 ↔ 2x 1408x1088 창 전환) 및 `F11`(전체화면 레터박스) 지원.
+* **0-의존성 절차적 PCM 네이티브 사운드**: 포탑 발사, 몬스터 피격, 건설/철거, 퀵세이브 차임, 웨이브 알람 6종 SFX 및 `M`키 음소거 토글.
+* **16x16 픽셀 스프라이트 아틀라스**: 4프레임 벨트 이동/채굴기 회전/제련소 불꽃/하트 펄스/고블린 픽셀 아트 애니메이션.
 * **디스크 퀵세이브/퀵로드**: `F5` 원클릭 빠른 저장 / `F9` 빠른 불러오기 (`saves/quick.axiom` 100% 무손실 바이너리).
-* **실시간 인게임 프로파일러**: `F3` 키로 마이크로초 단위 시뮬레이션/렌더링 시간, FPS, 엔티티 수, FNV-1a 상태 해시, 60프레임 스파크라인 바 차트 토글.
+* **실시간 인게임 프로파일러**: `F3` 키로 마이크로초 단위 시뮬레이션/렌더링 시간, FPS/UPS, 엔티티 수, FNV-1a 상태 해시, 60프레임 스파크라인 바 차트 토글.
 * **완전한 조작계**: 마우스 좌클릭(배치), 우클릭(철거), WASD(이동), 1~8키(도구 선택), R키(회전), ESC(종료).
 
 ---

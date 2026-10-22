@@ -19,6 +19,7 @@ use axiom_render::{
     get_monster_sprite, get_smelter_sprite, get_turret_sprite, FrameBuffer,
     CHEST_SPRITE, DIR_EAST, ORE_DEPOSIT, WALL_SPRITE,
 };
+use crate::sound::{self, SoundKind};
 
 pub const WIN_WIDTH: usize = 704;
 pub const WIN_HEIGHT: usize = 544;
@@ -146,9 +147,20 @@ impl DesktopEngine {
 
     /// Advances simulation by one deterministic tick.
     pub fn step(&mut self) {
+        let prev_wave = self.director.wave_number;
+        let prev_shots = self.director.total_shots;
+
         self.director.tick(&mut self.grid);
         self.grid.step();
         self.tick += 1;
+
+        if self.director.wave_number > prev_wave {
+            sound::play_sound(SoundKind::WaveAlarm);
+        }
+        if self.director.total_shots > prev_shots {
+            sound::play_sound(SoundKind::Shoot);
+            sound::play_sound(SoundKind::Hit);
+        }
 
         let mut notif = self.notification.borrow_mut();
         if let Some((_, ref mut count)) = *notif {
@@ -464,21 +476,27 @@ fn setup_starter_base(grid: &mut FactoryGrid<GRID_W, GRID_H>, seed: u64) {
 }
 
 /// Builds the currently selected tool onto the grid.
+/// Returns true if a structure was placed or changed.
 fn place_structure(
     grid: &mut FactoryGrid<GRID_W, GRID_H>,
     x: usize,
     y: usize,
     tool: SelectedTool,
     dir: Direction,
-) {
+) -> bool {
     if x >= GRID_W || y >= GRID_H {
-        return;
+        return false;
     }
     // Protect base heart from replacement
     if matches!(grid.cells[y][x].kind, StructureKind::BaseHeart(_)) {
-        return;
+        return false;
     }
 
+    if tool == SelectedTool::Clear {
+        return demolish_tile(grid, x, y);
+    }
+
+    let prev_kind = grid.cells[y][x].kind;
     match tool {
         SelectedTool::Belt => {
             grid.place_belt(x, y, dir, 50);
@@ -516,19 +534,22 @@ fn place_structure(
         SelectedTool::Inserter => {
             grid.place_inserter(x, y, dir, 50);
         }
-        SelectedTool::Clear => {
-            demolish_tile(grid, x, y);
-        }
+        SelectedTool::Clear => unreachable!(),
     }
+    grid.cells[y][x].kind != prev_kind
 }
 
 /// Demolishes or clears a tile, restoring any buried ore deposit.
-fn demolish_tile(grid: &mut FactoryGrid<GRID_W, GRID_H>, x: usize, y: usize) {
+/// Returns true if a tile was demolished.
+fn demolish_tile(grid: &mut FactoryGrid<GRID_W, GRID_H>, x: usize, y: usize) -> bool {
     if x >= GRID_W || y >= GRID_H {
-        return;
+        return false;
     }
     if matches!(grid.cells[y][x].kind, StructureKind::BaseHeart(_)) {
-        return;
+        return false;
+    }
+    if matches!(grid.cells[y][x].kind, StructureKind::Empty) {
+        return false;
     }
     let restored = match grid.cells[y][x].kind {
         StructureKind::Drill(d) if d.remaining > 0 => Some((d.ore, d.remaining)),
@@ -538,6 +559,7 @@ fn demolish_tile(grid: &mut FactoryGrid<GRID_W, GRID_H>, x: usize, y: usize) {
         Some((ore, amount)) => grid.place_deposit(x, y, ore, amount),
         None => grid.cells[y][x] = FactoryStructure::empty(),
     }
+    true
 }
 
 /// Color mapping for game items.
@@ -955,12 +977,13 @@ impl DesktopEngine {
         draw_text(fb, "RMB:CLEAR", rx, 174, 0xFF94A3B8);
         draw_text(fb, "1-8:TOOL", rx, 184, 0xFF94A3B8);
         draw_text(fb, "R:ROTATE", rx, 194, 0xFF94A3B8);
-        draw_text(fb, "F3:PROF", rx, 204, 0xFF38BDF8);
-        draw_text(fb, "F5:QSAVE", rx, 214, 0xFF38BDF8);
-        draw_text(fb, "F9:QLOAD", rx, 224, 0xFF38BDF8);
-        draw_text(fb, "F10:SCL", rx, 234, 0xFF38BDF8);
-        draw_text(fb, "F11:FULL", rx, 244, 0xFF38BDF8);
-        draw_text(fb, "ESC:EXIT", rx, 254, 0xFF94A3B8);
+        draw_text(fb, "M:MUTE", rx, 204, 0xFF38BDF8);
+        draw_text(fb, "F3:PROF", rx, 214, 0xFF38BDF8);
+        draw_text(fb, "F5:QSAVE", rx, 224, 0xFF38BDF8);
+        draw_text(fb, "F9:QLOAD", rx, 234, 0xFF38BDF8);
+        draw_text(fb, "F10:SCL", rx, 244, 0xFF38BDF8);
+        draw_text(fb, "F11:FULL", rx, 254, 0xFF38BDF8);
+        draw_text(fb, "ESC:EXIT", rx, 264, 0xFF94A3B8);
 
         // 7. Top Header Bar (Heart HP & Status)
         fb.draw_rect(GRID_OFFSET_X, 0, GRID_PIXEL_SIZE, 16, 0xFF0F172A);
@@ -1211,12 +1234,30 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
 
         // Space / Enter: Place structure at cursor
         if window.is_key_pressed(Key::Space, KeyRepeat::No) || window.is_key_pressed(Key::Enter, KeyRepeat::No) {
-            place_structure(&mut engine.grid, engine.cursor_x, engine.cursor_y, engine.selected_tool, engine.current_direction);
+            if place_structure(&mut engine.grid, engine.cursor_x, engine.cursor_y, engine.selected_tool, engine.current_direction) {
+                if engine.selected_tool == SelectedTool::Clear {
+                    sound::play_sound(SoundKind::Demolish);
+                } else {
+                    sound::play_sound(SoundKind::Build);
+                }
+            }
         }
 
         // Delete / Backspace: Clear structure at cursor
         if window.is_key_pressed(Key::Delete, KeyRepeat::No) || window.is_key_pressed(Key::Backspace, KeyRepeat::No) {
-            demolish_tile(&mut engine.grid, engine.cursor_x, engine.cursor_y);
+            if demolish_tile(&mut engine.grid, engine.cursor_x, engine.cursor_y) {
+                sound::play_sound(SoundKind::Demolish);
+            }
+        }
+
+        // M: Toggle Mute
+        if window.is_key_pressed(Key::M, KeyRepeat::No) {
+            let muted = sound::toggle_mute();
+            if muted {
+                engine.set_notification("[AUDIO: MUTED]", 90);
+            } else {
+                engine.set_notification("[AUDIO: ENABLED]", 90);
+            }
         }
 
         // F3: Toggle Profiler Overlay
@@ -1226,8 +1267,14 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
 
         // F5: Quicksave
         if window.is_key_pressed(Key::F5, KeyRepeat::No) {
-            if let Err(e) = engine.save_to_file("saves/quick.axiom") {
-                engine.set_notification(format!("[SAVE FAILED: {}]", e), 120);
+            match engine.save_to_file("saves/quick.axiom") {
+                Ok(_) => {
+                    sound::play_sound(SoundKind::SaveChime);
+                    engine.set_notification("[QUICKSAVE OK]", 90);
+                }
+                Err(e) => {
+                    engine.set_notification(format!("[SAVE FAILED: {}]", e), 120);
+                }
             }
         }
 
@@ -1291,10 +1338,18 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
                 engine.cursor_y = gy as usize;
 
                 if window.get_mouse_down(MouseButton::Left) {
-                    place_structure(&mut engine.grid, engine.cursor_x, engine.cursor_y, engine.selected_tool, engine.current_direction);
+                    if place_structure(&mut engine.grid, engine.cursor_x, engine.cursor_y, engine.selected_tool, engine.current_direction) {
+                        if engine.selected_tool == SelectedTool::Clear {
+                            sound::play_sound(SoundKind::Demolish);
+                        } else {
+                            sound::play_sound(SoundKind::Build);
+                        }
+                    }
                 }
                 if window.get_mouse_down(MouseButton::Right) {
-                    demolish_tile(&mut engine.grid, engine.cursor_x, engine.cursor_y);
+                    if demolish_tile(&mut engine.grid, engine.cursor_x, engine.cursor_y) {
+                        sound::play_sound(SoundKind::Demolish);
+                    }
                 }
             }
         }
@@ -1636,5 +1691,51 @@ mod tests {
         assert_eq!(up.pixels[last_idx - 1], 0xFF14B8A6);
         assert_eq!(up.pixels[last_idx - up.width], 0xFF14B8A6);
         assert_eq!(up.pixels[last_idx - up.width - 1], 0xFF14B8A6);
+    }
+
+    #[test]
+    fn test_desktop_sound_integration() {
+        // Ensure muted state test
+        sound::set_muted(true);
+        assert!(sound::is_muted());
+
+        let mut engine = DesktopEngine::new(0x1234_5678);
+
+        // Test place_structure return value
+        let changed = place_structure(
+            &mut engine.grid,
+            5,
+            5,
+            SelectedTool::Belt,
+            Direction::East,
+        );
+        assert!(changed, "Placing belt on empty tile should return true");
+
+        // Placing identical belt on same tile should return false
+        let changed_again = place_structure(
+            &mut engine.grid,
+            5,
+            5,
+            SelectedTool::Belt,
+            Direction::East,
+        );
+        assert!(!changed_again, "Placing identical belt should return false");
+
+        // Demolish tile
+        let demolished = demolish_tile(&mut engine.grid, 5, 5);
+        assert!(demolished, "Demolishing belt should return true");
+
+        // Demolishing empty tile should return false
+        let demolished_empty = demolish_tile(&mut engine.grid, 5, 5);
+        assert!(!demolished_empty, "Demolishing empty tile should return false");
+
+        // Step simulation (should trigger sound safely even when unmuted)
+        sound::set_muted(false);
+        for _ in 0..10 {
+            engine.step();
+        }
+
+        // Restore muted state for headless environments
+        sound::set_muted(false);
     }
 }

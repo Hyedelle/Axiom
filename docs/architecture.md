@@ -377,3 +377,39 @@ Axiom Engine v1.4.0은 1인 인디 개발자의 실사용 제작 환경에 특�
 4. **인게임 실시간 프로파일러 & F3 오버레이**:
    - 물리/물류 시뮬레이션 소요 마이크로초(`sim_time_us`), 래스터라이징 소요 마이크로초(`render_time_us`), FPS, 활성 구조물/몬스터/아이템 수 계측.
    - 16.6ms 기준선 대비 60프레임 스파크라인 바 차트 시각화.
+
+---
+
+## 17. Commercial Native Game Loop, Integer Scaling & Audio Pipeline (v1.5.0)
+
+Axiom Engine v1.5.0은 상용 인디 게임 출시 수준의 플레이 경험을 완성하기 위해, 144Hz 게이밍 모니터 디커플링, 고해상도 무손실 정수배 스케일러, 그리고 0-의존성 네이티브 오디오 파이프라인을 구축했습니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│            Axiom Commercial Desktop Engine Pipeline (v1.5.0)           │
+├────────────────────────────────────────────────────────────────────────┤
+│                 Glenn Fiedler 'Fix Your Timestep' Loop                 │
+│  - 고정 슬립 제거: 가변 델타 타임 계측 + accumulator 누적기 패턴       │
+│  - 60Hz 불변 틱(UPS)과 144Hz/240Hz 디스플레이 주사율(FPS) 완전 분리    │
+│  - MAX_ACCUMULATOR = 100ms 스파이럴 오브 데스 방지 클램핑               │
+├────────────────────────────────────────────────────────────────────────┤
+│            Lossless Integer Scaler & Dynamic Display Modes             │
+│  - upscale_nearest_2x: 2x2 정수 최근접 이웃 복제 (QHD/4K 완벽 대응)     │
+│  - F10: 1x (704x544) <-> 2x (1408x1088) 창 크기 즉시 전환               │
+│  - F11: Fullscreen 전체화면 종횡비 보존 레터박스 모드                   │
+├────────────────────────────────────────────────────────────────────────┤
+│              0-Dependency Procedural PCM Native Audio                  │
+│  - 22,050Hz 16-bit Mono PCM: 순수 정수 위상 누적기 0 Float 파형 합성   │
+│  - 44B RIFF/WAVE 패킹 + winmm::PlaySoundW 비동기 메모리 버퍼 재생      │
+│  - 6종 사운드: Shoot, Hit, Build, Demolish, SaveChime, WaveAlarm       │
+│  - M키 원클릭 음소거 토글 지원                                          │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 17.1 핵심 구조 및 기술적 특성
+1. **Fix Your Timestep 누적기 루프**:
+   - `while accumulator >= DT_FIXED { engine.step(); accumulator -= DT_FIXED; }` 구조로 물리/물류 연산은 정확히 1초에 60회 전진하면서, 화면 렌더링은 모니터의 최대 주사율(144Hz+)로 구동하여 미세한 마이크로 저더를 영구 박멸.
+2. **무손실 정수배 픽셀 스케일러 (`upscale_nearest_2x`)**:
+   - 텍스처 필터링(Bilinear) 왜곡 없이 1픽셀을 2x2 픽셀로 고속 복제하여 4K/QHD 모니터에서도 레트로 도트 그래픽스를 선명하게 유지.
+3. **0-의존성 순수 정수 PCM 오디오 (`sound.rs`)**:
+   - 무거운 외부 크레이트 없이 Windows의 내장 `winmm.dll` 비동기 메모리 재생을 활용하여 컴파일 시간 및 메모리 오버헤드 0으로 타격감 넘치는 인게임 SFX 완비.

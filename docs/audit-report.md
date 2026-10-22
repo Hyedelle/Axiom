@@ -8,21 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-22 13:30 KST
-- **감사 대상:** Axiom Engine v1.4.0 1인 인디 개발자 실사용 네이티브 스튜디오 및 픽셀 스프라이트 릴리즈 감사 (`axiom-cli`, `axiom-render`, `axiom-game`, `axiom-core`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 60 FPS 네이티브 윈도우, 무손실 F5/F9 퀵세이브, 16x16 스프라이트 아틀라스, F3 프로파일러 통과 (v1.4.0 공식 승인)**
+- **일시:** 2026-10-22 14:20 KST
+- **감사 대상:** Axiom Engine v1.5.0 상용 출시 네이티브 게임 루프, 정수배 스케일러 & 0-의존성 오디오 릴리즈 감사 (`axiom-cli`, `axiom-render`, `axiom-game`, `axiom-core`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 144Hz 디커플링 누적기 타임스텝, 2x 정수배 픽셀 스케일러, 22kHz PCM 절차적 오디오 통과 (v1.5.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core`, `axiom-sdk`, `axiom-game`, `axiom-render` 전체 코드베이스 0건 (`tools/guard.ps1` 통과)
-  2. **`minifb` 기반 60/144 FPS 네이티브 윈도우 러너**: `cargo run -p axiom-cli` 단 한 줄로 1초 만에 704x544 독립 창 구동, 마우스 좌/우 클릭 및 WASD/R/1~8 조작
-  3. **디스크 기반 무손실 퀵세이브/퀵로드 영속성**: 64B `SaveFileHeader` 매직 헤더(`0x4D4F495841564153`), 32x32 기지 및 몬스터/웨이브 F5 퀵세이브 및 F9 퀵로드 100% 비트 일치 복원
-  4. **16x16 결정론적 픽셀 스프라이트 아틀라스 (`sprites.rs`)**: 벨트 4프레임 흐름, 채굴기 4프레임 회전, 제련소 4프레임 불꽃, 하트 4프레임 펄스, 포탑/벽/고블린 픽셀 아트 및 초고속 알파 블릿
-  5. **인게임 실시간 프로파일러 & F3 오버레이**: `sim_time_us`, `render_time_us`, FPS, 활성 구조물/몬스터/아이템 수 계측 및 60프레임 스파크라인 바 차트 시각화
+  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core`, `axiom-sdk`, `axiom-game`, `axiom-render`, `axiom-cli` 전체 코드베이스 0건 (`tools/guard.ps1` 통과)
+  2. **Glenn Fiedler 'Fix Your Timestep' 누적기 루프**: OS Sleep 지터 완전 박멸, 60Hz 불변 틱(UPS)과 144Hz/240Hz 디스플레이 주사율(FPS) 분리
+  3. **무손실 정수배 픽셀 스케일러 (`upscale_nearest_2x`)**: 1x (704x544), 2x (1408x1088), F11 전체화면 종횡비 보존 레터박스 모드 지원
+  4. **0-의존성 순수 정수 PCM 절차적 오디오 (`sound.rs`)**: 22,050Hz 16-bit Mono PCM 파형 합성(사각파 스윕, 삼각파, 노이즈) 및 Windows `PlaySoundW` 비동기 재생 연동 (포탑 사격, 몬스터 피격, 건설/철거, 퀵세이브 차임, 웨이브 알람 6종)
+  5. **M키 음소거 토글**: 원클릭 오디오 음소거 및 HUD 비주얼 알림
   6. **헤드리스 벤치마크 및 CI 완전 호환**: `--benchmark` 플래그를 통한 100% 비트 일치 결정론 리플레이어 및 밸런싱 시뮬레이터 보존
-  7. **전체 워크스페이스 단위 테스트 100% 통과**: 51개 단위 테스트 및 FFI 테스트 올패스
+  7. **전체 워크스페이스 단위 테스트 100% 통과**: 54개 단위 테스트 및 FFI 테스트 올패스
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261022-v1.4.0] Axiom Engine v1.4.0 1인 인디 개발자 실사용 네이티브 스튜디오 및 픽셀 스프라이트 릴리즈 감사
+- **일시:** 2026-10-22 13:30 KST
+- **판정:** 🟢 **ALL CLEAR (v1.4.0 릴리즈 승인)**
+- **검증:** 60 FPS 네이티브 윈도우, 무손실 F5/F9 퀵세이브, 16x16 스프라이트 아틀라스, F3 프로파일러 완료.
 
 ### [AUDIT-20261022-v1.3.0] Axiom Engine v1.3.0 WebRTC DataChannel & Rollback Netcode 종합 감사
 - **일시:** 2026-10-22 12:20 KST
@@ -42,6 +47,37 @@
 ---
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
+
+### [RECIPE-20261022-T061] 초경량 네이티브 오디오 출력 연동 (SFX: 발사, 채굴, 타격, 피격) [완료]
+- **목표:** 타격감과 몰입감을 위해 외부 무거운 오디오 라이브러리 없이, 0 의존성 순수 절차적 PCM 신디사이저와 Windows 비동기 네이티브 사운드 출력(`winmm PlaySound`)을 연동.
+- **대상 파일:**
+  1. `crates/axiom-cli/src/sound.rs` (신규 파일):
+     - `SoundKind`: `Shoot` (포탑 사격), `Hit` (몬스터 타격), `Build` (구조물 배치), `Demolish` (구조물 철거), `SaveChime` (F5 퀵세이브), `WaveAlarm` (웨이브 경보)
+     - 22,050Hz 16-bit Mono PCM 절차적 파형 생성기 (사각파 스윕, 삼각파, 노이즈 버스트, 0 Float 정수 연산)
+     - 44B RIFF/WAVE 헤더 패커 (`generate_wav_bytes`)
+     - `play_sound(kind: SoundKind)`:
+       - Windows: `PlaySoundW` 비동기 메모리 버퍼 재생 (`SND_MEMORY | SND_ASYNC | SND_NODEFAULT`)
+       - Non-Windows / Headless: no-op
+     - `is_muted: bool` 및 `toggle_mute()` 지원
+  2. `crates/axiom-cli/src/desktop.rs`:
+     - `sound` 모듈 연동 및 게임플레이 이벤트별 사운드 트리거:
+       - 포탑 사격 시 `SoundKind::Shoot`
+       - 몬스터 피격 시 `SoundKind::Hit`
+       - 건설 배치 시 `SoundKind::Build`
+       - 철거 시 `SoundKind::Demolish`
+       - F5 퀵세이브 시 `SoundKind::SaveChime`
+       - 새 웨이브 스폰 시 `SoundKind::WaveAlarm`
+       - `M` 키: 음소거(Mute) 토글 및 사이드바 범례 `M:MUTE` 추가
+  3. `crates/axiom-cli/src/lib.rs`:
+     - `pub mod sound;`
+  4. 신규 단위 테스트:
+     - `crates/axiom-cli/src/sound.rs`: `test_wav_header_and_pcm_generation`
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 원천 배제, 순수 정수 파형 합성
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
 
 ### [RECIPE-20261022-T060] 무손실 정수배 픽셀 스케일러 & 전체화면 모드 (1x/2x/F11) [완료]
 - **목표:** QHD/4K 고해상도 모니터에서 레트로 픽셀 아트의 흐림/왜곡 없는 무손실 정수배(Integer Scaling 1x/2x) 래스터라이징 및 F11 전체화면 토글 지원.

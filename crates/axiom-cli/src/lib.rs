@@ -8,6 +8,7 @@ pub mod desktop;
 pub mod replayer;
 pub mod rpg_demo;
 pub mod session;
+pub mod sound;
 pub mod telemetry;
 pub mod time_travel;
 
@@ -20,5 +21,6 @@ pub use desktop::{
 pub use replayer::{ReplayReport, Replayer};
 pub use rpg_demo::{OpenWorldRpgSession, RpgReport};
 pub use session::{HeadlessSession, SessionReport};
+pub use sound::*;
 pub use telemetry::{EngineTelemetry, SubsystemHealth};
 pub use time_travel::{AsciiView, TimeTravelDemo};
