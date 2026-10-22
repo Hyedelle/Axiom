@@ -48,6 +48,32 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T073] 무한 오픈월드 데스크톱 카메라 뷰포트 & 스트리밍 렌더러 (minifb/F11)
+- **목표:** T-070/T-071/T-072로 완성된 무한 오픈월드 코어(`ChunkManager`, 8종 바이옴, 자원 광맥, 몬스터 스폰)를 `crates/axiom-cli/src/desktop.rs` 데스크톱 윈도우(`minifb`)에 연동하여, 자유로운 카메라 팬/이동에 따라 청크가 실시간으로 스트리밍 적재/퇴출되며 8종 바이옴 지형과 자원, 몬스터를 60 FPS로 래스터라이징하는 데스크톱 탐험 러너를 구축한다.
+- **대상 파일 및 구현 상세:**
+  1. `crates/axiom-cli/src/desktop.rs` (또는 `crates/axiom-render/src/world_render.rs`):
+     - 정수 월드 카메라 `WorldCamera`:
+       * `world_x: i64`, `world_y: i64`: 화면 중심의 월드 타일 좌표.
+       * `speed: i64`: 1틱당 이동 타일 수 (Shift 누를 시 고속 질주).
+       * 조작: 방향키 또는 WASD 또는 마우스 중클릭/우클릭 드래그로 무한 좌표계 팬(Pan).
+     - 동적 청크 스트리밍 연동:
+       * 카메라 중심 좌표가 이동할 때마다 `chunk_mgr.update_center(ChunkCoord::from_world_tile(...))`를 호출하여 시야 반경 내 청크를 동적 생성 및 외곽 청크 퇴출.
+     - 8종 바이옴 & 자원 래스터라이저:
+       * 704x544 프레임버퍼 뷰포트에 보이는 타일 영역을 순수 정수 연산으로 순회.
+       * `tile_at(wx, wy)` 및 `sample_world_biome`을 통해 바이옴별 지형 타일(평원 잔디, 사막 모래, 툰드라 빙설, 화산 현무암, 늪지 진흙, 균사 포자 등) 및 철/구리/석탄 광맥 비트맵/팔레트 래스터라이징.
+       * 몬스터(`WorldMonster`) 및 거점/방어 구조물 스프라이트 중첩 렌더링.
+     - F3 인게임 오버레이 확장:
+       * 카메라 월드 좌표 `(CamX, CamY)`, 현재 청크 좌표 `(ChunkX, ChunkY)`, 현 위치 바이옴 이름, 로드된 청크 수(`LoadedChunks/MaxChunks`), 몬스터 수(`MonstersCount`) 실시간 표시.
+  2. 단위 테스트 및 헤드리스 검증:
+     - `test_desktop_camera_pan_streaming`: 카메라를 대각선 방향으로 1,000타일 이상 이동시키며 청크 적재/퇴출 및 프레임버퍼 래스터라이징 무결성 검증.
+     - `tools/guard.ps1` 100% All Green 통과.
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 절대 금지 (순수 정수 픽셀/타일 수학)
+  - 외부 폴더 무수정 원칙 준수
+  - `tools/guard.ps1` 통과 필수
+
+---
+
 ### [RECIPE-20261022-T072] 무한 청크 계층형 정수 길찾기 (Hierarchical Pathfinding, HPA*)
 - **목표:** T-070 `ChunkManager`의 무한 좌표계($-\infty \sim +\infty$) 위에서 수천 마리의 유닛/몬스터가 장거리(수백 타일, 수 청크)를 이동할 때 발생하는 $O(N^2)$ 타일 A* 탐색 병목을 박멸하기 위해, 청크 경계 포털(Portal) 그래프 기반 2계층 무할당 정수 HPA* 엔진(`HierarchicalPathfinder`)을 구축한다.
 - **대상 파일 및 구현 상세:**

@@ -22,6 +22,7 @@ use axiom_render::{
     get_wall_sprite, FrameBuffer, DIR_EAST,
 };
 use crate::sound::{self, SoundKind};
+use crate::world_view::OpenWorldView;
 
 pub const WIN_WIDTH: usize = 704;
 pub const WIN_HEIGHT: usize = 544;
@@ -122,6 +123,35 @@ pub struct DesktopEngine {
     pub cursor_y: usize,
     pub selected_tool: SelectedTool,
     pub current_direction: Direction,
+    /// Which scene the viewport shows (Tab toggles).
+    pub view_mode: ViewMode,
+    /// Infinite streaming open world (T-073) with its own integer camera.
+    pub world: OpenWorldView,
+}
+
+/// Scene shown in the 512x512 viewport panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    /// Fixed 32x32 factory defence grid.
+    Factory,
+    /// Infinite chunk-streamed open world with a free camera.
+    OpenWorld,
+}
+
+impl ViewMode {
+    pub const fn toggle(self) -> Self {
+        match self {
+            Self::Factory => Self::OpenWorld,
+            Self::OpenWorld => Self::Factory,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Factory => "FACTORY",
+            Self::OpenWorld => "WORLD",
+        }
+    }
 }
 
 impl DesktopEngine {
@@ -144,11 +174,20 @@ impl DesktopEngine {
             cursor_y: 16,
             selected_tool: SelectedTool::Turret,
             current_direction: Direction::East,
+            view_mode: ViewMode::Factory,
+            world: OpenWorldView::new(seed),
         }
     }
 
-    /// Advances simulation by one deterministic tick.
+    /// Advances simulation by one deterministic tick. Only the scene currently on screen
+    /// advances so the factory is never overrun while the player is exploring the world.
     pub fn step(&mut self) {
+        if self.view_mode == ViewMode::OpenWorld {
+            self.world.step();
+            self.tick += 1;
+            self.decay_notification();
+            return;
+        }
         let prev_wave = self.director.wave_number;
         let prev_shots = self.director.total_shots;
 
@@ -164,6 +203,11 @@ impl DesktopEngine {
             sound::play_sound(SoundKind::Hit);
         }
 
+        self.decay_notification();
+    }
+
+    /// Counts the active HUD notification down by one tick and clears it when expired.
+    fn decay_notification(&self) {
         let mut notif = self.notification.borrow_mut();
         if let Some((_, ref mut count)) = *notif {
             if *count > 0 {
@@ -308,6 +352,7 @@ impl DesktopEngine {
     pub fn compute_state_hash(&self) -> u64 {
         self.grid.compute_hash()
             ^ self.director.compute_hash().rotate_left(17)
+            ^ self.world.compute_hash().rotate_left(23)
             ^ self.tick.rotate_left(37)
     }
 
@@ -341,7 +386,11 @@ impl DesktopEngine {
         self.profiler.active_structures = structures;
 
         let d_rep = self.director.report(&self.grid);
-        self.profiler.active_monsters = d_rep.monsters_alive as usize;
+        self.profiler.active_monsters = if self.view_mode == ViewMode::OpenWorld {
+            self.world.monsters_alive()
+        } else {
+            d_rep.monsters_alive as usize
+        };
 
         let f_rep = self.grid.report();
         self.profiler.active_items = (f_rep.items_on_belts
@@ -618,7 +667,7 @@ fn draw_line(fb: &mut FrameBuffer, mut x0: i32, mut y0: i32, x1: i32, y1: i32, c
 }
 
 /// HP durability bar along the top edge of structures.
-fn draw_hp_bar(fb: &mut FrameBuffer, sx: i32, sy: i32, ts: i32, hp: u16, max_hp: u16) {
+pub(crate) fn draw_hp_bar(fb: &mut FrameBuffer, sx: i32, sy: i32, ts: i32, hp: u16, max_hp: u16) {
     if max_hp == 0 || hp >= max_hp {
         return;
     }
@@ -830,7 +879,7 @@ fn glyph_3x5(c: char) -> u16 {
 }
 
 /// Alpha blends a solid color over existing framebuffer pixels using pure integer math.
-fn draw_rect_blend(fb: &mut FrameBuffer, x: i32, y: i32, w: i32, h: i32, color: u32) {
+pub(crate) fn draw_rect_blend(fb: &mut FrameBuffer, x: i32, y: i32, w: i32, h: i32, color: u32) {
     let a = (color >> 24) & 0xFF;
     if a == 0 {
         return;
@@ -881,7 +930,7 @@ fn draw_char(fb: &mut FrameBuffer, c: char, x: i32, y: i32, color: u32) {
 }
 
 /// Renders a text string with 3x5 font (4 pixels pitch).
-fn draw_text(fb: &mut FrameBuffer, text: &str, mut x: i32, y: i32, color: u32) {
+pub(crate) fn draw_text(fb: &mut FrameBuffer, text: &str, mut x: i32, y: i32, color: u32) {
     for c in text.chars() {
         draw_char(fb, c, x, y, color);
         x += 4;
@@ -892,6 +941,10 @@ impl DesktopEngine {
     /// Renders the entire factory scene, arena units, tracer bullets, cursor, sidebars, and overlays.
     pub fn render(&self, fb: &mut FrameBuffer) {
         fb.clear(0xFF0A0F1D);
+        if self.view_mode == ViewMode::OpenWorld {
+            self.render_world(fb);
+            return;
+        }
         let phase = (self.tick & 0x7FFF_FFFF) as i32;
         let now = self.director.current_tick as u32;
 
@@ -1052,6 +1105,7 @@ impl DesktopEngine {
         draw_text(fb, "F10:SCL", rx, 244, 0xFF38BDF8);
         draw_text(fb, "F11:FULL", rx, 254, 0xFF38BDF8);
         draw_text(fb, "ESC:EXIT", rx, 264, 0xFF94A3B8);
+        draw_text(fb, "TAB:WORLD", rx, 274, 0xFF34D399);
 
         // 7. Top Header Bar (Heart HP & Status)
         fb.draw_rect(GRID_OFFSET_X, 0, GRID_PIXEL_SIZE, 16, 0xFF0F172A);
@@ -1108,12 +1162,98 @@ impl DesktopEngine {
         }
     }
 
+    /// Renders the infinite open-world scene (T-073): streamed terrain, stronghold, monsters,
+    /// world sidebars, header, toast and the F3 overlay.
+    pub fn render_world(&self, fb: &mut FrameBuffer) {
+        let phase = self.tick;
+
+        // 1. Streamed world viewport
+        self.world.render(fb, phase);
+
+        // 2. Left Sidebar
+        fb.draw_rect(0, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
+        fb.draw_rect(95, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
+        draw_text(fb, "AXIOM 1.5", 10, 12, 0xFF38BDF8);
+        draw_text(fb, "EXPLORER", 10, 22, 0xFF94A3B8);
+        fb.draw_rect(10, 32, 76, 1, 0xFF1E293B);
+
+        draw_text(fb, "VIEW [TAB]", 10, 40, 0xFFFBBF24);
+        draw_text(fb, self.view_mode.as_str(), 10, 52, 0xFF34D399);
+
+        fb.draw_rect(10, 66, 76, 1, 0xFF1E293B);
+        draw_text(fb, "CAMERA", 10, 74, 0xFFFBBF24);
+        draw_text(fb, "WASD:PAN", 10, 86, 0xFF94A3B8);
+        draw_text(fb, "SHIFT:X4", 10, 96, 0xFF94A3B8);
+        draw_text(fb, "MMB:DRAG", 10, 106, 0xFF94A3B8);
+        draw_text(fb, "RMB:DRAG", 10, 116, 0xFF94A3B8);
+        draw_text(fb, "H:HOME", 10, 126, 0xFF94A3B8);
+        draw_text(fb, "G:GRID", 10, 136, 0xFF94A3B8);
+
+        fb.draw_rect(10, 150, 76, 1, 0xFF1E293B);
+        draw_text(fb, "LEGEND", 10, 158, 0xFFFBBF24);
+        let legend: [(&str, u32); 8] = [
+            ("PLAINS", 0xFF66BB6A),
+            ("BOREAL", 0xFF4F8A52),
+            ("DESERT", 0xFFE3C784),
+            ("TUNDRA", 0xFFE8F1F8),
+            ("VOLCANIC", 0xFF5A4A44),
+            ("SWAMP", 0xFF6B5B3E),
+            ("OCEAN", 0xFF0B3D91),
+            ("MUSHROOM", 0xFF6E4A8C),
+        ];
+        for (i, (name, color)) in legend.iter().enumerate() {
+            let ly = 170 + i as i32 * 10;
+            fb.draw_rect(10, ly, 6, 6, *color);
+            draw_text(fb, name, 20, ly, 0xFF94A3B8);
+        }
+
+        // 3. Right Sidebar
+        fb.draw_rect(RIGHT_SIDEBAR_X, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
+        fb.draw_rect(RIGHT_SIDEBAR_X, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
+        let rx = RIGHT_SIDEBAR_X + 8;
+        self.world.render_sidebar(fb, rx, 12);
+
+        fb.draw_rect(rx, 164, 76, 1, 0xFF1E293B);
+        draw_text(fb, "CONTROLS", rx, 172, 0xFFFBBF24);
+        draw_text(fb, "M:MUTE", rx, 184, 0xFF38BDF8);
+        draw_text(fb, "F3:PROF", rx, 194, 0xFF38BDF8);
+        draw_text(fb, "F10:SCL", rx, 204, 0xFF38BDF8);
+        draw_text(fb, "F11:FULL", rx, 214, 0xFF38BDF8);
+        draw_text(fb, "TAB:BASE", rx, 224, 0xFF34D399);
+        draw_text(fb, "ESC:EXIT", rx, 234, 0xFF94A3B8);
+
+        // 4. Top Header Bar
+        fb.draw_rect(GRID_OFFSET_X, 0, GRID_PIXEL_SIZE, 16, 0xFF0F172A);
+        self.world.render_header(fb);
+
+        // 5. Notification Toast
+        if let Some((ref msg, _)) = self.notification() {
+            let box_w = (msg.len() as i32 * 4 + 16).max(180);
+            let box_h = 16;
+            let box_x = GRID_OFFSET_X + (GRID_PIXEL_SIZE - box_w) / 2;
+            let box_y = 22;
+            fb.draw_rect(box_x, box_y, box_w, box_h, 0xFF042F2E);
+            fb.draw_rect(box_x, box_y, box_w, 1, 0xFF14B8A6);
+            fb.draw_rect(box_x, box_y + box_h - 1, box_w, 1, 0xFF14B8A6);
+            fb.draw_rect(box_x, box_y, 1, box_h, 0xFF14B8A6);
+            fb.draw_rect(box_x + box_w - 1, box_y, 1, box_h, 0xFF14B8A6);
+            let text_x = box_x + (box_w - (msg.len() as i32 * 4)) / 2;
+            draw_text(fb, msg, text_x, box_y + 5, 0xFF5EEAD4);
+        }
+
+        // 6. Profiler Overlay (F3)
+        if self.show_profiler {
+            self.render_profiler_overlay(fb);
+        }
+    }
+
     /// Renders the real-time F3 profiler & debug HUD overlay.
     pub fn render_profiler_overlay(&self, fb: &mut FrameBuffer) {
         let x = 108;
         let y = 12;
         let w = 496;
-        let h = 100;
+        let world_mode = self.view_mode == ViewMode::OpenWorld;
+        let h = if world_mode { 124 } else { 100 };
 
         // 1. Semi-transparent dark background (0xDD0F172A)
         draw_rect_blend(fb, x, y, w, h, 0xDD0F172A);
@@ -1146,8 +1286,33 @@ impl DesktopEngine {
         let line3 = format!("HASH: 0x{:016X}", self.profiler.state_hash);
         draw_text(fb, &line3, x + 8, y + 37, 0xFF34D399);
 
+        // 4b. Open-world camera / streaming telemetry (T-073)
+        if world_mode {
+            let cam = &self.world.camera;
+            let chunk = cam.chunk_coord();
+            let line4 = format!(
+                "CAM: ({}, {}) | CHUNK: ({}, {}) | BIOME: {}",
+                cam.world_x,
+                cam.world_y,
+                chunk.x,
+                chunk.y,
+                self.world.camera_biome().name()
+            );
+            draw_text(fb, &line4, x + 8, y + 47, 0xFFFBBF24);
+            let line5 = format!(
+                "CHUNKS: {}/{} | MONSTERS: {} | GEN: {} | EVICT: {} | WAVE: {}",
+                self.world.loaded_chunks(),
+                self.world.max_chunks(),
+                self.world.monsters_alive(),
+                self.world.chunk_mgr.total_generated,
+                self.world.chunk_mgr.total_evicted,
+                self.world.defense.wave_index
+            );
+            draw_text(fb, &line5, x + 8, y + 57, 0xFF94A3B8);
+        }
+
         // 5. 60-frame Sparkline / Bar Graph
-        let base_y = y + 94; // bottom of bars
+        let base_y = y + h - 6; // bottom of bars
         let max_bar_h = 42;  // max height of bars
         let ref_target_h = 20; // height for 16.6ms frame
         let ref_y = base_y - ref_target_h;
@@ -1244,6 +1409,7 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🚀 [Axiom Desktop Studio] Launched in 704x544 native window at {} Hz fixed simulation.", TICK_RATE_HZ);
     println!("   Controls: WASD (Move), 1~8 (Tool), R (Rotate), LMB (Build), RMB (Clear), F3 (Profiler), F5 (Save), F9 (Load), F10 (Scale), F11 (Fullscreen), ESC (Exit)");
+    println!("   World:    TAB (Factory/World), WASD+Shift (Pan/Sprint), MMB/RMB drag (Pan), H (Home), G (Chunk grid)");
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let current_time = std::time::Instant::now();
@@ -1255,18 +1421,51 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         accumulator += delta_time;
 
         // --- 1. Keyboard Input Handling ---
-        // WASD Cursor Navigation
-        if window.is_key_pressed(Key::W, KeyRepeat::Yes) || window.is_key_pressed(Key::Up, KeyRepeat::Yes) {
-            engine.cursor_y = engine.cursor_y.saturating_sub(1);
+        // Tab: toggle Factory <-> Open World viewport
+        if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
+            engine.view_mode = engine.view_mode.toggle();
+            engine.world.camera.end_drag();
+            engine.set_notification(format!("[VIEW: {}]", engine.view_mode.as_str()), 90);
         }
-        if window.is_key_pressed(Key::S, KeyRepeat::Yes) || window.is_key_pressed(Key::Down, KeyRepeat::Yes) {
-            engine.cursor_y = (engine.cursor_y + 1).min(GRID_H - 1);
-        }
-        if window.is_key_pressed(Key::A, KeyRepeat::Yes) || window.is_key_pressed(Key::Left, KeyRepeat::Yes) {
-            engine.cursor_x = engine.cursor_x.saturating_sub(1);
-        }
-        if window.is_key_pressed(Key::D, KeyRepeat::Yes) || window.is_key_pressed(Key::Right, KeyRepeat::Yes) {
-            engine.cursor_x = (engine.cursor_x + 1).min(GRID_W - 1);
+
+        let up = window.is_key_pressed(Key::W, KeyRepeat::Yes) || window.is_key_pressed(Key::Up, KeyRepeat::Yes);
+        let down = window.is_key_pressed(Key::S, KeyRepeat::Yes) || window.is_key_pressed(Key::Down, KeyRepeat::Yes);
+        let left = window.is_key_pressed(Key::A, KeyRepeat::Yes) || window.is_key_pressed(Key::Left, KeyRepeat::Yes);
+        let right = window.is_key_pressed(Key::D, KeyRepeat::Yes) || window.is_key_pressed(Key::Right, KeyRepeat::Yes);
+
+        if engine.view_mode == ViewMode::OpenWorld {
+            // WASD / Arrows: pan the world camera (Shift = sprint). Streaming follows the camera.
+            let sprint = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+            let dx = (right as i64) - (left as i64);
+            let dy = (down as i64) - (up as i64);
+            if dx != 0 || dy != 0 {
+                engine.world.pan_camera(dx, dy, sprint);
+            }
+            // H: return camera to the stronghold heart
+            if window.is_key_pressed(Key::H, KeyRepeat::No) {
+                let (hx, hy) = (engine.world.defense.heart_x as i64, engine.world.defense.heart_y as i64);
+                engine.world.camera.set_position(hx, hy);
+                engine.world.sync_streaming();
+                engine.set_notification("[CAMERA: HOME]", 60);
+            }
+            // G: toggle chunk boundary grid
+            if window.is_key_pressed(Key::G, KeyRepeat::No) {
+                engine.world.show_chunk_grid = !engine.world.show_chunk_grid;
+            }
+        } else {
+            // WASD Cursor Navigation
+            if up {
+                engine.cursor_y = engine.cursor_y.saturating_sub(1);
+            }
+            if down {
+                engine.cursor_y = (engine.cursor_y + 1).min(GRID_H - 1);
+            }
+            if left {
+                engine.cursor_x = engine.cursor_x.saturating_sub(1);
+            }
+            if right {
+                engine.cursor_x = (engine.cursor_x + 1).min(GRID_W - 1);
+            }
         }
 
         // 1~8 Tool Selection
@@ -1405,7 +1604,24 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // --- 2. Mouse Input Handling ---
-        if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
+        if engine.view_mode == ViewMode::OpenWorld {
+            // Middle / right drag pans the world camera (grab-and-pull, whole tiles).
+            let drag_held = window.get_mouse_down(MouseButton::Middle) || window.get_mouse_down(MouseButton::Right);
+            match (drag_held, window.get_mouse_pos(MouseMode::Pass)) {
+                (true, Some((mx, my))) => {
+                    let (mx, my) = (mx as i32, my as i32);
+                    if !engine.world.camera.dragging {
+                        engine.world.camera.begin_drag(mx, my);
+                    } else {
+                        let (tx, ty) = engine.world.camera.drag_to(mx, my);
+                        if tx != 0 || ty != 0 {
+                            engine.world.sync_streaming();
+                        }
+                    }
+                }
+                _ => engine.world.camera.end_drag(),
+            }
+        } else if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
             let mx = mx as i32;
             let my = my as i32;
             let gx = (mx - GRID_OFFSET_X) / TILE_SIZE;
