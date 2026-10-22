@@ -38,7 +38,35 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
-### [RECIPE-20261022-T056] 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`)
+### [RECIPE-20261022-T057] 1인 개발자를 위한 실시간 인게임 프로파일러 & 디버그 오버레이 (F3) [완료]
+- **목표:** 1인 인디 개발자가 게임플레이 중 즉각적인 성능 병목과 시스템 상태를 진단할 수 있도록, F3 핫키 토글 인게임 실시간 프로파일러 HUD 오버레이 구축.
+- **대상 파일:**
+  1. `crates/axiom-cli/src/desktop.rs`:
+     - `ProfilerMetrics`:
+       - `sim_time_us: u64`: `engine.step()` 소요 마이크로초
+       - `render_time_us: u64`: 래스터라이징 소요 마이크로초
+       - `fps: u32`: 실시간 FPS
+       - `active_structures: usize`: 활성 타일/구조물 수
+       - `active_monsters: usize`: 생존 몬스터 수
+       - `active_items: usize`: 벨트 및 인벤토리 아이템 수
+       - `state_hash: u64`: FNV-1a 결정론 해시
+       - `frame_times: [u32; 60]`: 최근 60프레임 프레임 타임 링 버퍼
+     - `show_profiler: bool` 상태 및 `minifb::Key::F3` 토글 처리
+     - `render_profiler_overlay(&self, fb: &mut FrameBuffer)`:
+       - 반투명 어두운 배경 패널 (`0xDD0F172A`)
+       - 실시간 텍스트 수치 (Sim, Render, FPS, Entities, Hash)
+       - 60프레임 미니 스파크라인 바 차트 (기준선 16.6ms 대비 실측 막대)
+     - 사이드바 CONTROLS 범례에 `F3:PROF` 추가
+  2. 신규 단위 테스트:
+     - `crates/axiom-cli/src/desktop.rs`: `test_desktop_profiler_metrics_collection`
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 원천 배제, 순수 정수 연산
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
+### [RECIPE-20261022-T056] 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`) [완료]
 - **목표:** 단색 사각형 색칠을 탈피하여, 1인 인디 개발자의 상용 비주얼을 위해 16x16 결정론적 픽셀 스프라이트 아틀라스와 실시간 애니메이션(벨트 흐름, 드릴 회전, 제련소 불꽃, 하트 펄스, 포탑, 몬스터) 래스터라이저 구축.
 - **대상 파일:**
   1. `crates/axiom-render/src/sprites.rs` (신규 모듈):

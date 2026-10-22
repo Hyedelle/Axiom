@@ -13,7 +13,7 @@ pub mod time_travel;
 
 pub use balancer::{MatchStats, MonteCarloBalancer};
 pub use coop::{MultiplayerRaidPeer, RaidCommand, BOSS_ID, HERO_1_ID, HERO_2_ID};
-pub use desktop::{run_desktop_window, DesktopEngine, SaveFileHeader, SAVE_MAGIC, SAVE_VERSION};
+pub use desktop::{run_desktop_window, DesktopEngine, ProfilerMetrics, SaveFileHeader, SAVE_MAGIC, SAVE_VERSION};
 pub use replayer::{ReplayReport, Replayer};
 pub use rpg_demo::{OpenWorldRpgSession, RpgReport};
 pub use session::{HeadlessSession, SessionReport};

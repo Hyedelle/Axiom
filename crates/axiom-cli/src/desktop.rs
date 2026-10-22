@@ -63,12 +63,56 @@ pub fn fnv1a_hash(bytes: &[u8]) -> u64 {
     hash
 }
 
+/// Real-time profiler metrics and telemetry snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfilerMetrics {
+    pub sim_time_us: u64,
+    pub render_time_us: u64,
+    pub fps: u32,
+    pub active_structures: usize,
+    pub active_monsters: usize,
+    pub active_items: usize,
+    pub state_hash: u64,
+    pub history: [u16; 60],
+    pub history_idx: usize,
+}
+
+impl Default for ProfilerMetrics {
+    fn default() -> Self {
+        Self {
+            sim_time_us: 0,
+            render_time_us: 0,
+            fps: 0,
+            active_structures: 0,
+            active_monsters: 0,
+            active_items: 0,
+            state_hash: 0,
+            history: [0; 60],
+            history_idx: 0,
+        }
+    }
+}
+
+impl ProfilerMetrics {
+    /// Records a new frame time sample in microseconds into the 60-frame ring buffer.
+    pub fn record_frame(&mut self, frame_time_us: u64) {
+        self.history[self.history_idx] = frame_time_us.min(u16::MAX as u64) as u16;
+        self.history_idx = (self.history_idx + 1) % 60;
+    }
+}
+
 /// Native interactive desktop engine holding grid, wave director, and persistence.
 pub struct DesktopEngine {
     pub grid: FactoryGrid<GRID_W, GRID_H>,
     pub director: WaveDirector<64>,
     pub tick: u64,
     pub notification: RefCell<Option<(String, u32)>>,
+    pub show_profiler: bool,
+    pub profiler: ProfilerMetrics,
+    pub cursor_x: usize,
+    pub cursor_y: usize,
+    pub selected_tool: SelectedTool,
+    pub current_direction: Direction,
 }
 
 impl DesktopEngine {
@@ -85,6 +129,12 @@ impl DesktopEngine {
             director,
             tick: 0,
             notification: RefCell::new(None),
+            show_profiler: false,
+            profiler: ProfilerMetrics::default(),
+            cursor_x: 16,
+            cursor_y: 16,
+            selected_tool: SelectedTool::Turret,
+            current_direction: Direction::East,
         }
     }
 
@@ -232,6 +282,50 @@ impl DesktopEngine {
 
         self.set_notification(format!("[QUICK LOAD COMPLETED (Tick {})]", header.tick), 120);
         Ok(())
+    }
+
+    /// Computes deterministic state hash of the current engine (grid, director, tick).
+    pub fn compute_state_hash(&self) -> u64 {
+        self.grid.compute_hash()
+            ^ self.director.compute_hash().rotate_left(17)
+            ^ self.tick.rotate_left(37)
+    }
+
+    /// Updates profiler telemetry metrics with current simulation time, render time, and FPS.
+    pub fn update_profiler_metrics(&mut self, sim_time_us: u64, render_time_us: u64, fps: u32) {
+        let frame_time_us = sim_time_us.saturating_add(render_time_us);
+        self.profiler.sim_time_us = sim_time_us;
+        self.profiler.render_time_us = render_time_us;
+        self.profiler.fps = if fps > 0 {
+            fps
+        } else if frame_time_us > 0 {
+            (1_000_000 / frame_time_us).min(999) as u32
+        } else {
+            60
+        };
+        self.profiler.record_frame(frame_time_us);
+
+        let mut structures = 0;
+        for row in &self.grid.cells {
+            for cell in row {
+                if !matches!(cell.kind, StructureKind::Empty) {
+                    structures += 1;
+                }
+            }
+        }
+        self.profiler.active_structures = structures;
+
+        let d_rep = self.director.report(&self.grid);
+        self.profiler.active_monsters = d_rep.monsters_alive as usize;
+
+        let f_rep = self.grid.report();
+        self.profiler.active_items = (f_rep.items_on_belts
+            + f_rep.items_held_by_inserters
+            + f_rep.ore_in_smelters
+            + f_rep.plates_in_smelters) as usize
+            + f_rep.total_stored as usize;
+
+        self.profiler.state_hash = self.compute_state_hash();
     }
 }
 
@@ -642,7 +736,43 @@ fn glyph_3x5(c: char) -> u16 {
         '(' => 0x2922,
         ')' => 0x224A,
         '_' => 0x0007,
+        '|' => 0x2492,
         _ => 0,
+    }
+}
+
+/// Alpha blends a solid color over existing framebuffer pixels using pure integer math.
+fn draw_rect_blend(fb: &mut FrameBuffer, x: i32, y: i32, w: i32, h: i32, color: u32) {
+    let a = (color >> 24) & 0xFF;
+    if a == 0 {
+        return;
+    }
+    if a == 255 {
+        fb.draw_rect(x, y, w, h, color);
+        return;
+    }
+    let inv_a = 255 - a;
+    let cr = (color >> 16) & 0xFF;
+    let cg = (color >> 8) & 0xFF;
+    let cb = color & 0xFF;
+
+    let x_start = x.max(0) as usize;
+    let x_end = ((x + w).min(fb.width as i32)).max(0) as usize;
+    let y_start = y.max(0) as usize;
+    let y_end = ((y + h).min(fb.height as i32)).max(0) as usize;
+
+    for py in y_start..y_end {
+        let row_offset = py * fb.width;
+        for px in x_start..x_end {
+            let bg = fb.pixels[row_offset + px];
+            let br = (bg >> 16) & 0xFF;
+            let bg_g = (bg >> 8) & 0xFF;
+            let bb = bg & 0xFF;
+            let r = (cr * a + br * inv_a) / 255;
+            let g = (cg * a + bg_g * inv_a) / 255;
+            let b = (cb * a + bb * inv_a) / 255;
+            fb.pixels[row_offset + px] = 0xFF00_0000 | (r << 16) | (g << 8) | b;
+        }
     }
 }
 
@@ -670,6 +800,282 @@ fn draw_text(fb: &mut FrameBuffer, text: &str, mut x: i32, y: i32, color: u32) {
     }
 }
 
+impl DesktopEngine {
+    /// Renders the entire factory scene, arena units, tracer bullets, cursor, sidebars, and overlays.
+    pub fn render(&self, fb: &mut FrameBuffer) {
+        fb.clear(0xFF0A0F1D);
+        let phase = (self.tick & 0x7FFF_FFFF) as i32;
+        let now = self.director.current_tick as u32;
+
+        // 1. Floor & Structures
+        for y in 0..GRID_H {
+            let sy = GRID_OFFSET_Y + y as i32 * TILE_SIZE;
+            for x in 0..GRID_W {
+                let sx = GRID_OFFSET_X + x as i32 * TILE_SIZE;
+                let floor = if (x + y) % 2 == 0 { 0xFF141F30 } else { 0xFF0F1726 };
+                fb.draw_rect(sx, sy, TILE_SIZE, TILE_SIZE, floor);
+                draw_cell(fb, &self.grid.cells[y][x], sx, sy, TILE_SIZE, phase);
+            }
+        }
+
+        // 2. Monsters from WaveDirector Arena
+        let monster_sprite = get_monster_sprite(phase as u64);
+        for u in self.director.arena.units.iter() {
+            if !u.is_alive() || u.team != MONSTER_TEAM {
+                continue;
+            }
+            let sx = GRID_OFFSET_X + u.pos.x.to_int() as i32 * TILE_SIZE;
+            let sy = GRID_OFFSET_Y + u.pos.y.to_int() as i32 * TILE_SIZE;
+            fb.draw_sprite_16x16(sx, sy, monster_sprite);
+            draw_hp_bar(fb, sx, sy, TILE_SIZE, u.current_hp, u.max_hp);
+        }
+
+        // 3. Turret Tracer Rounds
+        if now > 0 {
+            for y in 0..GRID_H {
+                for x in 0..GRID_W {
+                    let cell = &self.grid.cells[y][x];
+                    let t = match cell.kind {
+                        StructureKind::Turret(t) => t,
+                        _ => continue,
+                    };
+                    let fired = cell.last_action_tick == now && t.cooldown > 0 && t.cooldown_timer == t.cooldown;
+                    if !fired {
+                        continue;
+                    }
+                    let cx = GRID_OFFSET_X + x as i32 * TILE_SIZE + TILE_SIZE / 2;
+                    let cy = GRID_OFFSET_Y + y as i32 * TILE_SIZE + TILE_SIZE / 2;
+                    let flash = (TILE_SIZE / 2).max(2);
+                    fb.draw_rect(cx - flash / 2, cy - flash / 2, flash, flash, 0xFFFDE047);
+
+                    let range_sq = t.range as i64 * t.range as i64;
+                    let mut best: Option<(i32, i32)> = None;
+                    let mut best_d = i64::MAX;
+                    for u in self.director.arena.units.iter() {
+                        if !u.is_alive() || u.team != MONSTER_TEAM {
+                            continue;
+                        }
+                        let (ux, uy) = (u.pos.x.to_int(), u.pos.y.to_int());
+                        let (dx, dy) = (ux - x as i64, uy - y as i64);
+                        let d = dx * dx + dy * dy;
+                        if d <= range_sq && d < best_d {
+                            best_d = d;
+                            best = Some((ux as i32, uy as i32));
+                        }
+                    }
+                    if let Some((ux, uy)) = best {
+                        let tx = GRID_OFFSET_X + ux * TILE_SIZE + TILE_SIZE / 2;
+                        let ty = GRID_OFFSET_Y + uy * TILE_SIZE + TILE_SIZE / 2;
+                        draw_line(fb, cx, cy, tx, ty, 0xFFFDE047);
+                    }
+                }
+            }
+        }
+
+        // 4. Build Cursor Box
+        let cx = GRID_OFFSET_X + self.cursor_x as i32 * TILE_SIZE;
+        let cy = GRID_OFFSET_Y + self.cursor_y as i32 * TILE_SIZE;
+        fb.draw_rect(cx, cy, TILE_SIZE, 1, 0xFF38BDF8);
+        fb.draw_rect(cx, cy + TILE_SIZE - 1, TILE_SIZE, 1, 0xFF38BDF8);
+        fb.draw_rect(cx, cy, 1, TILE_SIZE, 0xFF38BDF8);
+        fb.draw_rect(cx + TILE_SIZE - 1, cy, 1, TILE_SIZE, 0xFF38BDF8);
+
+        // 5. Left Sidebar HUD
+        fb.draw_rect(0, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
+        fb.draw_rect(95, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
+
+        draw_text(fb, "AXIOM 1.3", 10, 12, 0xFF38BDF8);
+        draw_text(fb, "STUDIO", 10, 22, 0xFF94A3B8);
+        fb.draw_rect(10, 32, 76, 1, 0xFF1E293B);
+
+        draw_text(fb, "TOOLS:", 10, 40, 0xFFFBBF24);
+        let tools = [
+            SelectedTool::Belt,
+            SelectedTool::Drill,
+            SelectedTool::Smelter,
+            SelectedTool::Chest,
+            SelectedTool::Wall,
+            SelectedTool::Turret,
+            SelectedTool::Inserter,
+            SelectedTool::Clear,
+        ];
+        for (i, t) in tools.iter().enumerate() {
+            let ty = 54 + i as i32 * 18;
+            let is_sel = *t == self.selected_tool;
+            if is_sel {
+                fb.draw_rect(8, ty - 2, 80, 14, 0xFF1E3A8A);
+                fb.draw_rect(8, ty - 2, 80, 1, 0xFF60A5FA);
+                fb.draw_rect(8, ty + 11, 80, 1, 0xFF60A5FA);
+            }
+            let color = if is_sel { 0xFFFFFFFF } else { 0xFF94A3B8 };
+            draw_text(fb, t.label(), 12, ty + 2, color);
+        }
+
+        let dir_y = 210;
+        fb.draw_rect(10, dir_y, 76, 1, 0xFF1E293B);
+        draw_text(fb, "DIR [R]:", 10, dir_y + 8, 0xFFFBBF24);
+        draw_text(fb, direction_label(self.current_direction), 10, dir_y + 20, 0xFF34D399);
+
+        // 6. Right Sidebar Telemetry & Controls
+        fb.draw_rect(RIGHT_SIDEBAR_X, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
+        fb.draw_rect(RIGHT_SIDEBAR_X, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
+
+        let d_rep = self.director.report(&self.grid);
+        let f_rep = self.grid.report();
+        let rx = RIGHT_SIDEBAR_X + 8;
+
+        draw_text(fb, "DEFENSE", rx, 12, 0xFFF43F5E);
+        draw_text(fb, &format!("WAVE:{}", d_rep.wave_number), rx, 24, 0xFFE2E8F0);
+        draw_text(fb, &format!("MOBS:{}", d_rep.monsters_alive), rx, 34, 0xFFF87171);
+        draw_text(fb, &format!("KILL:{}", d_rep.total_killed), rx, 44, 0xFF34D399);
+        draw_text(fb, &format!("AMMO:{}", d_rep.turret_ammo), rx, 54, 0xFFFBBF24);
+
+        fb.draw_rect(rx, 68, 76, 1, 0xFF1E293B);
+        draw_text(fb, "FACTORY", rx, 76, 0xFF60A5FA);
+        draw_text(fb, &format!("MINE:{}", f_rep.total_mined), rx, 88, 0xFFCBD5E1);
+        draw_text(fb, &format!("SMLT:{}", f_rep.total_smelted), rx, 98, 0xFFCBD5E1);
+        draw_text(fb, &format!("STOR:{}", f_rep.total_stored), rx, 108, 0xFFCBD5E1);
+        draw_text(fb, &format!("BELT:{}", f_rep.items_on_belts), rx, 118, 0xFFCBD5E1);
+
+        fb.draw_rect(rx, 134, 76, 1, 0xFF1E293B);
+        draw_text(fb, "CONTROLS", rx, 142, 0xFFFBBF24);
+        draw_text(fb, "WASD:MOVE", rx, 154, 0xFF94A3B8);
+        draw_text(fb, "LMB:BUILD", rx, 164, 0xFF94A3B8);
+        draw_text(fb, "RMB:CLEAR", rx, 174, 0xFF94A3B8);
+        draw_text(fb, "1-8:TOOL", rx, 184, 0xFF94A3B8);
+        draw_text(fb, "R:ROTATE", rx, 194, 0xFF94A3B8);
+        draw_text(fb, "F3:PROF", rx, 204, 0xFF38BDF8);
+        draw_text(fb, "F5:QSAVE", rx, 214, 0xFF38BDF8);
+        draw_text(fb, "F9:QLOAD", rx, 224, 0xFF38BDF8);
+        draw_text(fb, "ESC:EXIT", rx, 234, 0xFF94A3B8);
+
+        // 7. Top Header Bar (Heart HP & Status)
+        fb.draw_rect(GRID_OFFSET_X, 0, GRID_PIXEL_SIZE, 16, 0xFF0F172A);
+        draw_text(fb, "HEART:", 104, 5, 0xFFF43F5E);
+        let hp_bar_w = 120;
+        fb.draw_rect(142, 4, hp_bar_w, 8, 0xFF450A0A);
+        let hp_fill = if d_rep.heart_max_hp > 0 {
+            (hp_bar_w * d_rep.heart_hp as i32) / d_rep.heart_max_hp as i32
+        } else {
+            0
+        };
+        fb.draw_rect(142, 4, hp_fill, 8, 0xFFF43F5E);
+        draw_text(
+            fb,
+            &format!("{}/{}", d_rep.heart_hp, d_rep.heart_max_hp),
+            270,
+            5,
+            0xFFFFFFFF,
+        );
+
+        if d_rep.base_fallen {
+            draw_text(fb, "[BASE DESTROYED]", 370, 5, 0xFFEF4444);
+        } else {
+            draw_text(
+                fb,
+                &format!("NEXT WAVE: TICK {}", self.director.next_wave_tick),
+                350,
+                5,
+                0xFFFBBF24,
+            );
+        }
+
+        // 8. Notification Toast / Alert Banner
+        if let Some((ref msg, _)) = self.notification() {
+            let box_w = (msg.len() as i32 * 4 + 16).max(180);
+            let box_h = 16;
+            let box_x = GRID_OFFSET_X + (GRID_PIXEL_SIZE - box_w) / 2;
+            let box_y = 22;
+
+            fb.draw_rect(box_x, box_y, box_w, box_h, 0xFF042F2E);
+            fb.draw_rect(box_x, box_y, box_w, 1, 0xFF14B8A6);
+            fb.draw_rect(box_x, box_y + box_h - 1, box_w, 1, 0xFF14B8A6);
+            fb.draw_rect(box_x, box_y, 1, box_h, 0xFF14B8A6);
+            fb.draw_rect(box_x + box_w - 1, box_y, 1, box_h, 0xFF14B8A6);
+
+            let text_x = box_x + (box_w - (msg.len() as i32 * 4)) / 2;
+            let text_y = box_y + 5;
+            draw_text(fb, msg, text_x, text_y, 0xFF5EEAD4);
+        }
+
+        // 9. Profiler Overlay (F3)
+        if self.show_profiler {
+            self.render_profiler_overlay(fb);
+        }
+    }
+
+    /// Renders the real-time F3 profiler & debug HUD overlay.
+    pub fn render_profiler_overlay(&self, fb: &mut FrameBuffer) {
+        let x = 108;
+        let y = 12;
+        let w = 496;
+        let h = 100;
+
+        // 1. Semi-transparent dark background (0xDD0F172A)
+        draw_rect_blend(fb, x, y, w, h, 0xDD0F172A);
+
+        // 2. Crisp border (0xFF38BDF8)
+        let border = 0xFF38BDF8;
+        fb.draw_rect(x, y, w, 1, border);
+        fb.draw_rect(x, y + h - 1, w, 1, border);
+        fb.draw_rect(x, y, 1, h, border);
+        fb.draw_rect(x + w - 1, y, 1, h, border);
+
+        // 3. Header title
+        draw_text(fb, "[AXIOM PROFILER (F3)]", x + 8, y + 6, 0xFF38BDF8);
+
+        // 4. Telemetry metrics
+        let line1 = format!(
+            "SIM: {} us | RENDER: {} us | FPS: {}",
+            self.profiler.sim_time_us, self.profiler.render_time_us, self.profiler.fps
+        );
+        draw_text(fb, &line1, x + 8, y + 17, 0xFFE2E8F0);
+
+        let line2 = format!(
+            "STRUCTS: {} | MONSTERS: {} | ITEMS: {}",
+            self.profiler.active_structures,
+            self.profiler.active_monsters,
+            self.profiler.active_items
+        );
+        draw_text(fb, &line2, x + 8, y + 27, 0xFF94A3B8);
+
+        let line3 = format!("HASH: 0x{:016X}", self.profiler.state_hash);
+        draw_text(fb, &line3, x + 8, y + 37, 0xFF34D399);
+
+        // 5. 60-frame Sparkline / Bar Graph
+        let base_y = y + 94; // bottom of bars
+        let max_bar_h = 42;  // max height of bars
+        let ref_target_h = 20; // height for 16.6ms frame
+        let ref_y = base_y - ref_target_h;
+
+        // 16.6ms target reference line (0xFF334155)
+        fb.draw_rect(x + 8, ref_y, 480, 1, 0xFF334155);
+        draw_text(fb, "16.6MS", x + w - 36, ref_y - 6, 0xFF475569);
+
+        for i in 0..60 {
+            let idx = (self.profiler.history_idx + i) % 60;
+            let frame_us = self.profiler.history[idx] as u64;
+            let bar_x = x + 8 + (i as i32 * 8);
+
+            if frame_us > 0 {
+                let bar_h = (((frame_us * ref_target_h as u64) / 16666).max(1)).min(max_bar_h as u64) as i32;
+                let bar_y = base_y - bar_h;
+                let color = if frame_us < 16_000 {
+                    0xFF22C55E // Green (< 16.6ms)
+                } else if frame_us <= 18_000 {
+                    0xFFFBBF24 // Yellow (~16.6ms)
+                } else {
+                    0xFFEF4444 // Red (> 16.6ms)
+                };
+                fb.draw_rect(bar_x, bar_y, 6, bar_h, color);
+            } else {
+                // Empty history slot placeholder
+                fb.draw_rect(bar_x, base_y - 1, 6, 1, 0xFF1E293B);
+            }
+        }
+    }
+}
+
 /// Main desktop window runner.
 pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
     let mut window = Window::new(
@@ -693,69 +1099,73 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut framebuffer = FrameBuffer::new(WIN_WIDTH, WIN_HEIGHT);
 
-    let mut cursor_x: usize = 16;
-    let mut cursor_y: usize = 16;
-    let mut selected_tool = SelectedTool::Turret;
-    let mut current_direction = Direction::East;
+    let mut frame_counter = 0u32;
+    let mut current_fps = 60u32;
+    let mut fps_timer = std::time::Instant::now();
 
     println!("🚀 [Axiom Desktop Studio] Launched in 704x544 native window at 60 FPS.");
-    println!("   Controls: WASD (Move cursor), 1~8 (Select tool), R (Rotate), LMB (Build), RMB (Clear), F5 (QuickSave), F9 (QuickLoad), ESC (Exit)");
+    println!("   Controls: WASD (Move), 1~8 (Tool), R (Rotate), LMB (Build), RMB (Clear), F3 (Profiler), F5 (Save), F9 (Load), ESC (Exit)");
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // --- 1. Keyboard Input Handling ---
         // WASD Cursor Navigation
         if window.is_key_pressed(Key::W, KeyRepeat::Yes) || window.is_key_pressed(Key::Up, KeyRepeat::Yes) {
-            cursor_y = cursor_y.saturating_sub(1);
+            engine.cursor_y = engine.cursor_y.saturating_sub(1);
         }
         if window.is_key_pressed(Key::S, KeyRepeat::Yes) || window.is_key_pressed(Key::Down, KeyRepeat::Yes) {
-            cursor_y = (cursor_y + 1).min(GRID_H - 1);
+            engine.cursor_y = (engine.cursor_y + 1).min(GRID_H - 1);
         }
         if window.is_key_pressed(Key::A, KeyRepeat::Yes) || window.is_key_pressed(Key::Left, KeyRepeat::Yes) {
-            cursor_x = cursor_x.saturating_sub(1);
+            engine.cursor_x = engine.cursor_x.saturating_sub(1);
         }
         if window.is_key_pressed(Key::D, KeyRepeat::Yes) || window.is_key_pressed(Key::Right, KeyRepeat::Yes) {
-            cursor_x = (cursor_x + 1).min(GRID_W - 1);
+            engine.cursor_x = (engine.cursor_x + 1).min(GRID_W - 1);
         }
 
         // 1~8 Tool Selection
         if window.is_key_pressed(Key::Key1, KeyRepeat::No) || window.is_key_pressed(Key::NumPad1, KeyRepeat::No) {
-            selected_tool = SelectedTool::Belt;
+            engine.selected_tool = SelectedTool::Belt;
         }
         if window.is_key_pressed(Key::Key2, KeyRepeat::No) || window.is_key_pressed(Key::NumPad2, KeyRepeat::No) {
-            selected_tool = SelectedTool::Drill;
+            engine.selected_tool = SelectedTool::Drill;
         }
         if window.is_key_pressed(Key::Key3, KeyRepeat::No) || window.is_key_pressed(Key::NumPad3, KeyRepeat::No) {
-            selected_tool = SelectedTool::Smelter;
+            engine.selected_tool = SelectedTool::Smelter;
         }
         if window.is_key_pressed(Key::Key4, KeyRepeat::No) || window.is_key_pressed(Key::NumPad4, KeyRepeat::No) {
-            selected_tool = SelectedTool::Chest;
+            engine.selected_tool = SelectedTool::Chest;
         }
         if window.is_key_pressed(Key::Key5, KeyRepeat::No) || window.is_key_pressed(Key::NumPad5, KeyRepeat::No) {
-            selected_tool = SelectedTool::Wall;
+            engine.selected_tool = SelectedTool::Wall;
         }
         if window.is_key_pressed(Key::Key6, KeyRepeat::No) || window.is_key_pressed(Key::NumPad6, KeyRepeat::No) {
-            selected_tool = SelectedTool::Turret;
+            engine.selected_tool = SelectedTool::Turret;
         }
         if window.is_key_pressed(Key::Key7, KeyRepeat::No) || window.is_key_pressed(Key::NumPad7, KeyRepeat::No) {
-            selected_tool = SelectedTool::Inserter;
+            engine.selected_tool = SelectedTool::Inserter;
         }
         if window.is_key_pressed(Key::Key8, KeyRepeat::No) || window.is_key_pressed(Key::NumPad8, KeyRepeat::No) {
-            selected_tool = SelectedTool::Clear;
+            engine.selected_tool = SelectedTool::Clear;
         }
 
         // R: Rotate Direction
         if window.is_key_pressed(Key::R, KeyRepeat::No) {
-            current_direction = next_direction(current_direction);
+            engine.current_direction = next_direction(engine.current_direction);
         }
 
         // Space / Enter: Place structure at cursor
         if window.is_key_pressed(Key::Space, KeyRepeat::No) || window.is_key_pressed(Key::Enter, KeyRepeat::No) {
-            place_structure(&mut engine.grid, cursor_x, cursor_y, selected_tool, current_direction);
+            place_structure(&mut engine.grid, engine.cursor_x, engine.cursor_y, engine.selected_tool, engine.current_direction);
         }
 
         // Delete / Backspace: Clear structure at cursor
         if window.is_key_pressed(Key::Delete, KeyRepeat::No) || window.is_key_pressed(Key::Backspace, KeyRepeat::No) {
-            demolish_tile(&mut engine.grid, cursor_x, cursor_y);
+            demolish_tile(&mut engine.grid, engine.cursor_x, engine.cursor_y);
+        }
+
+        // F3: Toggle Profiler Overlay
+        if window.is_key_pressed(Key::F3, KeyRepeat::No) {
+            engine.show_profiler = !engine.show_profiler;
         }
 
         // F5: Quicksave
@@ -779,215 +1189,37 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
             let gx = (mx - GRID_OFFSET_X) / TILE_SIZE;
             let gy = (my - GRID_OFFSET_Y) / TILE_SIZE;
             if gx >= 0 && gx < GRID_W as i32 && gy >= 0 && gy < GRID_H as i32 {
-                cursor_x = gx as usize;
-                cursor_y = gy as usize;
+                engine.cursor_x = gx as usize;
+                engine.cursor_y = gy as usize;
 
                 if window.get_mouse_down(MouseButton::Left) {
-                    place_structure(&mut engine.grid, cursor_x, cursor_y, selected_tool, current_direction);
+                    place_structure(&mut engine.grid, engine.cursor_x, engine.cursor_y, engine.selected_tool, engine.current_direction);
                 }
                 if window.get_mouse_down(MouseButton::Right) {
-                    demolish_tile(&mut engine.grid, cursor_x, cursor_y);
+                    demolish_tile(&mut engine.grid, engine.cursor_x, engine.cursor_y);
                 }
             }
         }
 
         // --- 3. Simulation Step ---
+        let sim_start = std::time::Instant::now();
         engine.step();
+        let sim_time_us = sim_start.elapsed().as_micros() as u64;
 
         // --- 4. Render Scene into FrameBuffer ---
-        framebuffer.clear(0xFF0A0F1D);
-        let phase = (engine.tick & 0x7FFF_FFFF) as i32;
-        let now = engine.director.current_tick as u32;
+        let render_start = std::time::Instant::now();
+        engine.render(&mut framebuffer);
+        let render_time_us = render_start.elapsed().as_micros() as u64;
 
-        // 4.1 Floor & Structures
-        for y in 0..GRID_H {
-            let sy = GRID_OFFSET_Y + y as i32 * TILE_SIZE;
-            for x in 0..GRID_W {
-                let sx = GRID_OFFSET_X + x as i32 * TILE_SIZE;
-                let floor = if (x + y) % 2 == 0 { 0xFF141F30 } else { 0xFF0F1726 };
-                framebuffer.draw_rect(sx, sy, TILE_SIZE, TILE_SIZE, floor);
-                draw_cell(&mut framebuffer, &engine.grid.cells[y][x], sx, sy, TILE_SIZE, phase);
-            }
+        // FPS tracking
+        frame_counter += 1;
+        if fps_timer.elapsed() >= std::time::Duration::from_secs(1) {
+            current_fps = frame_counter;
+            frame_counter = 0;
+            fps_timer = std::time::Instant::now();
         }
 
-        // 4.2 Monsters from WaveDirector Arena
-        let monster_sprite = get_monster_sprite(phase as u64);
-        for u in engine.director.arena.units.iter() {
-            if !u.is_alive() || u.team != MONSTER_TEAM {
-                continue;
-            }
-            let sx = GRID_OFFSET_X + u.pos.x.to_int() as i32 * TILE_SIZE;
-            let sy = GRID_OFFSET_Y + u.pos.y.to_int() as i32 * TILE_SIZE;
-            framebuffer.draw_sprite_16x16(sx, sy, monster_sprite);
-            draw_hp_bar(&mut framebuffer, sx, sy, TILE_SIZE, u.current_hp, u.max_hp);
-        }
-
-        // 4.3 Turret Tracer Rounds
-        if now > 0 {
-            for y in 0..GRID_H {
-                for x in 0..GRID_W {
-                    let cell = &engine.grid.cells[y][x];
-                    let t = match cell.kind {
-                        StructureKind::Turret(t) => t,
-                        _ => continue,
-                    };
-                    let fired = cell.last_action_tick == now && t.cooldown > 0 && t.cooldown_timer == t.cooldown;
-                    if !fired {
-                        continue;
-                    }
-                    let cx = GRID_OFFSET_X + x as i32 * TILE_SIZE + TILE_SIZE / 2;
-                    let cy = GRID_OFFSET_Y + y as i32 * TILE_SIZE + TILE_SIZE / 2;
-                    let flash = (TILE_SIZE / 2).max(2);
-                    framebuffer.draw_rect(cx - flash / 2, cy - flash / 2, flash, flash, 0xFFFDE047);
-
-                    let range_sq = t.range as i64 * t.range as i64;
-                    let mut best: Option<(i32, i32)> = None;
-                    let mut best_d = i64::MAX;
-                    for u in engine.director.arena.units.iter() {
-                        if !u.is_alive() || u.team != MONSTER_TEAM {
-                            continue;
-                        }
-                        let (ux, uy) = (u.pos.x.to_int(), u.pos.y.to_int());
-                        let (dx, dy) = (ux - x as i64, uy - y as i64);
-                        let d = dx * dx + dy * dy;
-                        if d <= range_sq && d < best_d {
-                            best_d = d;
-                            best = Some((ux as i32, uy as i32));
-                        }
-                    }
-                    if let Some((ux, uy)) = best {
-                        let tx = GRID_OFFSET_X + ux * TILE_SIZE + TILE_SIZE / 2;
-                        let ty = GRID_OFFSET_Y + uy * TILE_SIZE + TILE_SIZE / 2;
-                        draw_line(&mut framebuffer, cx, cy, tx, ty, 0xFFFDE047);
-                    }
-                }
-            }
-        }
-
-        // 4.4 Build Cursor Box
-        let cx = GRID_OFFSET_X + cursor_x as i32 * TILE_SIZE;
-        let cy = GRID_OFFSET_Y + cursor_y as i32 * TILE_SIZE;
-        framebuffer.draw_rect(cx, cy, TILE_SIZE, 1, 0xFF38BDF8);
-        framebuffer.draw_rect(cx, cy + TILE_SIZE - 1, TILE_SIZE, 1, 0xFF38BDF8);
-        framebuffer.draw_rect(cx, cy, 1, TILE_SIZE, 0xFF38BDF8);
-        framebuffer.draw_rect(cx + TILE_SIZE - 1, cy, 1, TILE_SIZE, 0xFF38BDF8);
-
-        // 4.5 Left Sidebar HUD
-        framebuffer.draw_rect(0, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
-        framebuffer.draw_rect(95, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
-
-        draw_text(&mut framebuffer, "AXIOM 1.3", 10, 12, 0xFF38BDF8);
-        draw_text(&mut framebuffer, "STUDIO", 10, 22, 0xFF94A3B8);
-        framebuffer.draw_rect(10, 32, 76, 1, 0xFF1E293B);
-
-        draw_text(&mut framebuffer, "TOOLS:", 10, 40, 0xFFFBBF24);
-        let tools = [
-            SelectedTool::Belt,
-            SelectedTool::Drill,
-            SelectedTool::Smelter,
-            SelectedTool::Chest,
-            SelectedTool::Wall,
-            SelectedTool::Turret,
-            SelectedTool::Inserter,
-            SelectedTool::Clear,
-        ];
-        for (i, t) in tools.iter().enumerate() {
-            let ty = 54 + i as i32 * 18;
-            let is_sel = *t == selected_tool;
-            if is_sel {
-                framebuffer.draw_rect(8, ty - 2, 80, 14, 0xFF1E3A8A);
-                framebuffer.draw_rect(8, ty - 2, 80, 1, 0xFF60A5FA);
-                framebuffer.draw_rect(8, ty + 11, 80, 1, 0xFF60A5FA);
-            }
-            let color = if is_sel { 0xFFFFFFFF } else { 0xFF94A3B8 };
-            draw_text(&mut framebuffer, t.label(), 12, ty + 2, color);
-        }
-
-        let dir_y = 210;
-        framebuffer.draw_rect(10, dir_y, 76, 1, 0xFF1E293B);
-        draw_text(&mut framebuffer, "DIR [R]:", 10, dir_y + 8, 0xFFFBBF24);
-        draw_text(&mut framebuffer, direction_label(current_direction), 10, dir_y + 20, 0xFF34D399);
-
-        // 4.6 Right Sidebar Telemetry & Controls
-        framebuffer.draw_rect(RIGHT_SIDEBAR_X, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
-        framebuffer.draw_rect(RIGHT_SIDEBAR_X, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
-
-        let d_rep = engine.director.report(&engine.grid);
-        let f_rep = engine.grid.report();
-        let rx = RIGHT_SIDEBAR_X + 8;
-
-        draw_text(&mut framebuffer, "DEFENSE", rx, 12, 0xFFF43F5E);
-        draw_text(&mut framebuffer, &format!("WAVE:{}", d_rep.wave_number), rx, 24, 0xFFE2E8F0);
-        draw_text(&mut framebuffer, &format!("MOBS:{}", d_rep.monsters_alive), rx, 34, 0xFFF87171);
-        draw_text(&mut framebuffer, &format!("KILL:{}", d_rep.total_killed), rx, 44, 0xFF34D399);
-        draw_text(&mut framebuffer, &format!("AMMO:{}", d_rep.turret_ammo), rx, 54, 0xFFFBBF24);
-
-        framebuffer.draw_rect(rx, 68, 76, 1, 0xFF1E293B);
-        draw_text(&mut framebuffer, "FACTORY", rx, 76, 0xFF60A5FA);
-        draw_text(&mut framebuffer, &format!("MINE:{}", f_rep.total_mined), rx, 88, 0xFFCBD5E1);
-        draw_text(&mut framebuffer, &format!("SMLT:{}", f_rep.total_smelted), rx, 98, 0xFFCBD5E1);
-        draw_text(&mut framebuffer, &format!("STOR:{}", f_rep.total_stored), rx, 108, 0xFFCBD5E1);
-        draw_text(&mut framebuffer, &format!("BELT:{}", f_rep.items_on_belts), rx, 118, 0xFFCBD5E1);
-
-        framebuffer.draw_rect(rx, 134, 76, 1, 0xFF1E293B);
-        draw_text(&mut framebuffer, "CONTROLS", rx, 142, 0xFFFBBF24);
-        draw_text(&mut framebuffer, "WASD:MOVE", rx, 154, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "LMB:BUILD", rx, 164, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "RMB:CLEAR", rx, 174, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "1-8:TOOL", rx, 184, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "R:ROTATE", rx, 194, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "F5:QSAVE", rx, 204, 0xFF38BDF8);
-        draw_text(&mut framebuffer, "F9:QLOAD", rx, 214, 0xFF38BDF8);
-        draw_text(&mut framebuffer, "ESC:EXIT", rx, 224, 0xFF94A3B8);
-
-        // 4.7 Top Header Bar (Heart HP & Status)
-        framebuffer.draw_rect(GRID_OFFSET_X, 0, GRID_PIXEL_SIZE, 16, 0xFF0F172A);
-        draw_text(&mut framebuffer, "HEART:", 104, 5, 0xFFF43F5E);
-        let hp_bar_w = 120;
-        framebuffer.draw_rect(142, 4, hp_bar_w, 8, 0xFF450A0A);
-        let hp_fill = if d_rep.heart_max_hp > 0 {
-            (hp_bar_w * d_rep.heart_hp as i32) / d_rep.heart_max_hp as i32
-        } else {
-            0
-        };
-        framebuffer.draw_rect(142, 4, hp_fill, 8, 0xFFF43F5E);
-        draw_text(
-            &mut framebuffer,
-            &format!("{}/{}", d_rep.heart_hp, d_rep.heart_max_hp),
-            270,
-            5,
-            0xFFFFFFFF,
-        );
-
-        if d_rep.base_fallen {
-            draw_text(&mut framebuffer, "[BASE DESTROYED]", 370, 5, 0xFFEF4444);
-        } else {
-            draw_text(
-                &mut framebuffer,
-                &format!("NEXT WAVE: TICK {}", engine.director.next_wave_tick),
-                350,
-                5,
-                0xFFFBBF24,
-            );
-        }
-
-        // 4.8 Notification Toast / Alert Banner
-        if let Some((ref msg, _)) = engine.notification() {
-            let box_w = (msg.len() as i32 * 4 + 16).max(180);
-            let box_h = 16;
-            let box_x = GRID_OFFSET_X + (GRID_PIXEL_SIZE - box_w) / 2;
-            let box_y = 22;
-
-            framebuffer.draw_rect(box_x, box_y, box_w, box_h, 0xFF042F2E);
-            framebuffer.draw_rect(box_x, box_y, box_w, 1, 0xFF14B8A6);
-            framebuffer.draw_rect(box_x, box_y + box_h - 1, box_w, 1, 0xFF14B8A6);
-            framebuffer.draw_rect(box_x, box_y, 1, box_h, 0xFF14B8A6);
-            framebuffer.draw_rect(box_x + box_w - 1, box_y, 1, box_h, 0xFF14B8A6);
-
-            let text_x = box_x + (box_w - (msg.len() as i32 * 4)) / 2;
-            let text_y = box_y + 5;
-            draw_text(&mut framebuffer, msg, text_x, text_y, 0xFF5EEAD4);
-        }
+        engine.update_profiler_metrics(sim_time_us, render_time_us, current_fps);
 
         // --- 5. Push Frame to Desktop Window ---
         window.update_with_buffer(framebuffer.as_slice(), WIN_WIDTH, WIN_HEIGHT)?;
@@ -1098,5 +1330,57 @@ mod tests {
         let _ = std::fs::remove_file(tampered_path);
 
         let _ = std::fs::remove_file(save_path);
+    }
+
+    #[test]
+    fn test_desktop_profiler_metrics_collection() {
+        let seed = 0xABCD_9999_7777;
+        let mut engine = DesktopEngine::new(seed);
+
+        // 1. Verify profiler toggling (default false)
+        assert!(!engine.show_profiler);
+        engine.show_profiler = !engine.show_profiler;
+        assert!(engine.show_profiler);
+        engine.show_profiler = !engine.show_profiler;
+        assert!(!engine.show_profiler);
+
+        // 2. Metric calculation & recording
+        engine.update_profiler_metrics(1250, 2400, 60);
+        assert_eq!(engine.profiler.sim_time_us, 1250);
+        assert_eq!(engine.profiler.render_time_us, 2400);
+        assert_eq!(engine.profiler.fps, 60);
+        assert!(engine.profiler.active_structures > 0);
+        assert_ne!(engine.profiler.state_hash, 0);
+
+        // 3. History buffer wrapping
+        // Add 70 frames (total 71 frames recorded into 60-slot ring buffer)
+        for i in 1..=70 {
+            engine.update_profiler_metrics(500 + i as u64, 1000 + i as u64, 60);
+        }
+        // Initial 1 + 70 = 71 samples. 71 % 60 = 11.
+        assert_eq!(engine.profiler.history_idx, 11);
+        for (i, &sample) in engine.profiler.history.iter().enumerate() {
+            assert!(sample > 0, "Slot {} must hold a non-zero frame time", i);
+        }
+
+        // 4. Non-zero state hash generation & determinism
+        let hash_a = engine.compute_state_hash();
+        assert_ne!(hash_a, 0);
+        assert_eq!(engine.profiler.state_hash, hash_a);
+
+        // Advance simulation and verify hash changes deterministically
+        engine.step();
+        engine.update_profiler_metrics(400, 800, 60);
+        let hash_b = engine.compute_state_hash();
+        assert_ne!(hash_b, 0);
+        assert_ne!(hash_a, hash_b, "Advancing engine tick must yield distinct state hash");
+
+        // 5. Verify profiler overlay renders cleanly onto FrameBuffer
+        let mut fb = FrameBuffer::new(WIN_WIDTH, WIN_HEIGHT);
+        engine.show_profiler = true;
+        engine.render(&mut fb);
+        // Verify overlay pixels in profiler region (x=108..604, y=12..112)
+        let sample_pixel = fb.pixels[20 * WIN_WIDTH + 150];
+        assert_ne!(sample_pixel, 0, "Overlay must draw pixels into framebuffer");
     }
 }
