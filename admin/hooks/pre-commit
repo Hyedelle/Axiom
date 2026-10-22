@@ -10,13 +10,19 @@ if ! sh admin/check_constitution.sh; then
     exit 1
 fi
 
-echo "==> [Gate 4] 외부 러너 테스트 검증 (tools/run_test.ps1)..."
-powershell -ExecutionPolicy Bypass -File tools/run_test.ps1
-test_exit=$?
+# [게이트 4] Rust 소스코드 변경 여부 감지 (스마트 바이패스: 비-Rust 커밋 초고속 가속)
+rust_staged=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=ACM | grep -E '(\.rs$|Cargo\.toml$|Cargo\.lock$|\.cargo/)')
+if [ -z "$rust_staged" ]; then
+    echo "==> [Gate 4] Rust 소스코드 변경 없음 (단위 테스트 스킵, 즉시 승인: 0.1s)"
+else
+    echo "==> [Gate 4] 외부 러너 테스트 검증 (tools/run_test.ps1)..."
+    powershell -ExecutionPolicy Bypass -File tools/run_test.ps1
+    test_exit=$?
 
-if [ $test_exit -ne 0 ]; then
-    echo "[FAIL] 단위 테스트를 통과하지 못해 커밋이 거부되었습니다. (Exit Code: $test_exit)" >&2
-    exit 1
+    if [ $test_exit -ne 0 ]; then
+        echo "[FAIL] 단위 테스트를 통과하지 못해 커밋이 거부되었습니다. (Exit Code: $test_exit)" >&2
+        exit 1
+    fi
 fi
 
 echo "==> [PASS] 모든 Axiom 헌법 및 단위 테스트를 통과했습니다."

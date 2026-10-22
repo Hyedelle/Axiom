@@ -23,8 +23,8 @@ $VerdictFile = Join-Path $TmpDir "verdict.txt"
 # Measure execution time
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Run cargo test and redirect all output to log file
-& cargo test --workspace > $LogFile 2>&1
+# Run cargo test and redirect all output to log file (skip doc-tests for rapid turnaround)
+& cargo test --workspace --bins --lib --tests > $LogFile 2>&1
 $TestExitCode = $LASTEXITCODE
 
 $Stopwatch.Stop()

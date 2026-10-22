@@ -55,7 +55,7 @@ Write-Host "Task: $TaskPrompt" -ForegroundColor Green
 
 # 3. Construct System-Guided Engineering Prompt
 $CleanTask = $TaskPrompt -replace '"', '\"'
-$SinglePrompt = "You are Claude Code site engineer for Axiom. Follow CLAUDE.md and AGENTS.md strictly (No float in core, 64B L1 cache align, pure determinism, DO NOT touch files outside c:\Dreamhub\Engine\Axiom). Read docs/audit-report.md for prescription [RECIPE-20261022-T070] and docs/tasks.md. Implement task: $CleanTask. Verify with tools/guard.ps1."
+$SinglePrompt = "You are Claude Code site engineer for Axiom. Follow CLAUDE.md and AGENTS.md strictly (No float in core, 64B L1 cache align, pure determinism, DO NOT touch files outside c:\Dreamhub\Engine\Axiom). Read docs/tasks.md and docs/audit-report.md for technical requirements. Implement task: $CleanTask. Verify with tools/guard.ps1."
 
 # 4. Invoke Claude Code non-interactively
 $TmpLog = Join-Path $ProjectRoot "tmp\claude_worker.log"
