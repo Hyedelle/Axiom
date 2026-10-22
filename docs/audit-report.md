@@ -38,7 +38,39 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
-### [RECIPE-20261022-T055] 1인 인디 개발자를 위한 디스크 세이브/로드(F5/F9) 및 영속성 슬롯 (`saves/*.axiom`)
+### [RECIPE-20261022-T056] 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`)
+- **목표:** 단색 사각형 색칠을 탈피하여, 1인 인디 개발자의 상용 비주얼을 위해 16x16 결정론적 픽셀 스프라이트 아틀라스와 실시간 애니메이션(벨트 흐름, 드릴 회전, 제련소 불꽃, 하트 펄스, 포탑, 몬스터) 래스터라이저 구축.
+- **대상 파일:**
+  1. `crates/axiom-render/src/sprites.rs` (신규 모듈):
+     - 16x16 픽셀 슬랩 (`[u32; 256]` ARGB):
+       - `BELT_FRAMES`: 4프레임 방향별 벨트 흐름 애니메이션
+       - `DRILL_FRAMES`: 4프레임 회전 채굴기 스프라이트
+       - `SMELTER_FRAMES`: 4프레임 타오르는 제련소 불꽃 애니메이션
+       - `CHEST_SPRITE`: 리벳 보강된 메탈릭 수송 상자
+       - `WALL_SPRITE`: 성벽 석재 블록
+       - `TURRET_SPRITE`: 방향별 포신 및 거치대
+       - `HEART_FRAMES`: 4프레임 펄스 에너지 크리스탈 코어
+       - `MONSTER_FRAMES`: 2프레임 걷는 고블린 크리처
+       - `ORE_DEPOSIT`: 바위 틈의 철/구리 광석 비트맵
+     - `get_animated_sprite(kind, direction, tick) -> &'static [u32; 256]`
+  2. `crates/axiom-render/src/framebuffer.rs`:
+     - `draw_sprite_16x16(&mut self, x: i32, y: i32, sprite: &[u32; 256])`: 알파 키(`(color >> 24) > 0`) 검사 및 화면 경계 클리핑
+     - `draw_sprite_16x16_tinted(&mut self, x: i32, y: i32, sprite: &[u32; 256], tint: u32)`
+  3. `crates/axiom-render/src/lib.rs`:
+     - `pub mod sprites;`
+     - `pub use sprites::*;`
+  4. `crates/axiom-cli/src/desktop.rs`:
+     - 구조물 및 엔티티 렌더링 시 단색 `draw_rect` 대신 `draw_sprite_16x16` 스프라이트 아틀라스 호출로 전환
+  5. 신규 단위 테스트:
+     - `crates/axiom-render/src/sprites.rs`: `test_sprite_dimensions_and_alpha_integrity`
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 원천 배제, 순수 정수 비트맵 슬랩
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
+### [RECIPE-20261022-T055] 1인 인디 개발자를 위한 디스크 세이브/로드(F5/F9) 및 영속성 슬롯 (`saves/*.axiom`) [완료]
 - **목표:** 1인 인디 개발자가 데스크톱에서 기지를 건설하고 웨이브를 막아낸 상태를 F5 퀵세이브로 디스크 파일(`saves/quick.axiom`)에 100% 무손실 저장하고, F9 퀵로드로 1초 만에 그대로 복원하여 게임플레이를 연속 검증할 수 있는 파일 영속성 구축.
 - **대상 파일:**
   1. `crates/axiom-cli/src/desktop.rs`:

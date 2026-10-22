@@ -6,22 +6,23 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-056: 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`)**
+- [ ] **T-057: 1인 개발자를 위한 실시간 인게임 프로파일러 & 디버그 오버레이 (F3)**
   - **목표:**
-    - 단색 네모 탈피: 팩토리 구조물(벨트 흐름 애니메이션, 채굴기 회전, 포탑 총구, 몬스터, 베이스 하트 펄스)을 위한 16x16 결정론적 픽셀 스프라이트 아틀라스 파이프라인.
-    - `crates/axiom-render`: `SpriteAtlas` (컴파일 타임 비트맵 아틀라스) 및 투명도(Alpha Key) 고속 블릿 함수 구현.
-    - `crates/axiom-cli/src/desktop.rs`: 스프라이트 아틀라스 바인딩으로 인디 게임 그래픽스 완성.
-  - **시공:** Claude Code / Subagent
+    - 1인 인디 개발자의 실사용 병목 분석: F3 토글로 인게임 상단에 실시간 프로파일러 HUD 오버레이 렌더링.
+    - 계측 항목: 틱 소요 시간(µs), 시뮬레이션 FPS, 활성 구조물 수, 활성 몬스터 수, 인벤토리 아이템 수, 프레임버퍼 래스터라이징 시간(µs), FNV-1a 결정론 상태 해시.
+    - 미려한 레트로 그래프/차트 바(Bar) 렌더링 및 핫키 F3 토글 연동.
+  - **시공:** Subagent (현장 시공팀)
   - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-057: 1인 개발자를 위한 실시간 인게임 프로파일러 & 디버그 오버레이 (F3)**
+- [ ] **T-058: 1인 인디 개발자 실사용 완결 감사 및 Axiom Engine v1.4.0 릴리즈**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-056: 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`)** (`crates/axiom-render/src/sprites.rs`, `const fn parse_sprite` 컴파일 타임 16x16 비트맵 슬랩, 벨트/채굴기/제련소/하트 4프레임 애니메이션, 성벽/상자/포탑/투입기/광맥/고블린 픽셀 아트, `FrameBuffer::draw_sprite_16x16` 알파 마스킹 및 `draw_sprite_16x16_tinted`, `desktop.rs` 704x544 뷰포트 연동, 단위 테스트 통과)
 - [x] **T-055: 실사용 디스크 세이브/로드(F5/F9) 및 슬롯 파일 영속성 (`saves/*.axiom`)** (`crates/axiom-cli/src/desktop.rs`, `SaveFileHeader` 64B 매직 헤더 `0x4D4F495841564153`, `save_to_file`/`load_from_file`, F5 퀵세이브 / F9 퀵로드 핫키, 인게임 HUD 비주얼 알림 배너, 단위 테스트 `test_desktop_save_load_roundtrip` 비트 일치 검증 통과)
 - [x] **T-054: 네이티브 데스크톱 윈도우 러너 구축 (`crates/axiom-cli`, `minifb`)** (`crates/axiom-cli/src/desktop.rs`, `minifb` 60 FPS 네이티브 640x480 창 연동, `cargo run -p axiom-cli` 한 줄 실행, 마우스 좌/우 클릭 및 WASD/R/1~8 키보드 배치/철거/회전 파이프라인, 3x5 레트로 HUD 및 포탑 사격/제련소 연기 실시간 래스터라이징, `--benchmark` 헤드리스 모드 100% 결정론 보존, `tools/guard.ps1` 통과)
 - [x] **T-053: Axiom Engine v1.3.0 멀티플레이어 데이터 드리븐 릴리즈 및 최종 감사** (`Cargo.toml` v1.3.0 공식 판올림, `docs/architecture.md` Section 15 등재, `docs/decisions.md` [D-016]/[D-017] 동기화, `docs/audit-report.md` [AUDIT-20261022-v1.3.0] 공식 종합 감사 승인, WebRTC DataChannel 및 그리드 롤백 넷코드 마일스톤 완결)

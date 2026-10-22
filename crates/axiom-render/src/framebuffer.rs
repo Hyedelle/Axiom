@@ -54,6 +54,60 @@ impl FrameBuffer {
         }
     }
 
+    /// Renders a 16x16 ARGB sprite onto the framebuffer with alpha testing (`alpha > 0`)
+    /// and boundary clipping.
+    pub fn draw_sprite_16x16(&mut self, x: i32, y: i32, sprite: &[u32; 256]) {
+        for sy in 0..16 {
+            let py = y + sy as i32;
+            if py < 0 || py >= self.height as i32 {
+                continue;
+            }
+            let row_idx = py as usize * self.width;
+            for sx in 0..16 {
+                let px = x + sx as i32;
+                if px < 0 || px >= self.width as i32 {
+                    continue;
+                }
+                let color = sprite[sy * 16 + sx];
+                if (color >> 24) > 0 {
+                    self.pixels[row_idx + px as usize] = color;
+                }
+            }
+        }
+    }
+
+    /// Renders a 16x16 ARGB sprite with color modulation (integer multiplicative tint)
+    /// and boundary clipping.
+    pub fn draw_sprite_16x16_tinted(&mut self, x: i32, y: i32, sprite: &[u32; 256], tint: u32) {
+        let tr = (tint >> 16) & 0xFF;
+        let tg = (tint >> 8) & 0xFF;
+        let tb = tint & 0xFF;
+        let ta = (tint >> 24) & 0xFF;
+
+        for sy in 0..16 {
+            let py = y + sy as i32;
+            if py < 0 || py >= self.height as i32 {
+                continue;
+            }
+            let row_idx = py as usize * self.width;
+            for sx in 0..16 {
+                let px = x + sx as i32;
+                if px < 0 || px >= self.width as i32 {
+                    continue;
+                }
+                let color = sprite[sy * 16 + sx];
+                let a = (color >> 24) & 0xFF;
+                if a > 0 {
+                    let r = (((color >> 16) & 0xFF) * tr) / 255;
+                    let g = (((color >> 8) & 0xFF) * tg) / 255;
+                    let b = ((color & 0xFF) * tb) / 255;
+                    let out_a = if ta > 0 { (a * ta) / 255 } else { a };
+                    self.pixels[row_idx + px as usize] = (out_a << 24) | (r << 16) | (g << 8) | b;
+                }
+            }
+        }
+    }
+
     /// Renders loaded procedural chunks onto the viewport relative to camera position.
     pub fn render_chunks<const S: usize, const MAX_CHUNKS: usize>(
         &mut self,
@@ -263,5 +317,36 @@ mod tests {
 
         // Verify entity 0 is at (0, 0)
         assert_eq!(fb.pixels[0], 0xFF00FF00);
+    }
+
+    #[test]
+    fn test_draw_sprite_16x16_and_tint() {
+        let mut fb = FrameBuffer::new(32, 32);
+        fb.clear(0xFF000000);
+
+        let mut sprite = [0u32; 256];
+        // Transparent background with a 4x4 white box at top-left
+        for y in 0..4 {
+            for x in 0..4 {
+                sprite[y * 16 + x] = 0xFFFFFFFF;
+            }
+        }
+
+        // Draw at (4, 4)
+        fb.draw_sprite_16x16(4, 4, &sprite);
+        assert_eq!(fb.pixels[4 * 32 + 4], 0xFFFFFFFF);
+        assert_eq!(fb.pixels[7 * 32 + 7], 0xFFFFFFFF);
+        // Untouched outside the 4x4 box
+        assert_eq!(fb.pixels[4 * 32 + 8], 0xFF000000);
+
+        // Test clipping: draw sprite overlapping left and top edges (-2, -2)
+        fb.draw_sprite_16x16(-2, -2, &sprite);
+        // (0, 0) should receive the sprite pixel from (2, 2)
+        assert_eq!(fb.pixels[0], 0xFFFFFFFF);
+
+        // Test tinting with pure red (0xFFFF0000)
+        fb.clear(0xFF000000);
+        fb.draw_sprite_16x16_tinted(0, 0, &sprite, 0xFFFF0000);
+        assert_eq!(fb.pixels[0], 0xFFFF0000);
     }
 }

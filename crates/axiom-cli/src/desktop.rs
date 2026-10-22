@@ -14,16 +14,21 @@ use axiom_game::{
     generate_ore_veins, Chest, Direction, FactoryGrid, FactoryStructure, ItemType,
     StructureKind, WaveDirector, MONSTER_TEAM, TURRET_AMMO_CAP,
 };
-use axiom_render::FrameBuffer;
+use axiom_render::{
+    get_belt_sprite, get_drill_sprite, get_heart_sprite, get_inserter_sprite,
+    get_monster_sprite, get_smelter_sprite, get_turret_sprite, FrameBuffer,
+    CHEST_SPRITE, DIR_EAST, ORE_DEPOSIT, WALL_SPRITE,
+};
 
-pub const WIN_WIDTH: usize = 640;
-pub const WIN_HEIGHT: usize = 480;
+pub const WIN_WIDTH: usize = 704;
+pub const WIN_HEIGHT: usize = 544;
 pub const GRID_W: usize = 32;
 pub const GRID_H: usize = 32;
-pub const TILE_SIZE: i32 = 14;
-pub const GRID_PIXEL_SIZE: i32 = GRID_W as i32 * TILE_SIZE; // 448 px
-pub const GRID_OFFSET_X: i32 = (WIN_WIDTH as i32 - GRID_PIXEL_SIZE) / 2; // 96 px
+pub const TILE_SIZE: i32 = 16;
+pub const GRID_PIXEL_SIZE: i32 = GRID_W as i32 * TILE_SIZE; // 512 px
+pub const GRID_OFFSET_X: i32 = 96; // 96 px left sidebar
 pub const GRID_OFFSET_Y: i32 = (WIN_HEIGHT as i32 - GRID_PIXEL_SIZE) / 2; // 16 px
+pub const RIGHT_SIDEBAR_X: i32 = GRID_OFFSET_X + GRID_PIXEL_SIZE; // 608 px
 
 pub const SAVE_MAGIC: u64 = 0x4D4F_4958_4156_4153; // "SAVAXIOM"
 pub const SAVE_VERSION: u32 = 0x0001_0300; // v1.3.0
@@ -479,18 +484,7 @@ fn draw_hp_bar(fb: &mut FrameBuffer, sx: i32, sy: i32, ts: i32, hp: u16, max_hp:
     fb.draw_rect(sx + 1, sy + 1, fill, 2, 0xFF22C55E);
 }
 
-/// Machine direction notch on tile edges.
-fn draw_facing(fb: &mut FrameBuffer, sx: i32, sy: i32, ts: i32, dir: Direction, color: u32) {
-    let t = (ts / 6).max(2);
-    match dir {
-        Direction::North => fb.draw_rect(sx + 1, sy, ts - 2, t, color),
-        Direction::East => fb.draw_rect(sx + ts - t, sy + 1, t, ts - 2, color),
-        Direction::South => fb.draw_rect(sx + 1, sy + ts - t, ts - 2, t, color),
-        Direction::West => fb.draw_rect(sx, sy + 1, t, ts - 2, color),
-    }
-}
-
-/// Software rasterizer for factory cells.
+/// Software rasterizer for factory cells using 16x16 sprite atlas.
 fn draw_cell(
     fb: &mut FrameBuffer,
     cell: &FactoryStructure,
@@ -499,27 +493,27 @@ fn draw_cell(
     ts: i32,
     phase: i32,
 ) {
-    let inner = (ts - 2).max(1);
-    let pip = (ts / 3).max(2);
-    let pip_off = (ts - pip) / 2;
-
     match cell.kind {
         StructureKind::Empty => {}
         StructureKind::Deposit(d) => {
-            fb.draw_rect(sx + 1, sy + 1, inner, inner, item_color(d.item));
+            if d.item == ItemType::CopperOre {
+                fb.draw_sprite_16x16_tinted(sx, sy, &ORE_DEPOSIT, 0xFFF97316);
+            } else {
+                fb.draw_sprite_16x16(sx, sy, &ORE_DEPOSIT);
+            }
             if d.remaining < 100 {
-                fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, 0xFF0B1220);
+                fb.draw_rect(sx + 6, sy + 6, 4, 4, 0xFF0B1220);
             }
         }
         StructureKind::Belt(b) => {
-            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF334155);
-            draw_facing(fb, sx, sy, ts, b.direction, 0xFF64748B);
+            let sprite = get_belt_sprite(b.direction as u32, phase as u64);
+            fb.draw_sprite_16x16(sx, sy, sprite);
             if !b.item.is_none() {
-                let is = (ts * 2 / 5).max(3);
-                let travel = (ts - is).max(0);
+                let is = 6;
+                let travel = 10;
                 let off = (travel as i64 * b.progress.min(axiom_game::CYCLE) as i64
                     / axiom_game::CYCLE as i64) as i32;
-                let mid = (ts - is) / 2;
+                let mid = 5;
                 let (ix, iy) = match b.direction {
                     Direction::North => (sx + mid, sy + travel - off),
                     Direction::East => (sx + off, sy + mid),
@@ -527,97 +521,74 @@ fn draw_cell(
                     Direction::West => (sx + travel - off, sy + mid),
                 };
                 fb.draw_rect(ix, iy, is, is, item_color(b.item));
+                fb.draw_rect(ix + 1, iy + 1, is - 2, is - 2, 0xFFFFFFFF);
             }
         }
         StructureKind::Drill(d) => {
-            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFFB45309);
-            let core = if d.remaining == 0 { 0xFF7F1D1D } else { 0xFF78350F };
-            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), core);
+            let sprite = get_drill_sprite(d.direction as u32, phase as u64);
+            fb.draw_sprite_16x16(sx, sy, sprite);
             if !d.ore.is_none() {
-                fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, item_color(d.ore));
+                fb.draw_rect(sx + 6, sy + 6, 4, 4, item_color(d.ore));
             }
-            draw_facing(fb, sx, sy, ts, d.direction, 0xFFFCD34D);
-            let bar = (inner as i64 * d.progress.min(axiom_game::CYCLE) as i64
+            let bar = (14 * d.progress.min(axiom_game::CYCLE) as i64
                 / axiom_game::CYCLE as i64) as i32;
-            fb.draw_rect(sx + 1, sy + ts - 3, bar, 2, 0xFFFBBF24);
+            fb.draw_rect(sx + 1, sy + ts - 2, bar, 2, 0xFFFBBF24);
         }
         StructureKind::Inserter(i) => {
-            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), 0xFF6D28D9);
-            let t = (ts / 5).max(2);
-            let c = ts / 2;
-            match i.direction {
-                Direction::North => fb.draw_rect(sx + c - t / 2, sy, t, c, 0xFFC4B5FD),
-                Direction::East => fb.draw_rect(sx + c, sy + c - t / 2, ts - c, t, 0xFFC4B5FD),
-                Direction::South => fb.draw_rect(sx + c - t / 2, sy + c, t, ts - c, 0xFFC4B5FD),
-                Direction::West => fb.draw_rect(sx, sy + c - t / 2, c, t, 0xFFC4B5FD),
-            }
+            let sprite = get_inserter_sprite(i.direction as u32, phase as u64);
+            fb.draw_sprite_16x16(sx, sy, sprite);
             if !i.held.is_none() {
-                fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, item_color(i.held));
+                fb.draw_rect(sx + 6, sy + 6, 4, 4, item_color(i.held));
             }
         }
         StructureKind::Smelter(s) => {
-            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF3F3F46);
-            let mouth = (ts / 2).max(2);
-            let mx = sx + (ts - mouth) / 2;
-            let my = sy + ts - mouth - 1;
-            fb.draw_rect(mx, my, mouth, mouth, 0xFF7F1D1D);
             let burning = s.progress > 0 || s.input_count > 0;
+            let tick = if burning { phase as u64 } else { 0 };
+            let sprite = get_smelter_sprite(tick);
+            fb.draw_sprite_16x16(sx, sy, sprite);
             if burning {
-                let fire = if (phase / 4) % 2 == 0 { 0xFFF97316 } else { 0xFFFACC15 };
-                let f = (mouth - 2).max(1);
-                fb.draw_rect(mx + 1, my + 1, f, f, fire);
-                let puff = (ts / 6).max(2);
+                let puff = 3;
                 let rise = (phase % 8) * ts / 8;
                 fb.draw_rect(sx + ts / 2 - puff / 2, sy - rise - puff, puff, puff, 0xFF9CA3AF);
             }
             if s.output_count > 0 {
-                let bar = (inner as i64 * s.output_count as i64
+                let bar = (14 * s.output_count as i64
                     / axiom_game::SMELTER_OUTPUT_CAP as i64) as i32;
-                fb.draw_rect(sx + ts - 3, sy + 1 + inner - bar, 2, bar, item_color(s.output));
+                fb.draw_rect(sx + ts - 3, sy + 1 + 14 - bar, 2, bar, item_color(s.output));
             }
         }
         StructureKind::Chest(c) => {
-            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF92400E);
-            fb.draw_rect(sx + 1, sy + 1, inner, (ts / 4).max(1), 0xFFD97706);
+            fb.draw_sprite_16x16(sx, sy, &CHEST_SPRITE);
             if c.quantity > 0 {
-                let h = (ts - 4).max(1);
-                let fill = (h as i64 * c.quantity.min(100) as i64 / 100) as i32;
+                let fill = (10 * c.quantity.min(100) as i64 / 100) as i32;
                 fb.draw_rect(
-                    sx + 2,
-                    sy + 2 + h - fill,
-                    (ts - 4).max(1),
+                    sx + 13,
+                    sy + 13 - fill,
+                    2,
                     fill,
                     item_color(c.item),
                 );
             }
         }
         StructureKind::Wall(w) => {
-            fb.draw_rect(sx, sy, ts, ts, 0xFF9CA3AF);
-            fb.draw_rect(sx, sy + ts / 2, ts, 1, 0xFF6B7280);
-            fb.draw_rect(sx + ts / 2, sy, 1, ts / 2, 0xFF6B7280);
-            fb.draw_rect(sx + ts / 4, sy + ts / 2, 1, ts - ts / 2, 0xFF6B7280);
+            fb.draw_sprite_16x16(sx, sy, &WALL_SPRITE);
             draw_hp_bar(fb, sx, sy, ts, w.hp, w.max_hp);
         }
         StructureKind::Turret(t) => {
-            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF14532D);
-            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), 0xFF16A34A);
-            fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, 0xFF052E16);
+            let sprite = get_turret_sprite(DIR_EAST);
+            fb.draw_sprite_16x16(sx, sy, sprite);
             let pips = (t.ammo as i32 * 5 / axiom_game::TURRET_AMMO_CAP as i32).min(5);
-            let pw = (ts / 7).max(1);
             for i in 0..pips {
-                fb.draw_rect(sx + 2 + i * (pw + 1), sy + ts - pw - 2, pw, pw, 0xFFFDE047);
+                fb.draw_rect(sx + 2 + i * 2, sy + ts - 3, 2, 2, 0xFFFDE047);
             }
             if t.ammo == 0 {
-                fb.draw_rect(sx + 2, sy + ts - pw - 2, pw, pw, 0xFFEF4444);
+                fb.draw_rect(sx + 2, sy + ts - 3, 2, 2, 0xFFEF4444);
             }
             draw_hp_bar(fb, sx, sy, ts, t.hp, t.max_hp);
         }
         StructureKind::BaseHeart(h) => {
-            fb.draw_rect(sx, sy, ts, ts, 0xFF881337);
-            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFFBE123C);
-            let pulse = pip + (phase / 8) % 2;
-            let po = (ts - pulse) / 2;
-            fb.draw_rect(sx + po, sy + po, pulse, pulse, 0xFFFFE4E6);
+            let sprite = get_heart_sprite(phase as u64);
+            fb.draw_sprite_16x16(sx, sy, sprite);
             draw_hp_bar(fb, sx, sy, ts, h.hp, h.max_hp);
         }
     }
@@ -727,7 +698,7 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
     let mut selected_tool = SelectedTool::Turret;
     let mut current_direction = Direction::East;
 
-    println!("🚀 [Axiom Desktop Studio] Launched in 640x480 native window at 60 FPS.");
+    println!("🚀 [Axiom Desktop Studio] Launched in 704x544 native window at 60 FPS.");
     println!("   Controls: WASD (Move cursor), 1~8 (Select tool), R (Rotate), LMB (Build), RMB (Clear), F5 (QuickSave), F9 (QuickLoad), ESC (Exit)");
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
@@ -840,16 +811,14 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // 4.2 Monsters from WaveDirector Arena
-        let ms = (TILE_SIZE * 3 / 5).max(2);
-        let mo = (TILE_SIZE - ms) / 2;
+        let monster_sprite = get_monster_sprite(phase as u64);
         for u in engine.director.arena.units.iter() {
             if !u.is_alive() || u.team != MONSTER_TEAM {
                 continue;
             }
             let sx = GRID_OFFSET_X + u.pos.x.to_int() as i32 * TILE_SIZE;
             let sy = GRID_OFFSET_Y + u.pos.y.to_int() as i32 * TILE_SIZE;
-            framebuffer.draw_rect(sx + mo, sy + mo, ms, ms, 0xFF7F1D1D);
-            framebuffer.draw_rect(sx + mo + 1, sy + mo + 1, (ms - 2).max(1), (ms - 2).max(1), 0xFFDC2626);
+            framebuffer.draw_sprite_16x16(sx, sy, monster_sprite);
             draw_hp_bar(&mut framebuffer, sx, sy, TILE_SIZE, u.current_hp, u.max_hp);
         }
 
@@ -940,38 +909,39 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         draw_text(&mut framebuffer, direction_label(current_direction), 10, dir_y + 20, 0xFF34D399);
 
         // 4.6 Right Sidebar Telemetry & Controls
-        framebuffer.draw_rect(544, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
-        framebuffer.draw_rect(544, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
+        framebuffer.draw_rect(RIGHT_SIDEBAR_X, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
+        framebuffer.draw_rect(RIGHT_SIDEBAR_X, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
 
         let d_rep = engine.director.report(&engine.grid);
         let f_rep = engine.grid.report();
+        let rx = RIGHT_SIDEBAR_X + 8;
 
-        draw_text(&mut framebuffer, "DEFENSE", 552, 12, 0xFFF43F5E);
-        draw_text(&mut framebuffer, &format!("WAVE:{}", d_rep.wave_number), 552, 24, 0xFFE2E8F0);
-        draw_text(&mut framebuffer, &format!("MOBS:{}", d_rep.monsters_alive), 552, 34, 0xFFF87171);
-        draw_text(&mut framebuffer, &format!("KILL:{}", d_rep.total_killed), 552, 44, 0xFF34D399);
-        draw_text(&mut framebuffer, &format!("AMMO:{}", d_rep.turret_ammo), 552, 54, 0xFFFBBF24);
+        draw_text(&mut framebuffer, "DEFENSE", rx, 12, 0xFFF43F5E);
+        draw_text(&mut framebuffer, &format!("WAVE:{}", d_rep.wave_number), rx, 24, 0xFFE2E8F0);
+        draw_text(&mut framebuffer, &format!("MOBS:{}", d_rep.monsters_alive), rx, 34, 0xFFF87171);
+        draw_text(&mut framebuffer, &format!("KILL:{}", d_rep.total_killed), rx, 44, 0xFF34D399);
+        draw_text(&mut framebuffer, &format!("AMMO:{}", d_rep.turret_ammo), rx, 54, 0xFFFBBF24);
 
-        framebuffer.draw_rect(552, 68, 76, 1, 0xFF1E293B);
-        draw_text(&mut framebuffer, "FACTORY", 552, 76, 0xFF60A5FA);
-        draw_text(&mut framebuffer, &format!("MINE:{}", f_rep.total_mined), 552, 88, 0xFFCBD5E1);
-        draw_text(&mut framebuffer, &format!("SMLT:{}", f_rep.total_smelted), 552, 98, 0xFFCBD5E1);
-        draw_text(&mut framebuffer, &format!("STOR:{}", f_rep.total_stored), 552, 108, 0xFFCBD5E1);
-        draw_text(&mut framebuffer, &format!("BELT:{}", f_rep.items_on_belts), 552, 118, 0xFFCBD5E1);
+        framebuffer.draw_rect(rx, 68, 76, 1, 0xFF1E293B);
+        draw_text(&mut framebuffer, "FACTORY", rx, 76, 0xFF60A5FA);
+        draw_text(&mut framebuffer, &format!("MINE:{}", f_rep.total_mined), rx, 88, 0xFFCBD5E1);
+        draw_text(&mut framebuffer, &format!("SMLT:{}", f_rep.total_smelted), rx, 98, 0xFFCBD5E1);
+        draw_text(&mut framebuffer, &format!("STOR:{}", f_rep.total_stored), rx, 108, 0xFFCBD5E1);
+        draw_text(&mut framebuffer, &format!("BELT:{}", f_rep.items_on_belts), rx, 118, 0xFFCBD5E1);
 
-        framebuffer.draw_rect(552, 134, 76, 1, 0xFF1E293B);
-        draw_text(&mut framebuffer, "CONTROLS", 552, 142, 0xFFFBBF24);
-        draw_text(&mut framebuffer, "WASD:MOVE", 552, 154, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "LMB:BUILD", 552, 164, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "RMB:CLEAR", 552, 174, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "1-8:TOOL", 552, 184, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "R:ROTATE", 552, 194, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "F5:QSAVE", 552, 204, 0xFF38BDF8);
-        draw_text(&mut framebuffer, "F9:QLOAD", 552, 214, 0xFF38BDF8);
-        draw_text(&mut framebuffer, "ESC:EXIT", 552, 224, 0xFF94A3B8);
+        framebuffer.draw_rect(rx, 134, 76, 1, 0xFF1E293B);
+        draw_text(&mut framebuffer, "CONTROLS", rx, 142, 0xFFFBBF24);
+        draw_text(&mut framebuffer, "WASD:MOVE", rx, 154, 0xFF94A3B8);
+        draw_text(&mut framebuffer, "LMB:BUILD", rx, 164, 0xFF94A3B8);
+        draw_text(&mut framebuffer, "RMB:CLEAR", rx, 174, 0xFF94A3B8);
+        draw_text(&mut framebuffer, "1-8:TOOL", rx, 184, 0xFF94A3B8);
+        draw_text(&mut framebuffer, "R:ROTATE", rx, 194, 0xFF94A3B8);
+        draw_text(&mut framebuffer, "F5:QSAVE", rx, 204, 0xFF38BDF8);
+        draw_text(&mut framebuffer, "F9:QLOAD", rx, 214, 0xFF38BDF8);
+        draw_text(&mut framebuffer, "ESC:EXIT", rx, 224, 0xFF94A3B8);
 
         // 4.7 Top Header Bar (Heart HP & Status)
-        framebuffer.draw_rect(96, 0, 448, 16, 0xFF0F172A);
+        framebuffer.draw_rect(GRID_OFFSET_X, 0, GRID_PIXEL_SIZE, 16, 0xFF0F172A);
         draw_text(&mut framebuffer, "HEART:", 104, 5, 0xFFF43F5E);
         let hp_bar_w = 120;
         framebuffer.draw_rect(142, 4, hp_bar_w, 8, 0xFF450A0A);
