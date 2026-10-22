@@ -284,20 +284,33 @@
     <div class="sub">100% Deterministic Rust Game Engine · Built for Open-World RPG</div>
     
     <div class="badges">
-      <span class="badge green">⚡ 460 KB Zero-Heap WASM</span>
-      <span class="badge blue">🛡️ Q32.16 Fixed Math (0% Float)</span>
+      <span class="badge green">⚡ 595 KB Pure Rust WASM</span>
+      <span class="badge blue">🏭 Factorio + RPG Base Defense</span>
       <span class="badge gold">📦 64-Byte Cache-Line DOD</span>
       <span class="badge purple">🌍 100k Live NPCs @ 60 FPS</span>
     </div>
   </header>
 
   <div class="controls">
-    <button id="btnRpg" class="active" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
+    <button id="btnFactory" class="active" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
+    <button id="btnRpg" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
     <button id="btnOpenWorld" onclick="switchMode('openworld')">🌍 100k NPC Streamer</button>
     <button id="btnArena" onclick="switchMode('arena')">⚔️ Auto-Battler (100v100)</button>
   </div>
 
-  <div id="rpgActionBar" class="action-bar" style="display: flex;">
+  <div id="factoryActionBar" class="action-bar" style="display: flex;">
+    <button class="action-btn active" id="tool-drill" onclick="setFactoryTool(2)">⛏️ Drill</button>
+    <button class="action-btn" id="tool-belt" onclick="setFactoryTool(1)">➡️ Belt</button>
+    <button class="action-btn" id="tool-inserter" onclick="setFactoryTool(7)">🦾 Inserter</button>
+    <button class="action-btn" id="tool-smelter" onclick="setFactoryTool(3)">🔥 Smelter</button>
+    <button class="action-btn" id="tool-chest" onclick="setFactoryTool(4)">📦 Chest</button>
+    <button class="action-btn" id="tool-wall" onclick="setFactoryTool(5)">🧱 Wall</button>
+    <button class="action-btn" id="tool-turret" onclick="setFactoryTool(6)">🏹 Turret</button>
+    <button class="action-btn" id="tool-remove" onclick="setFactoryTool(0)">❌ Demolish</button>
+    <button class="action-btn" id="tool-rot" onclick="rotateDir()" style="color: #38bdf8; border-color: #0284c7;">🔄 Dir: East</button>
+  </div>
+
+  <div id="rpgActionBar" class="action-bar" style="display: none;">
     <button class="action-btn" onclick="rpgQuest()">📜 Accept Quest #100</button>
     <button class="action-btn" onclick="rpgEncounter()">⚔️ Trigger Encounter</button>
     <button class="action-btn" onclick="rpgPathfind(10, 10)">🎯 A* Route to (10, 10)</button>
@@ -373,12 +386,40 @@
     const buf32 = new Uint32Array(imgData.data.buffer);
 
     let wasmInstance = null;
-    let mode = 'rpg';
+    let mode = 'factory';
     let lastTime = performance.now();
     let frameCount = 0;
     let fps = 60;
     let keys = { w: false, a: false, s: false, d: false };
-    let selectedReactionText = "🚀 460KB인데 10만 NPC가 60fps로 도는 게 충격적입니다!";
+    let selectedReactionText = "🚀 595KB 순수 Rust 엔진에 팩토리 기지 건설과 방어전까지 작동하는 게 놀랍습니다!";
+
+    let selectedTool = 2; // Default: Mining Drill
+    let selectedDir = 1; // Default: East
+    const dirNames = ['North', 'East', 'South', 'West'];
+
+    function setFactoryTool(toolId) {
+      selectedTool = toolId;
+      const toolMap = {
+        2: 'tool-drill',
+        1: 'tool-belt',
+        7: 'tool-inserter',
+        3: 'tool-smelter',
+        4: 'tool-chest',
+        5: 'tool-wall',
+        6: 'tool-turret',
+        0: 'tool-remove'
+      };
+      document.querySelectorAll('#factoryActionBar .action-btn').forEach(b => {
+        if (b.id !== 'tool-rot') b.classList.remove('active');
+      });
+      const el = document.getElementById(toolMap[toolId]);
+      if (el) el.classList.add('active');
+    }
+
+    function rotateDir() {
+      selectedDir = (selectedDir + 1) % 4;
+      document.getElementById('tool-rot').innerText = `🔄 Dir: ${dirNames[selectedDir]}`;
+    }
 
     function setKey(key, state) {
       keys[key] = state;
@@ -390,6 +431,7 @@
       if (k === 'a' || e.key === 'ArrowLeft') keys.a = true;
       if (k === 's' || e.key === 'ArrowDown') keys.s = true;
       if (k === 'd' || e.key === 'ArrowRight') keys.d = true;
+      if (k === 'r') rotateDir();
     });
 
     window.addEventListener('keyup', (e) => {
@@ -401,31 +443,61 @@
     });
 
     canvas.addEventListener('click', (e) => {
-      if (mode !== 'rpg' || !wasmInstance) return;
+      if (!wasmInstance) return;
       const rect = canvas.getBoundingClientRect();
       const scaleX = width / rect.width;
       const scaleY = height / rect.height;
       const mouseX = (e.clientX - rect.left) * scaleX;
       const mouseY = (e.clientY - rect.top) * scaleY;
-      const tileSize = 20;
-      const tileX = Math.floor((mouseX - width / 2) / tileSize);
-      const tileY = Math.floor((mouseY - height / 2) / tileSize);
-      wasmInstance.axiom_rpg_plan_path(tileX, tileY);
+
+      if (mode === 'rpg') {
+        const tileSize = 20;
+        const tileX = Math.floor((mouseX - width / 2) / tileSize);
+        const tileY = Math.floor((mouseY - height / 2) / tileSize);
+        wasmInstance.axiom_rpg_plan_path(tileX, tileY);
+      } else if (mode === 'factory') {
+        const cursorX = wasmInstance.axiom_factory_get_cursor_x();
+        const cursorY = wasmInstance.axiom_factory_get_cursor_y();
+        const ts = 14;
+        const ox = width / 2 - cursorX * ts - ts / 2;
+        const oy = height / 2 - cursorY * ts - ts / 2;
+        const tileX = Math.floor((mouseX - ox) / ts);
+        const tileY = Math.floor((mouseY - oy) / ts);
+        if (tileX >= 0 && tileX < 32 && tileY >= 0 && tileY < 32) {
+          let item = (selectedTool === 4) ? 10 : (selectedTool === 2 ? 1 : 0);
+          wasmInstance.axiom_factory_place(tileX, tileY, selectedTool, selectedDir, item);
+        }
+      }
     });
 
-    // Touch support for canvas A* clicking
+    // Touch support for canvas clicking
     canvas.addEventListener('touchstart', (e) => {
-      if (mode !== 'rpg' || !wasmInstance) return;
+      if (!wasmInstance) return;
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       const scaleX = width / rect.width;
       const scaleY = height / rect.height;
       const mouseX = (touch.clientX - rect.left) * scaleX;
       const mouseY = (touch.clientY - rect.top) * scaleY;
-      const tileSize = 20;
-      const tileX = Math.floor((mouseX - width / 2) / tileSize);
-      const tileY = Math.floor((mouseY - height / 2) / tileSize);
-      wasmInstance.axiom_rpg_plan_path(tileX, tileY);
+
+      if (mode === 'rpg') {
+        const tileSize = 20;
+        const tileX = Math.floor((mouseX - width / 2) / tileSize);
+        const tileY = Math.floor((mouseY - height / 2) / tileSize);
+        wasmInstance.axiom_rpg_plan_path(tileX, tileY);
+      } else if (mode === 'factory') {
+        const cursorX = wasmInstance.axiom_factory_get_cursor_x();
+        const cursorY = wasmInstance.axiom_factory_get_cursor_y();
+        const ts = 14;
+        const ox = width / 2 - cursorX * ts - ts / 2;
+        const oy = height / 2 - cursorY * ts - ts / 2;
+        const tileX = Math.floor((mouseX - ox) / ts);
+        const tileY = Math.floor((mouseY - oy) / ts);
+        if (tileX >= 0 && tileX < 32 && tileY >= 0 && tileY < 32) {
+          let item = (selectedTool === 4) ? 10 : (selectedTool === 2 ? 1 : 0);
+          wasmInstance.axiom_factory_place(tileX, tileY, selectedTool, selectedDir, item);
+        }
+      }
       e.preventDefault();
     }, { passive: false });
 
@@ -449,23 +521,60 @@
 
     function switchMode(newMode) {
       mode = newMode;
-      document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
-      document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
+      document.getElementById('btnFactory').className = mode === 'factory' ? 'active' : '';
       document.getElementById('btnRpg').className = mode === 'rpg' ? 'active' : '';
+      document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
+      document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
 
-      const actionBar = document.getElementById('rpgActionBar');
+      const factoryBar = document.getElementById('factoryActionBar');
+      const rpgBar = document.getElementById('rpgActionBar');
       const instruction = document.getElementById('instruction');
 
-      if (mode === 'arena') {
-        actionBar.style.display = 'none';
+      if (mode === 'factory') {
+        factoryBar.style.display = 'flex';
+        rpgBar.style.display = 'none';
+        instruction.innerText = '🏭 캔버스 클릭: 구조물 건설/철거 | R키: 회전 | WASD: 기지 탐험 | 몬스터 웨이브 방어!';
+        wasmInstance.axiom_factory_init(BigInt(888999), width, height);
+
+        // Pre-build starter fortified factory!
+        // 1. Turrets and Ammo Chests around Base Heart (16, 16)
+        wasmInstance.axiom_factory_place(14, 14, 6, 0, 0); // Turret
+        wasmInstance.axiom_factory_place(14, 13, 4, 0, 10); // Ammo Chest
+        wasmInstance.axiom_factory_place(18, 14, 6, 0, 0); // Turret
+        wasmInstance.axiom_factory_place(18, 13, 4, 0, 10); // Ammo Chest
+        wasmInstance.axiom_factory_place(14, 18, 6, 0, 0); // Turret
+        wasmInstance.axiom_factory_place(14, 19, 4, 0, 10); // Ammo Chest
+        wasmInstance.axiom_factory_place(18, 18, 6, 0, 0); // Turret
+        wasmInstance.axiom_factory_place(18, 19, 4, 0, 10); // Ammo Chest
+
+        // 2. Defense Walls perimeter
+        for (let x = 12; x <= 20; x++) {
+          wasmInstance.axiom_factory_place(x, 12, 5, 0, 0);
+          wasmInstance.axiom_factory_place(x, 20, 5, 0, 0);
+        }
+
+        // 3. Automated Smelting Line: Deposit + Drill -> Belts -> Inserter -> Smelter -> Inserter -> Chest
+        wasmInstance.axiom_factory_place(13, 10, 8, 0, 1); // Iron Ore Deposit
+        wasmInstance.axiom_factory_place(13, 10, 2, 1, 0); // Mining Drill (East)
+        wasmInstance.axiom_factory_place(14, 10, 1, 1, 0); // Belt (East)
+        wasmInstance.axiom_factory_place(15, 10, 1, 1, 0); // Belt (East)
+        wasmInstance.axiom_factory_place(16, 10, 7, 1, 0); // Inserter (East)
+        wasmInstance.axiom_factory_place(17, 10, 3, 0, 0); // Smelter
+        wasmInstance.axiom_factory_place(18, 10, 7, 1, 0); // Inserter (East)
+        wasmInstance.axiom_factory_place(19, 10, 4, 0, 0); // Output Chest
+      } else if (mode === 'arena') {
+        factoryBar.style.display = 'none';
+        rpgBar.style.display = 'none';
         instruction.innerText = '⚔️ 100 vs 100 대규모 자동 전투 시뮬레이션 (순수 Q32.16 고정소수점 결정론)';
         wasmInstance.axiom_wasm_init(BigInt(424242), width, height);
       } else if (mode === 'openworld') {
-        actionBar.style.display = 'none';
+        factoryBar.style.display = 'none';
+        rpgBar.style.display = 'none';
         instruction.innerText = '🌍 WASD / D-Pad 조작: 무한 절차적 청크 지형 스트리밍 & 100,000 NPC 생태계 미니맵';
         wasmInstance.axiom_openworld_init(BigInt(777123), width, height, 100000);
       } else if (mode === 'rpg') {
-        actionBar.style.display = 'flex';
+        factoryBar.style.display = 'none';
+        rpgBar.style.display = 'flex';
         instruction.innerText = '💡 클릭하여 2D A* AI 경로 탐색 | WASD / D-Pad 이동 | 버튼으로 퀘스트 & ATB 전투';
         wasmInstance.axiom_rpg_init(BigInt(0x12345678), width, height, 100000);
       }
@@ -478,8 +587,8 @@
         const { instance } = await WebAssembly.instantiate(bytes, {});
         wasmInstance = instance.exports;
 
-        // Default: Open-World RPG mode
-        switchMode('rpg');
+        // Default: Factory Base Defense mode!
+        switchMode('factory');
         requestAnimationFrame(loop);
       } catch (err) {
         console.error("Failed to load Axiom WASM module:", err);
@@ -492,7 +601,29 @@
 
       let ptr, len, tick;
 
-      if (mode === 'arena') {
+      if (mode === 'factory') {
+        let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+        let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+
+        wasmInstance.axiom_factory_step(dx, dy);
+        wasmInstance.axiom_factory_render(14);
+        ptr = wasmInstance.axiom_factory_get_framebuffer_ptr();
+        len = width * height;
+        tick = wasmInstance.axiom_factory_get_tick();
+
+        const wave = wasmInstance.axiom_factory_get_wave();
+        const monsters = wasmInstance.axiom_factory_get_monsters_alive();
+        const hp = wasmInstance.axiom_factory_get_heart_hp();
+        const maxHp = wasmInstance.axiom_factory_get_heart_max_hp();
+        const smelted = wasmInstance.axiom_factory_get_total_smelted();
+
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="gold">Wave:</span> ${wave} | ` +
+          `<span class="red">Monsters:</span> ${monsters} | ` +
+          `<span class="green">Heart HP:</span> ${hp}/${maxHp} | ` +
+          `<span class="blue">Smelted:</span> ${smelted} | ` +
+          `<span class="gold">Workforce:</span> 16 Active`;
+      } else if (mode === 'arena') {
         wasmInstance.axiom_wasm_step();
         wasmInstance.axiom_wasm_render();
         ptr = wasmInstance.axiom_wasm_get_framebuffer_ptr();

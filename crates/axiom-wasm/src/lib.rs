@@ -863,6 +863,750 @@ pub extern "C" fn axiom_net_get_framebuffer_ptr() -> *const u32 {
     }
 }
 
+// =========================================================================
+// Interactive Factory Base / Defence / Workforce WebAssembly Bindings (T-044)
+// =========================================================================
+
+use axiom_core::ChunkCoord;
+use axiom_game::{
+    generate_ore_veins, Chest, ColonyWorkforce, Direction, FactoryGrid, FactoryStructure,
+    ItemType, StructureKind, WaveDirector, WorkerRole, CYCLE, MONSTER_TEAM, STAMINA_MAX,
+};
+
+/// Factory grid exposed to the web canvas: one 32x32 chunk (64 KiB of 64-byte cells).
+pub const FACTORY_W: usize = 32;
+pub const FACTORY_H: usize = 32;
+const FACTORY_MONSTER_CAP: usize = 64;
+const FACTORY_WORKER_CAP: usize = 64;
+/// Colonists hired at init; they auto-staff drills, smelters and inserters as they are built.
+const FACTORY_COLONISTS: u32 = 16;
+const FACTORY_HEART_X: usize = 16;
+const FACTORY_HEART_Y: usize = 16;
+/// Ore units in a deposit placed by hand (`FACTORY_KIND_DEPOSIT`).
+const FACTORY_DEPOSIT_AMOUNT: u32 = 500;
+/// Items pre-stocked in a chest placed with a non-`None` item (ammo supply).
+const FACTORY_CHEST_STOCK: u32 = 50;
+const FACTORY_DRILL_SPEED: u16 = 25;
+const FACTORY_BELT_SPEED: u16 = 50;
+const FACTORY_INSERTER_SPEED: u16 = 50;
+const FACTORY_SMELTER_SPEED: u16 = 25;
+/// Largest tile size accepted by `axiom_factory_render` (keeps rect math in `i32`).
+const FACTORY_MAX_TILE_SIZE: u32 = 256;
+
+/// Structure codes accepted by [`axiom_factory_place`].
+pub const FACTORY_KIND_REMOVE: u32 = 0;
+pub const FACTORY_KIND_BELT: u32 = 1;
+pub const FACTORY_KIND_DRILL: u32 = 2;
+pub const FACTORY_KIND_SMELTER: u32 = 3;
+pub const FACTORY_KIND_CHEST: u32 = 4;
+pub const FACTORY_KIND_WALL: u32 = 5;
+pub const FACTORY_KIND_TURRET: u32 = 6;
+pub const FACTORY_KIND_INSERTER: u32 = 7;
+pub const FACTORY_KIND_DEPOSIT: u32 = 8;
+pub const FACTORY_KIND_BASE_HEART: u32 = 9;
+
+/// Number of `u32` words written by [`axiom_factory_get_stats`].
+pub const FACTORY_STATS_WORDS: u32 = 24;
+
+/// Flat telemetry block copied out by [`axiom_factory_get_stats`].
+/// Every field is a `u32` so JavaScript reads it as a `Uint32Array` of
+/// [`FACTORY_STATS_WORDS`] words in declaration order.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FactoryStats {
+    pub tick: u32,
+    pub total_mined: u32,
+    pub total_smelted: u32,
+    pub total_stored: u32,
+    pub items_on_belts: u32,
+    pub wave_number: u32,
+    pub monsters_alive: u32,
+    pub total_spawned: u32,
+    pub total_killed: u32,
+    pub total_shots: u32,
+    pub heart_hp: u32,
+    pub heart_max_hp: u32,
+    /// `1` once the base heart has been destroyed.
+    pub base_fallen: u32,
+    pub walls: u32,
+    pub turrets: u32,
+    pub turret_ammo: u32,
+    pub structures_destroyed: u32,
+    pub workers_hired: u32,
+    pub workers_working: u32,
+    pub workers_resting: u32,
+    pub workers_idle: u32,
+    pub total_hauled: u32,
+    pub cursor_x: u32,
+    pub cursor_y: u32,
+}
+
+const _: () = assert!(core::mem::size_of::<FactoryStats>() == FACTORY_STATS_WORDS as usize * 4);
+
+struct FactoryWasmEngine {
+    grid: FactoryGrid<FACTORY_W, FACTORY_H>,
+    director: WaveDirector<FACTORY_MONSTER_CAP>,
+    workforce: ColonyWorkforce<FACTORY_WORKER_CAP>,
+    framebuffer: FrameBuffer,
+    /// Build cursor / camera centre, in tile coordinates.
+    cursor_x: i32,
+    cursor_y: i32,
+    tick: u64,
+}
+
+static mut FACTORY: Option<Box<FactoryWasmEngine>> = None;
+
+/// Shared accessor for the factory engine static.
+///
+/// SAFETY: the WASM host is single-threaded and every export funnels through here,
+/// mirroring the other engine statics in this crate.
+#[inline(always)]
+fn factory_engine() -> Option<&'static mut FactoryWasmEngine> {
+    unsafe { (*core::ptr::addr_of_mut!(FACTORY)).as_deref_mut() }
+}
+
+#[inline(always)]
+fn factory_item_from_code(code: u32) -> ItemType {
+    match code {
+        1 => ItemType::IronOre,
+        2 => ItemType::CopperOre,
+        3 => ItemType::Coal,
+        4 => ItemType::Stone,
+        10 => ItemType::IronPlate,
+        11 => ItemType::CopperPlate,
+        12 => ItemType::StoneBrick,
+        _ => ItemType::None,
+    }
+}
+
+#[inline(always)]
+fn factory_direction_from_code(code: u32) -> Direction {
+    match code {
+        1 => Direction::East,
+        2 => Direction::South,
+        3 => Direction::West,
+        _ => Direction::North,
+    }
+}
+
+#[inline(always)]
+fn factory_item_color(item: ItemType) -> u32 {
+    match item {
+        ItemType::None => 0x00000000,
+        ItemType::IronOre => 0xFF94A3B8,
+        ItemType::CopperOre => 0xFFEA580C,
+        ItemType::Coal => 0xFF27272A,
+        ItemType::Stone => 0xFFA8A29E,
+        ItemType::IronPlate => 0xFFE2E8F0,
+        ItemType::CopperPlate => 0xFFFB923C,
+        ItemType::StoneBrick => 0xFFD6D3D1,
+    }
+}
+
+/// Seeds finite ore patches from the chunk `(0, 0)` vein roll of `seed`,
+/// leaving a clear 3x3 pad around the base heart.
+fn factory_seed_deposits(grid: &mut FactoryGrid<FACTORY_W, FACTORY_H>, seed: u64) {
+    let veins = generate_ore_veins::<FACTORY_W>(seed, ChunkCoord::new(0, 0));
+    for v in veins.active() {
+        let r = v.radius as i32;
+        for dy in -r..=r {
+            for dx in -r..=r {
+                let dist = (dx.abs() + dy.abs()) as u32;
+                if dist > v.radius as u32 {
+                    continue;
+                }
+                let (x, y) = (v.cx as i32 + dx, v.cy as i32 + dy);
+                if x < 0 || y < 0 || x as usize >= FACTORY_W || y as usize >= FACTORY_H {
+                    continue;
+                }
+                if (x - FACTORY_HEART_X as i32).abs() <= 1 && (y - FACTORY_HEART_Y as i32).abs() <= 1 {
+                    continue;
+                }
+                grid.place_deposit(x as usize, y as usize, v.item, v.amount_at(dist));
+            }
+        }
+    }
+}
+
+/// Integer Bresenham line with per-pixel clipping (turret tracer rounds).
+fn factory_draw_line(fb: &mut FrameBuffer, mut x0: i32, mut y0: i32, x1: i32, y1: i32, color: u32) {
+    let dx = (x1 - x0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let dy = -(y1 - y0).abs();
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    loop {
+        fb.set_pixel(x0, y0, color);
+        if x0 == x1 && y0 == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x0 += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+/// Two-pixel-high durability bar along the top edge of a tile (only when damaged).
+#[inline]
+fn factory_draw_hp_bar(fb: &mut FrameBuffer, sx: i32, sy: i32, ts: i32, hp: u16, max_hp: u16) {
+    if max_hp == 0 || hp >= max_hp {
+        return;
+    }
+    let w = (ts - 2).max(1);
+    let fill = (w as i64 * hp as i64 / max_hp as i64) as i32;
+    fb.draw_rect(sx + 1, sy + 1, w, 2, 0xFF450A0A);
+    fb.draw_rect(sx + 1, sy + 1, fill, 2, 0xFF22C55E);
+}
+
+/// Small notch on the output edge of a tile, showing a machine's facing.
+#[inline]
+fn factory_draw_facing(fb: &mut FrameBuffer, sx: i32, sy: i32, ts: i32, dir: Direction, color: u32) {
+    let t = (ts / 6).max(2);
+    match dir {
+        Direction::North => fb.draw_rect(sx + 1, sy, ts - 2, t, color),
+        Direction::East => fb.draw_rect(sx + ts - t, sy + 1, t, ts - 2, color),
+        Direction::South => fb.draw_rect(sx + 1, sy + ts - t, ts - 2, t, color),
+        Direction::West => fb.draw_rect(sx, sy + 1, t, ts - 2, color),
+    }
+}
+
+/// Rasterises one factory tile at screen position `(sx, sy)`.
+/// `phase` is the simulation tick used as the animation clock (integer only).
+fn factory_draw_cell(
+    fb: &mut FrameBuffer,
+    cell: &FactoryStructure,
+    sx: i32,
+    sy: i32,
+    ts: i32,
+    phase: i32,
+) {
+    let inner = (ts - 2).max(1);
+    let pip = (ts / 3).max(2);
+    let pip_off = (ts - pip) / 2;
+    match cell.kind {
+        StructureKind::Empty => {}
+        StructureKind::Deposit(d) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, factory_item_color(d.item));
+            if d.remaining < 100 {
+                // Nearly exhausted patch: dark core grows as the reserve shrinks.
+                fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, 0xFF0B1220);
+            }
+        }
+        StructureKind::Belt(b) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF334155);
+            factory_draw_facing(fb, sx, sy, ts, b.direction, 0xFF64748B);
+            if !b.item.is_none() {
+                let is = (ts * 2 / 5).max(3);
+                let travel = (ts - is).max(0);
+                let off = (travel as i64 * b.progress.min(CYCLE) as i64 / CYCLE as i64) as i32;
+                let mid = (ts - is) / 2;
+                let (ix, iy) = match b.direction {
+                    Direction::North => (sx + mid, sy + travel - off),
+                    Direction::East => (sx + off, sy + mid),
+                    Direction::South => (sx + mid, sy + off),
+                    Direction::West => (sx + travel - off, sy + mid),
+                };
+                fb.draw_rect(ix, iy, is, is, factory_item_color(b.item));
+            }
+        }
+        StructureKind::Drill(d) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFFB45309);
+            let core = if d.remaining == 0 { 0xFF7F1D1D } else { 0xFF78350F };
+            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), core);
+            if !d.ore.is_none() {
+                fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, factory_item_color(d.ore));
+            }
+            factory_draw_facing(fb, sx, sy, ts, d.direction, 0xFFFCD34D);
+            let bar = (inner as i64 * d.progress.min(CYCLE) as i64 / CYCLE as i64) as i32;
+            fb.draw_rect(sx + 1, sy + ts - 3, bar, 2, 0xFFFBBF24);
+        }
+        StructureKind::Inserter(i) => {
+            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), 0xFF6D28D9);
+            let t = (ts / 5).max(2);
+            let c = ts / 2;
+            match i.direction {
+                Direction::North => fb.draw_rect(sx + c - t / 2, sy, t, c, 0xFFC4B5FD),
+                Direction::East => fb.draw_rect(sx + c, sy + c - t / 2, ts - c, t, 0xFFC4B5FD),
+                Direction::South => fb.draw_rect(sx + c - t / 2, sy + c, t, ts - c, 0xFFC4B5FD),
+                Direction::West => fb.draw_rect(sx, sy + c - t / 2, c, t, 0xFFC4B5FD),
+            }
+            if !i.held.is_none() {
+                fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, factory_item_color(i.held));
+            }
+        }
+        StructureKind::Smelter(s) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF3F3F46);
+            let mouth = (ts / 2).max(2);
+            let mx = sx + (ts - mouth) / 2;
+            let my = sy + ts - mouth - 1;
+            fb.draw_rect(mx, my, mouth, mouth, 0xFF7F1D1D);
+            let burning = s.progress > 0 || s.input_count > 0;
+            if burning {
+                let fire = if (phase / 4) % 2 == 0 { 0xFFF97316 } else { 0xFFFACC15 };
+                let f = (mouth - 2).max(1);
+                fb.draw_rect(mx + 1, my + 1, f, f, fire);
+                // Smoke puffs drift upward on the integer tick clock.
+                let puff = (ts / 6).max(2);
+                let rise = (phase % 8) * ts / 8;
+                fb.draw_rect(sx + ts / 2 - puff / 2, sy - rise - puff, puff, puff, 0xFF9CA3AF);
+                fb.draw_rect(sx + ts / 2 + puff, sy - rise - puff * 2 + ts / 4, puff, puff, 0xFF6B7280);
+            }
+            if s.output_count > 0 {
+                let bar = (inner as i64 * s.output_count as i64 / axiom_game::SMELTER_OUTPUT_CAP as i64) as i32;
+                fb.draw_rect(sx + ts - 3, sy + 1 + inner - bar, 2, bar, factory_item_color(s.output));
+            }
+        }
+        StructureKind::Chest(c) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF92400E);
+            fb.draw_rect(sx + 1, sy + 1, inner, (ts / 4).max(1), 0xFFD97706);
+            if c.quantity > 0 {
+                let h = (ts - 4).max(1);
+                let fill = (h as i64 * c.quantity.min(100) as i64 / 100) as i32;
+                fb.draw_rect(sx + 2, sy + 2 + h - fill, (ts - 4).max(1), fill, factory_item_color(c.item));
+            }
+        }
+        StructureKind::Wall(w) => {
+            fb.draw_rect(sx, sy, ts, ts, 0xFF9CA3AF);
+            fb.draw_rect(sx, sy + ts / 2, ts, 1, 0xFF6B7280);
+            fb.draw_rect(sx + ts / 2, sy, 1, ts / 2, 0xFF6B7280);
+            fb.draw_rect(sx + ts / 4, sy + ts / 2, 1, ts - ts / 2, 0xFF6B7280);
+            factory_draw_hp_bar(fb, sx, sy, ts, w.hp, w.max_hp);
+        }
+        StructureKind::Turret(t) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF14532D);
+            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), 0xFF16A34A);
+            fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, 0xFF052E16);
+            // Ammo gauge: up to five pips along the bottom edge.
+            let pips = (t.ammo as i32 * 5 / axiom_game::TURRET_AMMO_CAP as i32).min(5);
+            let pw = (ts / 7).max(1);
+            for i in 0..pips {
+                fb.draw_rect(sx + 2 + i * (pw + 1), sy + ts - pw - 2, pw, pw, 0xFFFDE047);
+            }
+            if t.ammo == 0 {
+                fb.draw_rect(sx + 2, sy + ts - pw - 2, pw, pw, 0xFFEF4444);
+            }
+            factory_draw_hp_bar(fb, sx, sy, ts, t.hp, t.max_hp);
+        }
+        StructureKind::BaseHeart(h) => {
+            fb.draw_rect(sx, sy, ts, ts, 0xFF881337);
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFFBE123C);
+            let pulse = pip + (phase / 8) % 2;
+            let po = (ts - pulse) / 2;
+            fb.draw_rect(sx + po, sy + po, pulse, pulse, 0xFFFFE4E6);
+            factory_draw_hp_bar(fb, sx, sy, ts, h.hp, h.max_hp);
+        }
+    }
+}
+
+impl FactoryWasmEngine {
+    /// Releases any colonist posted on `(x, y)` so the tile can change structure.
+    fn vacate_post(&mut self, x: usize, y: usize) {
+        let here = ChunkCoord::new(0, 0);
+        for _ in 0..FACTORY_WORKER_CAP {
+            match self.workforce.find_post(here, x as u16, y as u16) {
+                Some(slot) => {
+                    if !self.workforce.unassign(slot, &mut self.grid) {
+                        break;
+                    }
+                }
+                None => break,
+            }
+        }
+    }
+
+    /// Posts the first idle colonist on the machine at `(x, y)` with `role`.
+    fn auto_staff(&mut self, x: usize, y: usize, role: WorkerRole) -> bool {
+        let slot = match self
+            .workforce
+            .workers
+            .iter()
+            .position(|w| w.is_hired() && !w.is_posted())
+        {
+            Some(s) => s,
+            None => return false,
+        };
+        self.workforce.assign(slot, role, x, y, &mut self.grid)
+    }
+
+    fn place(&mut self, x: u32, y: u32, kind: u32, direction: u32, item_type: u32) -> bool {
+        let (x, y) = (x as usize, y as usize);
+        if x >= FACTORY_W || y >= FACTORY_H || kind > FACTORY_KIND_BASE_HEART {
+            return false;
+        }
+        let item = factory_item_from_code(item_type);
+        if kind == FACTORY_KIND_DEPOSIT && item.is_none() {
+            return false;
+        }
+        // The objective cannot be built over or demolished; only re-planting it is allowed.
+        if matches!(self.grid.cells[y][x].kind, StructureKind::BaseHeart(_))
+            && kind != FACTORY_KIND_BASE_HEART
+        {
+            return false;
+        }
+
+        self.vacate_post(x, y);
+        let dir = factory_direction_from_code(direction);
+        match kind {
+            FACTORY_KIND_REMOVE => {
+                // A demolished drill hands its unmined reserve back to the ground.
+                let restored = match self.grid.cells[y][x].kind {
+                    StructureKind::Drill(d) if d.remaining > 0 => Some((d.ore, d.remaining)),
+                    _ => None,
+                };
+                match restored {
+                    Some((ore, amount)) => self.grid.place_deposit(x, y, ore, amount),
+                    None => self.grid.cells[y][x] = FactoryStructure::empty(),
+                }
+            }
+            FACTORY_KIND_BELT => self.grid.place_belt(x, y, dir, FACTORY_BELT_SPEED),
+            FACTORY_KIND_DRILL => {
+                self.grid.place_drill(x, y, dir, FACTORY_DRILL_SPEED);
+                self.auto_staff(x, y, WorkerRole::Miner);
+            }
+            FACTORY_KIND_SMELTER => {
+                self.grid.place_smelter(x, y, FACTORY_SMELTER_SPEED);
+                self.auto_staff(x, y, WorkerRole::SmelterOperator);
+            }
+            FACTORY_KIND_CHEST => {
+                self.grid.place_chest(x, y);
+                if !item.is_none() {
+                    self.grid.cells[y][x].kind = StructureKind::Chest(Chest {
+                        item,
+                        quantity: FACTORY_CHEST_STOCK,
+                    });
+                }
+            }
+            FACTORY_KIND_WALL => self.grid.place_wall(x, y),
+            FACTORY_KIND_TURRET => self.grid.place_turret(x, y),
+            FACTORY_KIND_INSERTER => {
+                self.grid.place_inserter(x, y, dir, FACTORY_INSERTER_SPEED);
+                self.auto_staff(x, y, WorkerRole::Technician);
+            }
+            FACTORY_KIND_DEPOSIT => self.grid.place_deposit(x, y, item, FACTORY_DEPOSIT_AMOUNT),
+            _ => self.grid.place_base_heart(x, y),
+        }
+        true
+    }
+
+    fn step(&mut self, move_x: i32, move_y: i32) {
+        self.tick += 1;
+        self.cursor_x = self.cursor_x.saturating_add(move_x).clamp(0, FACTORY_W as i32 - 1);
+        self.cursor_y = self.cursor_y.saturating_add(move_y).clamp(0, FACTORY_H as i32 - 1);
+        // Fixed phase order: waves/turrets/monsters -> colonist buffs -> factory logistics.
+        self.director.tick(&mut self.grid);
+        self.workforce.tick(&mut self.grid);
+        self.grid.step();
+    }
+
+    fn render(&mut self, tile_size: u32) {
+        let ts = tile_size.clamp(1, FACTORY_MAX_TILE_SIZE) as i32;
+        let fb = &mut self.framebuffer;
+        let grid = &self.grid;
+        let fb_w = fb.width as i32;
+        let fb_h = fb.height as i32;
+        let phase = (self.tick & 0x7FFF_FFFF) as i32;
+        let now = self.director.current_tick as u32;
+
+        fb.clear(0xFF0B1220);
+
+        // Camera: the cursor tile sits at the screen centre.
+        let ox = fb_w / 2 - self.cursor_x * ts - ts / 2;
+        let oy = fb_h / 2 - self.cursor_y * ts - ts / 2;
+
+        // 1. Floor + structures (row-major, one cache line per tile).
+        for y in 0..FACTORY_H {
+            let sy = oy + y as i32 * ts;
+            if sy + ts <= 0 || sy >= fb_h {
+                continue;
+            }
+            for x in 0..FACTORY_W {
+                let sx = ox + x as i32 * ts;
+                if sx + ts <= 0 || sx >= fb_w {
+                    continue;
+                }
+                let floor = if (x + y) % 2 == 0 { 0xFF162032 } else { 0xFF131C2C };
+                fb.draw_rect(sx, sy, ts, ts, floor);
+                factory_draw_cell(fb, &grid.cells[y][x], sx, sy, ts, phase);
+            }
+        }
+
+        // 2. Monsters from the wave director's arena slab.
+        let ms = (ts * 3 / 5).max(2);
+        let mo = (ts - ms) / 2;
+        for u in self.director.arena.units.iter() {
+            if !u.is_alive() || u.team != MONSTER_TEAM {
+                continue;
+            }
+            let sx = ox + u.pos.x.to_int() as i32 * ts;
+            let sy = oy + u.pos.y.to_int() as i32 * ts;
+            if sx + ts <= 0 || sx >= fb_w || sy + ts <= 0 || sy >= fb_h {
+                continue;
+            }
+            fb.draw_rect(sx + mo, sy + mo, ms, ms, 0xFF7F1D1D);
+            fb.draw_rect(sx + mo + 1, sy + mo + 1, (ms - 2).max(1), (ms - 2).max(1), 0xFFDC2626);
+            factory_draw_hp_bar(fb, sx, sy, ts, u.current_hp, u.max_hp);
+        }
+
+        // 3. Tracer rounds: a turret that fired this tick has its action stamp on the
+        //    current tick and a freshly reset cooldown timer.
+        if now > 0 {
+            for y in 0..FACTORY_H {
+                for x in 0..FACTORY_W {
+                    let cell = &grid.cells[y][x];
+                    let t = match cell.kind {
+                        StructureKind::Turret(t) => t,
+                        _ => continue,
+                    };
+                    let fired = cell.last_action_tick == now && t.cooldown > 0 && t.cooldown_timer == t.cooldown;
+                    if !fired {
+                        continue;
+                    }
+                    let cx = ox + x as i32 * ts + ts / 2;
+                    let cy = oy + y as i32 * ts + ts / 2;
+                    let flash = (ts / 2).max(2);
+                    fb.draw_rect(cx - flash / 2, cy - flash / 2, flash, flash, 0xFFFDE047);
+
+                    let range_sq = t.range as i64 * t.range as i64;
+                    let mut best: Option<(i32, i32)> = None;
+                    let mut best_d = i64::MAX;
+                    for u in self.director.arena.units.iter() {
+                        if !u.is_alive() || u.team != MONSTER_TEAM {
+                            continue;
+                        }
+                        let (ux, uy) = (u.pos.x.to_int(), u.pos.y.to_int());
+                        let (dx, dy) = (ux - x as i64, uy - y as i64);
+                        let d = dx * dx + dy * dy;
+                        if d <= range_sq && d < best_d {
+                            best_d = d;
+                            best = Some((ux as i32, uy as i32));
+                        }
+                    }
+                    if let Some((ux, uy)) = best {
+                        let tx = ox + ux * ts + ts / 2;
+                        let ty = oy + uy * ts + ts / 2;
+                        factory_draw_line(fb, cx, cy, tx, ty, 0xFFFDE047);
+                    }
+                }
+            }
+        }
+
+        // 4. Build cursor outline on the camera tile.
+        let cx = fb_w / 2 - ts / 2;
+        let cy = fb_h / 2 - ts / 2;
+        fb.draw_rect(cx, cy, ts, 1, 0xFFFFFFFF);
+        fb.draw_rect(cx, cy + ts - 1, ts, 1, 0xFFFFFFFF);
+        fb.draw_rect(cx, cy, 1, ts, 0xFFFFFFFF);
+        fb.draw_rect(cx + ts - 1, cy, 1, ts, 0xFFFFFFFF);
+
+        // 5. HUD banner: heart HP bar, wave pips (gold) and living monsters (red).
+        let report = self.director.report(grid);
+        fb.draw_rect(15, 15, 300, 40, 0xFF1E293B);
+        fb.draw_rect(22, 22, 120, 10, 0xFF450A0A);
+        let heart = if report.heart_max_hp > 0 {
+            (120 * report.heart_hp as i32) / report.heart_max_hp as i32
+        } else {
+            0
+        };
+        fb.draw_rect(22, 22, heart, 10, 0xFFF43F5E);
+        for i in 0..(report.wave_number as i32).min(16) {
+            fb.draw_rect(22 + i * 8, 38, 6, 6, 0xFFFBBF24);
+        }
+        for i in 0..(report.monsters_alive as i32).min(16) {
+            fb.draw_rect(160 + i * 8, 38, 6, 6, 0xFFDC2626);
+        }
+        if report.base_fallen {
+            fb.draw_rect(15, 55, 300, 6, 0xFFDC2626);
+        }
+    }
+
+    fn stats(&self) -> FactoryStats {
+        let f = self.grid.report();
+        let d = self.director.report(&self.grid);
+        let w = self.workforce.report();
+        FactoryStats {
+            tick: self.tick as u32,
+            total_mined: f.total_mined as u32,
+            total_smelted: f.total_smelted as u32,
+            total_stored: f.total_stored as u32,
+            items_on_belts: f.items_on_belts,
+            wave_number: d.wave_number as u32,
+            monsters_alive: d.monsters_alive,
+            total_spawned: d.total_spawned as u32,
+            total_killed: d.total_killed as u32,
+            total_shots: d.total_shots as u32,
+            heart_hp: d.heart_hp as u32,
+            heart_max_hp: d.heart_max_hp as u32,
+            base_fallen: d.base_fallen as u32,
+            walls: d.walls,
+            turrets: d.turrets,
+            turret_ammo: d.turret_ammo,
+            structures_destroyed: d.structures_destroyed as u32,
+            workers_hired: w.hired,
+            workers_working: w.working,
+            workers_resting: w.resting,
+            workers_idle: w.idle,
+            total_hauled: w.total_hauled as u32,
+            cursor_x: self.cursor_x as u32,
+            cursor_y: self.cursor_y as u32,
+        }
+    }
+}
+
+/// Initializes the interactive factory base: a 32x32 grid with seeded ore veins, the
+/// base heart at the centre, a seeded wave director and 16 hired colonists.
+#[no_mangle]
+pub extern "C" fn axiom_factory_init(seed: u64, width: u32, height: u32) {
+    let mut grid = FactoryGrid::<FACTORY_W, FACTORY_H>::new();
+    factory_seed_deposits(&mut grid, seed);
+    grid.place_base_heart(FACTORY_HEART_X, FACTORY_HEART_Y);
+
+    let mut director = WaveDirector::<FACTORY_MONSTER_CAP>::new(seed);
+    director.bind_chunk(ChunkCoord::new(0, 0));
+
+    let mut workforce = ColonyWorkforce::<FACTORY_WORKER_CAP>::new();
+    for id in 1..=FACTORY_COLONISTS {
+        let _ = workforce.hire_raw(id, STAMINA_MAX);
+    }
+
+    let framebuffer = FrameBuffer::new(width as usize, height as usize);
+
+    unsafe {
+        FACTORY = Some(Box::new(FactoryWasmEngine {
+            grid,
+            director,
+            workforce,
+            framebuffer,
+            cursor_x: FACTORY_HEART_X as i32,
+            cursor_y: FACTORY_HEART_Y as i32,
+            tick: 0,
+        }));
+    }
+}
+
+/// Moves the build cursor by `(move_x, move_y)` tiles (clamped to the grid) and advances
+/// defence, workforce and factory logistics by one tick. Heap-free.
+#[no_mangle]
+pub extern "C" fn axiom_factory_step(move_x: i32, move_y: i32) {
+    if let Some(engine) = factory_engine() {
+        engine.step(move_x, move_y);
+    }
+}
+
+/// Builds or demolishes a structure at tile `(x, y)`.
+///
+/// * `kind`: one of the `FACTORY_KIND_*` codes (0 remove, 1 belt, 2 drill, 3 smelter,
+///   4 chest, 5 wall, 6 turret, 7 inserter, 8 deposit, 9 base heart).
+/// * `direction`: 0 north, 1 east, 2 south, 3 west (belts, drills, inserters).
+/// * `item_type`: `ItemType` code; ore for a deposit, or pre-stocked ammo for a chest.
+///
+/// Returns `false` for out-of-range tiles, unknown codes, a deposit without an item,
+/// or an attempt to build over / demolish the base heart.
+#[no_mangle]
+pub extern "C" fn axiom_factory_place(x: u32, y: u32, kind: u32, direction: u32, item_type: u32) -> bool {
+    match factory_engine() {
+        Some(engine) => engine.place(x, y, kind, direction, item_type),
+        None => false,
+    }
+}
+
+/// Renders the factory grid, ore, belts with items, machines, defences, tracer rounds,
+/// monsters and the HUD into the internal framebuffer, camera centred on the cursor.
+#[no_mangle]
+pub extern "C" fn axiom_factory_render(tile_size: u32) {
+    if let Some(engine) = factory_engine() {
+        engine.render(tile_size);
+    }
+}
+
+/// Returns raw pointer to the factory ARGB framebuffer memory.
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_framebuffer_ptr() -> *const u32 {
+    match factory_engine() {
+        Some(engine) => engine.framebuffer.as_slice().as_ptr(),
+        None => core::ptr::null(),
+    }
+}
+
+/// Returns pixel count of the factory framebuffer.
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_framebuffer_len() -> u32 {
+    match factory_engine() {
+        Some(engine) => engine.framebuffer.pixels.len() as u32,
+        None => 0,
+    }
+}
+
+/// Returns current factory simulation tick.
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_tick() -> u64 {
+    match factory_engine() {
+        Some(engine) => engine.tick,
+        None => 0,
+    }
+}
+
+/// Copies a [`FactoryStats`] block (`FACTORY_STATS_WORDS` x `u32`) to `out_stats_ptr`.
+/// Returns the number of words written, or `0` if the pointer is null or the engine
+/// has not been initialized.
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_stats(out_stats_ptr: *mut u32) -> u32 {
+    if out_stats_ptr.is_null() {
+        return 0;
+    }
+    match factory_engine() {
+        Some(engine) => {
+            let stats = engine.stats();
+            // SAFETY: the caller guarantees `out_stats_ptr` points at at least
+            // FACTORY_STATS_WORDS writable u32 words; the write is unaligned-safe.
+            unsafe { core::ptr::write_unaligned(out_stats_ptr as *mut FactoryStats, stats) };
+            FACTORY_STATS_WORDS
+        }
+        None => 0,
+    }
+}
+
+/// Convenience telemetry getters for browser JavaScript integration.
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_wave() -> u32 {
+    factory_engine().map(|e| e.stats().wave_number).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_monsters_alive() -> u32 {
+    factory_engine().map(|e| e.stats().monsters_alive).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_heart_hp() -> u32 {
+    factory_engine().map(|e| e.stats().heart_hp).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_heart_max_hp() -> u32 {
+    factory_engine().map(|e| e.stats().heart_max_hp).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_total_smelted() -> u32 {
+    factory_engine().map(|e| e.stats().total_smelted).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_cursor_x() -> i32 {
+    factory_engine().map(|e| e.cursor_x).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_factory_get_cursor_y() -> i32 {
+    factory_engine().map(|e| e.cursor_y).unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -967,5 +1711,318 @@ mod tests {
         axiom_net_render();
         let ptr = axiom_net_get_framebuffer_ptr();
         assert!(!ptr.is_null());
+    }
+
+    // ---------------------------------------------------------------------
+    // T-044: factory / defence / workforce bindings
+    // ---------------------------------------------------------------------
+
+    /// The factory bindings share one static; serialize the tests that touch it.
+    static FACTORY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn factory_lock() -> std::sync::MutexGuard<'static, ()> {
+        FACTORY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn factory_stats() -> FactoryStats {
+        let mut s = FactoryStats::default();
+        let n = axiom_factory_get_stats(&mut s as *mut FactoryStats as *mut u32);
+        assert_eq!(n, FACTORY_STATS_WORDS);
+        s
+    }
+
+    fn factory_cell(x: usize, y: usize) -> StructureKind {
+        factory_engine().expect("factory initialized").grid.cells[y][x].kind
+    }
+
+    fn factory_pixels() -> Vec<u32> {
+        let len = axiom_factory_get_framebuffer_len() as usize;
+        let ptr = axiom_factory_get_framebuffer_ptr();
+        assert!(!ptr.is_null());
+        unsafe { core::slice::from_raw_parts(ptr, len) }.to_vec()
+    }
+
+    /// Four turrets around the heart, each fed by an iron-plate chest, walls N/S.
+    fn build_fortress() {
+        for &(tx, ty, cx, cy) in &[(14, 14, 14, 13), (18, 14, 18, 13), (14, 18, 14, 19), (18, 18, 18, 19)] {
+            assert!(axiom_factory_place(tx, ty, FACTORY_KIND_TURRET, 0, 0));
+            assert!(axiom_factory_place(cx, cy, FACTORY_KIND_CHEST, 0, 10));
+        }
+        for x in 12..=20 {
+            assert!(axiom_factory_place(x, 12, FACTORY_KIND_WALL, 0, 0));
+            assert!(axiom_factory_place(x, 20, FACTORY_KIND_WALL, 0, 0));
+        }
+    }
+
+    /// deposit+drill -> 3 belts -> inserter -> smelter -> inserter -> chest, along row `y`.
+    fn build_production_line(y: u32) {
+        assert!(axiom_factory_place(2, y, FACTORY_KIND_DEPOSIT, 0, 1));
+        assert!(axiom_factory_place(2, y, FACTORY_KIND_DRILL, 1, 0));
+        for x in 3..=5 {
+            assert!(axiom_factory_place(x, y, FACTORY_KIND_BELT, 1, 0));
+        }
+        assert!(axiom_factory_place(6, y, FACTORY_KIND_INSERTER, 1, 0));
+        assert!(axiom_factory_place(7, y, FACTORY_KIND_SMELTER, 0, 0));
+        assert!(axiom_factory_place(8, y, FACTORY_KIND_INSERTER, 1, 0));
+        assert!(axiom_factory_place(9, y, FACTORY_KIND_CHEST, 0, 0));
+    }
+
+    #[test]
+    fn test_factory_init_exports_and_stats() {
+        let _g = factory_lock();
+        axiom_factory_init(7, 320, 240);
+        assert_eq!(axiom_factory_get_tick(), 0);
+        assert_eq!(axiom_factory_get_framebuffer_len(), 320 * 240);
+        assert!(!axiom_factory_get_framebuffer_ptr().is_null());
+
+        let s = factory_stats();
+        assert_eq!(s.tick, 0);
+        assert_eq!(s.heart_hp, axiom_game::BASE_HEART_HP as u32);
+        assert_eq!(s.heart_max_hp, axiom_game::BASE_HEART_HP as u32);
+        assert_eq!(s.base_fallen, 0);
+        assert_eq!(s.wave_number, 0);
+        assert_eq!(s.monsters_alive, 0);
+        assert_eq!(s.workers_hired, FACTORY_COLONISTS);
+        assert_eq!(s.workers_idle, FACTORY_COLONISTS);
+        assert_eq!((s.cursor_x, s.cursor_y), (16, 16));
+        assert!(matches!(factory_cell(16, 16), StructureKind::BaseHeart(_)));
+
+        let engine = factory_engine().unwrap();
+        let deposits = engine
+            .grid
+            .cells
+            .iter()
+            .flatten()
+            .filter(|c| matches!(c.kind, StructureKind::Deposit(_)))
+            .count();
+        assert!(deposits > 0, "seeded ore veins must leave deposits on the grid");
+        for y in 15..=17 {
+            for x in 15..=17 {
+                assert!(!matches!(engine.grid.cells[y][x].kind, StructureKind::Deposit(_)));
+            }
+        }
+        assert_eq!(axiom_factory_get_stats(core::ptr::null_mut()), 0);
+    }
+
+    #[test]
+    fn test_factory_place_codes_map_to_structures() {
+        let _g = factory_lock();
+        axiom_factory_init(7, 64, 64);
+
+        assert!(axiom_factory_place(1, 1, FACTORY_KIND_BELT, 1, 0));
+        assert!(matches!(factory_cell(1, 1), StructureKind::Belt(b) if b.direction == Direction::East));
+        assert!(axiom_factory_place(1, 2, FACTORY_KIND_SMELTER, 0, 0));
+        assert!(matches!(factory_cell(1, 2), StructureKind::Smelter(_)));
+        assert!(axiom_factory_place(1, 3, FACTORY_KIND_CHEST, 0, 0));
+        assert!(matches!(factory_cell(1, 3), StructureKind::Chest(c) if c.quantity == 0));
+        assert!(axiom_factory_place(1, 4, FACTORY_KIND_CHEST, 0, 10));
+        assert!(matches!(
+            factory_cell(1, 4),
+            StructureKind::Chest(c) if c.item == ItemType::IronPlate && c.quantity == FACTORY_CHEST_STOCK
+        ));
+        assert!(axiom_factory_place(1, 5, FACTORY_KIND_WALL, 0, 0));
+        assert!(matches!(factory_cell(1, 5), StructureKind::Wall(w) if w.hp == axiom_game::WALL_HP));
+        assert!(axiom_factory_place(1, 6, FACTORY_KIND_TURRET, 0, 0));
+        assert!(matches!(factory_cell(1, 6), StructureKind::Turret(t) if t.ammo == 0));
+        assert!(axiom_factory_place(1, 7, FACTORY_KIND_INSERTER, 3, 0));
+        assert!(matches!(factory_cell(1, 7), StructureKind::Inserter(i) if i.direction == Direction::West));
+        assert!(axiom_factory_place(1, 8, FACTORY_KIND_BASE_HEART, 0, 0));
+        assert!(matches!(factory_cell(1, 8), StructureKind::BaseHeart(_)));
+
+        // Deposit then drill: the drill absorbs the reserve and gets a Miner colonist.
+        assert!(axiom_factory_place(5, 5, FACTORY_KIND_DEPOSIT, 0, 2));
+        assert!(matches!(
+            factory_cell(5, 5),
+            StructureKind::Deposit(d) if d.item == ItemType::CopperOre && d.remaining == FACTORY_DEPOSIT_AMOUNT
+        ));
+        assert!(axiom_factory_place(5, 5, FACTORY_KIND_DRILL, 2, 0));
+        assert!(matches!(
+            factory_cell(5, 5),
+            StructureKind::Drill(d) if d.ore == ItemType::CopperOre
+                && d.remaining == FACTORY_DEPOSIT_AMOUNT
+                && d.direction == Direction::South
+        ));
+        {
+            let wf = &factory_engine().unwrap().workforce;
+            let slot = wf.find_post(ChunkCoord::new(0, 0), 5, 5).expect("drill auto-staffed");
+            assert_eq!(wf.workers[slot].role, WorkerRole::Miner);
+        }
+        // Demolishing the drill frees the colonist and restores the ore patch.
+        assert!(axiom_factory_place(5, 5, FACTORY_KIND_REMOVE, 0, 0));
+        assert!(matches!(
+            factory_cell(5, 5),
+            StructureKind::Deposit(d) if d.item == ItemType::CopperOre && d.remaining == FACTORY_DEPOSIT_AMOUNT
+        ));
+        assert!(factory_engine().unwrap().workforce.find_post(ChunkCoord::new(0, 0), 5, 5).is_none());
+        assert!(axiom_factory_place(1, 2, FACTORY_KIND_REMOVE, 0, 0));
+        assert!(axiom_factory_place(1, 7, FACTORY_KIND_REMOVE, 0, 0));
+        assert_eq!(factory_stats().workers_idle, FACTORY_COLONISTS);
+        assert!(axiom_factory_place(1, 1, FACTORY_KIND_REMOVE, 0, 0));
+        assert!(matches!(factory_cell(1, 1), StructureKind::Empty));
+
+        // Rejections.
+        assert!(!axiom_factory_place(FACTORY_W as u32, 0, FACTORY_KIND_BELT, 0, 0));
+        assert!(!axiom_factory_place(0, FACTORY_H as u32, FACTORY_KIND_BELT, 0, 0));
+        assert!(!axiom_factory_place(0, 0, 42, 0, 0));
+        assert!(!axiom_factory_place(0, 0, FACTORY_KIND_DEPOSIT, 0, 0));
+        assert!(!axiom_factory_place(16, 16, FACTORY_KIND_BELT, 0, 0));
+        assert!(!axiom_factory_place(16, 16, FACTORY_KIND_REMOVE, 0, 0));
+        assert!(matches!(factory_cell(16, 16), StructureKind::BaseHeart(_)));
+    }
+
+    #[test]
+    fn test_factory_step_moves_cursor_with_clamping() {
+        let _g = factory_lock();
+        axiom_factory_init(7, 64, 64);
+        axiom_factory_step(-100, -100);
+        let s = factory_stats();
+        assert_eq!((s.cursor_x, s.cursor_y), (0, 0));
+        axiom_factory_step(5, 3);
+        let s = factory_stats();
+        assert_eq!((s.cursor_x, s.cursor_y), (5, 3));
+        axiom_factory_step(i32::MAX, i32::MAX);
+        let s = factory_stats();
+        assert_eq!((s.cursor_x, s.cursor_y), (FACTORY_W as u32 - 1, FACTORY_H as u32 - 1));
+        assert_eq!(axiom_factory_get_tick(), 3);
+        assert_eq!(s.tick, 3);
+    }
+
+    #[test]
+    fn test_factory_production_line_smelts_plates() {
+        let _g = factory_lock();
+        axiom_factory_init(7, 64, 64);
+        build_production_line(4);
+        let before = factory_stats();
+        assert!(before.workers_working + before.workers_resting + before.workers_idle == FACTORY_COLONISTS);
+
+        for _ in 0..300 {
+            axiom_factory_step(0, 0);
+        }
+        let s = factory_stats();
+        assert_eq!(s.tick, 300);
+        assert!(s.total_mined > 0, "drill must mine ore: {s:?}");
+        assert!(s.total_smelted > 0, "smelter must produce plates: {s:?}");
+        assert!(s.total_stored > 0, "plates must reach the chest: {s:?}");
+        assert!(matches!(
+            factory_cell(9, 4),
+            StructureKind::Chest(c) if c.item == ItemType::IronPlate && c.quantity as u32 == s.total_stored
+        ));
+        assert_eq!(s.workers_hired, FACTORY_COLONISTS);
+        assert!(s.workers_working > 0 || s.workers_resting > 0, "staffed machines: {s:?}");
+    }
+
+    #[test]
+    fn test_factory_defense_turrets_repel_waves() {
+        let _g = factory_lock();
+        axiom_factory_init(7, 64, 64);
+        build_fortress();
+        let s0 = factory_stats();
+        assert_eq!(s0.turrets, 4);
+        assert_eq!(s0.walls, 18);
+
+        for _ in 0..120 {
+            axiom_factory_step(0, 0);
+        }
+        let s = factory_stats();
+        assert!(s.wave_number >= 2, "{s:?}");
+        assert!(s.total_spawned >= 10, "{s:?}");
+        assert!(s.total_shots > 0, "turrets must fire: {s:?}");
+        assert!(s.total_killed > 0, "turrets must score kills: {s:?}");
+        assert!(s.turret_ammo > 0, "chests must auto-supply turrets: {s:?}");
+        assert_eq!(s.base_fallen, 0);
+        assert_eq!(s.heart_hp, s.heart_max_hp, "fortified heart takes no damage: {s:?}");
+        assert_eq!(s.turrets, 4);
+    }
+
+    #[test]
+    fn test_factory_render_scene_and_clipping() {
+        let _g = factory_lock();
+        axiom_factory_init(7, 640, 480);
+        build_fortress();
+        build_production_line(4);
+
+        // Heart core sits under the cursor at the screen centre.
+        axiom_factory_render(12);
+        let px = factory_pixels();
+        assert_eq!(px[240 * 640 + 320], 0xFFFFE4E6);
+        assert!(px.contains(&0xFFBE123C), "heart body");
+        assert!(px.contains(&0xFF16A34A), "turret body");
+        assert!(px.contains(&0xFF9CA3AF), "wall");
+        assert!(px.contains(&0xFFB45309), "drill");
+        assert!(px.contains(&0xFF334155), "belt");
+        assert!(px.contains(&0xFF3F3F46), "smelter");
+        assert!(px.contains(&0xFF92400E), "chest");
+
+        // Run until a turret fires; that frame must show a tracer and a monster.
+        let mut fired_frame = false;
+        for _ in 0..200 {
+            axiom_factory_step(0, 0);
+            let s = factory_stats();
+            if s.total_shots > 0 {
+                axiom_factory_render(12);
+                let px = factory_pixels();
+                assert!(px.contains(&0xFFFDE047), "tracer / muzzle flash on firing tick");
+                fired_frame = true;
+                break;
+            }
+        }
+        assert!(fired_frame, "no turret fired within 200 ticks");
+        let s = factory_stats();
+        assert!(s.monsters_alive > 0 || s.total_killed > 0);
+
+        // Advance until the production line has ore moving and smelter active.
+        let mut smelt_seen = false;
+        for _ in 0..150 {
+            axiom_factory_step(0, 0);
+            axiom_factory_render(12);
+            let px = factory_pixels();
+            if px.contains(&0xFFF97316) || px.contains(&0xFFFACC15) {
+                smelt_seen = true;
+                break;
+            }
+        }
+        assert!(smelt_seen, "smelter fire visible during production cycle");
+        let px = factory_pixels();
+        assert!(px.contains(&0xFF94A3B8) || px.contains(&0xFFCBD5E1), "iron ore or plates on belt/chest");
+
+        // Degenerate viewports and tile sizes must clip, never panic.
+        axiom_factory_init(7, 8, 8);
+        build_fortress();
+        axiom_factory_render(0);
+        axiom_factory_render(64);
+        axiom_factory_render(u32::MAX);
+        axiom_factory_step(-16, -16);
+        axiom_factory_render(1);
+        axiom_factory_step(31, 31);
+        axiom_factory_render(256);
+        assert_eq!(axiom_factory_get_framebuffer_len(), 64);
+    }
+
+    #[test]
+    fn test_factory_100_tick_run_is_bit_identical() {
+        let _g = factory_lock();
+        let run = || {
+            axiom_factory_init(0xA11C_E5ED_F00D_4444, 320, 240);
+            build_fortress();
+            build_production_line(4);
+            for i in 0..100 {
+                axiom_factory_step((i % 3) as i32 - 1, 0);
+                if i == 50 {
+                    assert!(axiom_factory_place(20, 20, FACTORY_KIND_TURRET, 0, 0));
+                }
+            }
+            axiom_factory_render(10);
+            let stats = factory_stats();
+            let hash = factory_engine().unwrap().grid.compute_hash()
+                ^ factory_engine().unwrap().director.compute_hash().rotate_left(17)
+                ^ factory_engine().unwrap().workforce.compute_hash().rotate_left(41);
+            (stats, hash, factory_pixels())
+        };
+        let (s1, h1, p1) = run();
+        let (s2, h2, p2) = run();
+        assert_eq!(s1, s2);
+        assert_eq!(h1, h2);
+        assert_eq!(p1, p2);
+        assert!(s1.total_shots > 0 && s1.total_smelted > 0, "{s1:?}");
     }
 }
