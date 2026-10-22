@@ -48,6 +48,32 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T066] Unity / C# FFI 바인딩 및 DLL 배포 파이프라인
+- **목표:** Research Lab 아키텍처 헌법([`game-ax-checklist.md`](file:///c:/Dreamhub/Research%20Lab/game-ax-checklist.md) 1단계: Rust vs C# 경계선)에 따라, Unity C#(`steel-the-show`) 및 외부 C# 호스트가 Axiom을 헤드리스 코어 엔진으로 직접 로드하여 1틱 단위 시뮬레이션, 64B 타일 그리드, 데이터 드리븐 스키마, P2P 롤백 넷코드를 완벽히 구동할 수 있는 단일 파일 C# 바인딩 및 자동 검증 파이프라인 완성.
+- **대상 파일:**
+  1. `bindings/csharp/AxiomSdk.cs` (신규 파일):
+     - `Axiom.Engine` 네임스페이스
+     - 64바이트 L1 캐시 정렬 구조체: `TypeDefinition`, `RecipeDefinition`, `TileCell` (`[StructLayout(LayoutKind.Sequential, Size = 64)]`)
+     - 16바이트 구조체: `GridAction` (`[StructLayout(LayoutKind.Sequential, Size = 16)]`)
+     - 고정소수점 구조체: `Fixed` (Q16.16 `long rawValue`)
+     - 비트플래그 상수 모듈: `Category`, `TileFlags`, `GridActionKind`, `ReturnCode`
+     - P/Invoke `NativeMethods` 23개 C-ABI 엔드포인트 바인딩
+     - 고수준 C# 래퍼 클래스: `AxiomEngine` (IDisposable), `AxiomRollbackSession` (IDisposable)
+  2. `tools/export_sdk_csharp.ps1` (신규 파일):
+     - `axiom-sdk` 릴리즈 cdylib 컴파일 (`cargo build --release -p axiom-sdk`)
+     - `target/release/axiom_sdk.dll` ➔ `bindings/csharp/axiom_sdk.dll` 복사
+     - PowerShell `Add-Type`을 통한 인메모리 C# 컴파일 및 무인 테스트 러너 구동:
+       * 모든 구조체 크기 단언 (`sizeof == 64`, `sizeof == 16`)
+       * C#에서 엔진 인스턴스 생성 ➔ 스키마 등록 ➔ 타일 배치 ➔ 100틱 시뮬레이션 ➔ 결정론 `state_hash` 검증
+       * 2인 P2P 롤백 세션 네트워크 지연 및 롤백 동기화 검증
+       * 메모리 해제 및 ExitCode 0 반환
+- **불변식 및 헌법 규정:**
+  - `tools/guard.ps1` 통과 필수 (부동소수점 배제, 시크릿 누출 방지)
+  - C#과 Rust 간 메모리 구조체 크기/오프셋 1비트의 오차도 없이 100% 일치
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/export_sdk_csharp.ps1`
+
+---
+
 ### [RECIPE-20261022-T064] 3대 신규 기물 (레이저 터렛, 고속 벨트, 필터 투입기) 및 웨이브 몬스터 다양화
 - **목표:** 물류 처리량과 기지 방어 전략의 깊이를 확장하기 위해 3대 고급 기물(2x 고속 벨트, 아이템 선별 투입기, 무탄약 에너지 레이저 터렛)과 2종 신규 웨이브 몬스터(방어 골렘 `Golem`, 고속 러너 `Runner`)를 64B L1 캐시 무할당 결정론 아키텍처로 구현.
 - **대상 파일:**

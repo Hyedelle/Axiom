@@ -4,3 +4,4 @@ tmp/
 **/*.rs.bk
 .DS_Store
 dist/
+*.dll

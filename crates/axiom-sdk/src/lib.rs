@@ -144,7 +144,7 @@ pub extern "C" fn axiom_schema_register_type(
         return return_code::ERR_NULL_PTR;
     }
 
-    let def = unsafe { *type_def };
+    let def = unsafe { core::ptr::read_unaligned(type_def) };
     let success = unsafe { (*ctx).types.register(def) };
     if success {
         return_code::SUCCESS
@@ -163,7 +163,7 @@ pub extern "C" fn axiom_schema_register_recipe(
         return return_code::ERR_NULL_PTR;
     }
 
-    let recipe = unsafe { *recipe_def };
+    let recipe = unsafe { core::ptr::read_unaligned(recipe_def) };
     let success = unsafe { (*ctx).recipes.register(recipe) };
     if success {
         return_code::SUCCESS
@@ -186,7 +186,7 @@ pub extern "C" fn axiom_schema_get_type(
     let found = unsafe { (*ctx).types.get(type_id) };
     if let Some(def) = found {
         unsafe {
-            *out_def = *def;
+            core::ptr::write_unaligned(out_def, *def);
         }
         return_code::SUCCESS
     } else {
@@ -210,7 +210,7 @@ pub extern "C" fn axiom_grid_set_tile(
         return return_code::ERR_NULL_PTR;
     }
 
-    let c = unsafe { *cell };
+    let c = unsafe { core::ptr::read_unaligned(cell) };
     let ok = unsafe { (*ctx).grid.set(x as usize, y as usize, c) };
     if ok {
         return_code::SUCCESS
@@ -234,7 +234,7 @@ pub extern "C" fn axiom_grid_get_tile(
     let cell_opt = unsafe { (*ctx).grid.get(x as usize, y as usize) };
     if let Some(c) = cell_opt {
         unsafe {
-            *out_cell = *c;
+            core::ptr::write_unaligned(out_cell, *c);
         }
         return_code::SUCCESS
     } else {
@@ -318,7 +318,7 @@ pub extern "C" fn axiom_grid_apply_action(
         return return_code::ERR_NULL_PTR;
     }
 
-    let act = unsafe { *action };
+    let act = unsafe { core::ptr::read_unaligned(action) };
     let ok = unsafe { (*ctx).grid.apply_action(&act) };
     if ok {
         return_code::SUCCESS
@@ -381,7 +381,7 @@ pub extern "C" fn axiom_grid_net_advance_frame(
     let act = if action.is_null() {
         GridAction::NONE
     } else {
-        unsafe { *action }
+        unsafe { core::ptr::read_unaligned(action) }
     };
 
     let stats = unsafe { (*session).advance_frame(act) };
@@ -401,7 +401,7 @@ pub extern "C" fn axiom_grid_net_receive_remote(
         return false;
     }
 
-    let act = unsafe { *action };
+    let act = unsafe { core::ptr::read_unaligned(action) };
     unsafe { (*session).receive_remote_action(remote_player_id as usize, frame, act) }
 }
 

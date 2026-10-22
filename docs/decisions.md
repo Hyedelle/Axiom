@@ -361,3 +361,19 @@
   3. **0-의존성 배포 무결성 보장**:
      - 외부 C++ 런타임, DirectX 런타임, 추가 DLL 의존성 전혀 없이, Windows 10/11 64비트 순정 OS에서 압축 해제 즉시 1초 만에 실행 가능.
 - **이유:** 스팀(Steam) 및 itch.io 유료 출시 시 게이머에게 다운로드 시간 1초, 설치 공간 0.5MB의 충격적인 가벼움과 무결점 배포 경험을 제공하기 위함.
+
+---
+
+### [D-028] Unity / C# FFI 바인딩 및 DLL 배포 파이프라인
+- **날짜:** 2026-10-22
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **Unity 6 / C# 5+ / IL2CPP 완전 호환 P/Invoke 바인딩 (`bindings/csharp/AxiomSdk.cs`)**:
+     - `crates/axiom-sdk` C-ABI 23개 엔드포인트를 100% 매핑하는 순수 C# 파일 제공.
+     - 64바이트 L1 캐시 정렬 구조체(`TileCell`, `TypeDefinition`, `RecipeDefinition`) 및 16바이트 `GridAction`을 `[StructLayout(LayoutKind.Explicit)]`로 C# 필드 오프셋과 패딩을 1비트 오차 없이 완벽 정합.
+     - 안전한 메모리 생명주기 관리를 위해 `IDisposable` 기반의 고수준 객체 래퍼(`AxiomEngine`, `AxiomRollbackSession`) 제공.
+  2. **호스트 비정렬 스택 포인터 방어 (`read_unaligned`/`write_unaligned`)**:
+     - 외부 런타임(C#, Python, WASM)의 스택 변수가 64바이트로 정렬되지 않은 채 넘어올 경우 발생하는 하드웨어 일반 보호 오류(General Protection Fault, `AccessViolationException`)를 원천 방어하기 위해 C-ABI 진입점에서 `read_unaligned` / `write_unaligned`를 강제.
+  3. **원클릭 인메모리 C# 검증 러너 (`tools/export_sdk_csharp.ps1`)**:
+     - Release cdylib (`axiom_sdk.dll`, 127KB) 컴파일 ➔ `bindings/csharp/` 스테이징 ➔ PowerShell C# 인메모리 컴파일러를 통한 구조체 바이트 크기, 100틱 시뮬레이션 상태 해시, P2P 롤백 넷코드 지연 패킷 동기화를 1초 만에 자동 검증.
+- **이유:** Dreamhub Research Lab의 제1원칙(Rust 코어 엔진 vs Unity C# 클라이언트 분리)을 완벽히 실현하여, Unity 프로젝트(`steel-the-show`)나 외부 클라이언트가 어떤 설정 없이도 즉시 Axiom을 헤드리스 결정론 코어로 채택할 수 있도록 보장하기 위함.
