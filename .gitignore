@@ -3,3 +3,4 @@ tmp/
 *.pdb
 **/*.rs.bk
 .DS_Store
+dist/

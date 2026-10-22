@@ -6,21 +6,23 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-065: 스팀(Steam) 출시용 단일 배포 바이너리 패키징 스크립트**
+- [ ] **T-066: 고도화된 전력망(Power Grid) 시뮬레이터 및 발전기(Generator) / 전신주(Pole)**
   - **목표:**
-    - 최적화된 LTO(Link-Time Optimization) 단일 릴리즈 exe 패키징
-    - `saves/`, 필수 에셋, README가 포함된 배포용 독립 디렉터리 아티팩트 생성 스크립트(`tools/package.ps1`)
+    - 연소 발전기(`Generator`): 석탄/목재를 연소하여 정수 단위 전력 생산
+    - 전신주(`PowerPole`): 일정 반경(예: 4타일) 내 구조체에 전력 분배 공급
+    - 레이저 터렛 및 고속 기물이 전신주 반경 내에 있을 때만 충전/가동되도록 전력망 시뮬레이션 연동
   - **시공:** 🏛️ Antigravity (총괄 관제탑) / ⚡ Claude Code (현장 시공팀)
   - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-066: 고도화된 전력망(Power Grid) 시뮬레이터 및 발전기(Generator) / 전신주(Pole)**
+- [ ] **T-067: 스팀(Steam) 배포 패키지 GitHub Actions 릴리즈 자동화 워크플로우**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-065: 스팀(Steam) 출시용 단일 배포 바이너리 패키징 스크립트** (`tools/package.ps1`, `Cargo.toml` `strip = true` 및 LTO 최적화, 489KB(0.48MB) 초경량 단일 독립 바이너리 `axiom.exe` 빌드, 186KB `axiom-v1.5.0-windows-x64.zip` 배포 아카이브 생성, `README.txt` 조작 가이드, `manifest.json` SHA256 체크섬 메타데이터, `saves/` 영속성 번들링, `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-064: 3대 신규 기물(레이저 터렛, 고속 벨트, 필터 투입기) 및 웨이브 몬스터 다양화** (`crates/axiom-game/src/defense.rs`, `crates/axiom-game/src/factory.rs`, `crates/axiom-render/build.rs`, `crates/axiom-cli/src/desktop.rs`, `LaserTurret` 16B 페이로드 40 데미지 7 사거리 전력 빔 포탑 및 빔 궤적선 래스터라이저, `FastBelt` 2배속 물류 운반 벨트(speed 100, 1틱 1칸 이송), `FilterInserter` `ItemType` 지정 선별 스마트 투입기, `MonsterKind` 3종 다형성 아키텍처(표준 `Goblin`, 3배 장갑 탱커 `Golem`, 1틱 질주 무리 `Runner`), `FactoryStructure` 64B L1 캐시 정렬 엄수, 88개 16x16 비트맵 슬랩(90,176B) 빌드타임 아틀라스 패킹, 데스크톱 스튜디오 9/0/L 단축키 및 좌측 툴바 통합, 단위 테스트 100% 통과, `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-063: 빌드 타임 바이너리 에셋 파이프라인 (`crates/axiom-render/build.rs` & `.atlas` 슬랩)** (`crates/axiom-render/build.rs`, 64B 정렬 `AtlasHeader` 매직 `0x41544C415358414D` ("AXMATLAS") 및 FNV-1a 체크섬, 56개 1,024바이트(`[u32; 256]`) 스프라이트 슬랩 직렬화 `$OUT_DIR/sprites.atlas` (총 57,408B) 빌드, `Cargo.toml` `build = "build.rs"`, `crates/axiom-render/src/sprites.rs` 1,470줄에서 270줄로 80% 이상 슬림화, `AlignedAtlas` 제로-카피 64B L1 캐시 정렬 룩업, `crates/axiom-cli/src/desktop.rs` 일관성 리팩토링, 단위 테스트 `test_baked_atlas_binary_integrity` 통과, `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-062: 상용 출시 품질 종합 감사 및 Axiom Engine v1.5.0 릴리즈** (`Cargo.toml` v1.5.0 공식 판올림, `docs/architecture.md` Section 17 등재, `docs/decisions.md` [D-022]~[D-024] 동기화, `docs/audit-report.md` [AUDIT-20261022-v1.5.0] 공식 승인, 누적기 루프/2x 정수배 스케일러/절차적 PCM 오디오 완결)
