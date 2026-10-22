@@ -6,23 +6,24 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-063: 빌드 타임 바이너리 에셋 파이프라인 (`crates/axiom-render/build.rs` & `.atlas` 슬랩)**
+- [ ] **T-064: 3대 신규 기물(레이저 터렛, 고속 벨트, 필터 투입기) 및 웨이브 몬스터 다양화**
   - **목표:**
-    - 1,470줄의 하드코딩된 스프라이트 데이터를 `crates/axiom-render/assets/sprites/` 에셋 디렉터리로 분리.
-    - `crates/axiom-render/build.rs`: 빌드 타임에 에셋을 파싱하여 64B 정렬 고정 크기 바이너리 슬랩 파일(`sprites.atlas`)로 빌드.
-    - `crates/axiom-render/src/sprites.rs`: `include_bytes!` 기반 제로-카피 정렬 슬랩 로더 구축 및 Rust 소스 코드 경량화.
-  - **시공:** ⚡ Claude Code (현장 특수 시공팀)
+    - `LaserTurret`: 전력 소모 기반 관통 빔 사격 구조체 (에너지 네트워크 기초)
+    - `FastBelt`: 2배속 물류 운반 벨트 (2틱당 1칸 ➔ 1틱당 1칸)
+    - `FilterInserter`: 특정 `ItemType` 지정 선별 투입기
+    - 신규 웨이브 몬스터 2종(장갑 골렘 `Golem`, 고속 러너 `Runner`) 추가
+  - **시공:** 🏛️ Antigravity (총괄 관제탑) / ⚡ Claude Code (현장 시공팀)
   - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-064: 3대 신규 기물(레이저 터렛, 고속 벨트, 필터 투입기) 및 웨이브 몬스터 다양화**
 - [ ] **T-065: 스팀(Steam) 출시용 단일 배포 바이너리 패키징 스크립트**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-063: 빌드 타임 바이너리 에셋 파이프라인 (`crates/axiom-render/build.rs` & `.atlas` 슬랩)** (`crates/axiom-render/build.rs`, 64B 정렬 `AtlasHeader` 매직 `0x41544C415358414D` ("AXMATLAS") 및 FNV-1a 체크섬, 56개 1,024바이트(`[u32; 256]`) 스프라이트 슬랩 직렬화 `$OUT_DIR/sprites.atlas` (총 57,408B) 빌드, `Cargo.toml` `build = "build.rs"`, `crates/axiom-render/src/sprites.rs` 1,470줄에서 270줄로 80% 이상 슬림화, `AlignedAtlas` 제로-카피 64B L1 캐시 정렬 룩업, `crates/axiom-cli/src/desktop.rs` 일관성 리팩토링, 단위 테스트 `test_baked_atlas_binary_integrity` 통과, `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-062: 상용 출시 품질 종합 감사 및 Axiom Engine v1.5.0 릴리즈** (`Cargo.toml` v1.5.0 공식 판올림, `docs/architecture.md` Section 17 등재, `docs/decisions.md` [D-022]~[D-024] 동기화, `docs/audit-report.md` [AUDIT-20261022-v1.5.0] 공식 승인, 누적기 루프/2x 정수배 스케일러/절차적 PCM 오디오 완결)
 - [x] **T-061: 초경량 네이티브 오디오 출력 연동 (SFX: 발사, 채굴, 타격, 피격)** (`crates/axiom-cli/src/sound.rs`, `SoundKind` 6종(Shoot/Hit/Build/Demolish/SaveChime/WaveAlarm), 22,050Hz 16-bit Mono PCM 0-Float 절차적 파형 합성, 44B RIFF/WAVE 패커, Windows 네이티브 `PlaySoundW` 비동기 메모리 버퍼 재생, 전역 스레드 세이프 사운드 뱅크, `Key::M` 음소거 토글 및 HUD 알림, 사이드바 `M:MUTE` 범례, 단위 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-060: 무손실 정수배 픽셀 스케일러 & 전체화면 모드 (1x/2x/F11, Nearest-Neighbor)** (`crates/axiom-render/src/framebuffer.rs`, `upscale_nearest_2x` 무손실 2x2 정수 최근접 이웃 복제 래스터라이저, `FrameBuffer::to_upscaled_2x`, `crates/axiom-cli/src/desktop.rs`, `ScaleMode` 1x/2x/Fullscreen 상태 및 F10 스케일 / F11 전체화면 동적 토글, 우측 사이드바 `F10:SCL` / `F11:FULL` 범례 추가, 단위 테스트 `test_upscale_nearest_2x_exactness`, `test_framebuffer_to_upscaled_2x`, `test_scale_mode_transitions_and_labels`, `test_desktop_software_upscale_2x_buffer` 100% 통과, `tools/guard.ps1` 통과)

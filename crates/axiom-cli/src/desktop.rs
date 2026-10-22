@@ -15,9 +15,9 @@ use axiom_game::{
     StructureKind, WaveDirector, MONSTER_TEAM, TURRET_AMMO_CAP,
 };
 use axiom_render::{
-    get_belt_sprite, get_drill_sprite, get_heart_sprite, get_inserter_sprite,
-    get_monster_sprite, get_smelter_sprite, get_turret_sprite, FrameBuffer,
-    CHEST_SPRITE, DIR_EAST, ORE_DEPOSIT, WALL_SPRITE,
+    get_belt_sprite, get_chest_sprite, get_deposit_sprite, get_drill_sprite,
+    get_heart_sprite, get_inserter_sprite, get_monster_sprite, get_smelter_sprite,
+    get_turret_sprite, get_wall_sprite, FrameBuffer, DIR_EAST,
 };
 use crate::sound::{self, SoundKind};
 
@@ -624,9 +624,9 @@ fn draw_cell(
         StructureKind::Empty => {}
         StructureKind::Deposit(d) => {
             if d.item == ItemType::CopperOre {
-                fb.draw_sprite_16x16_tinted(sx, sy, &ORE_DEPOSIT, 0xFFF97316);
+                fb.draw_sprite_16x16_tinted(sx, sy, get_deposit_sprite(phase as u64), 0xFFF97316);
             } else {
-                fb.draw_sprite_16x16(sx, sy, &ORE_DEPOSIT);
+                fb.draw_sprite_16x16(sx, sy, get_deposit_sprite(phase as u64));
             }
             if d.remaining < 100 {
                 fb.draw_rect(sx + 6, sy + 6, 4, 4, 0xFF0B1220);
@@ -685,7 +685,7 @@ fn draw_cell(
             }
         }
         StructureKind::Chest(c) => {
-            fb.draw_sprite_16x16(sx, sy, &CHEST_SPRITE);
+            fb.draw_sprite_16x16(sx, sy, get_chest_sprite());
             if c.quantity > 0 {
                 let fill = (10 * c.quantity.min(100) as i64 / 100) as i32;
                 fb.draw_rect(
@@ -698,7 +698,7 @@ fn draw_cell(
             }
         }
         StructureKind::Wall(w) => {
-            fb.draw_sprite_16x16(sx, sy, &WALL_SPRITE);
+            fb.draw_sprite_16x16(sx, sy, get_wall_sprite());
             draw_hp_bar(fb, sx, sy, ts, w.hp, w.max_hp);
         }
         StructureKind::Turret(t) => {

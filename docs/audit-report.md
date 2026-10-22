@@ -48,7 +48,7 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
-### [RECIPE-20261022-T063] 빌드 타임 바이너리 에셋 파이프라인 (`build.rs` & `.atlas` 슬랩)
+### [RECIPE-20261022-T063] 빌드 타임 바이너리 에셋 파이프라인 (`build.rs` & `.atlas` 슬랩) [완료]
 - **목표:** Rust 소스 코드(`sprites.rs`) 안에 1,470줄로 하드코딩된 비트맵 데이터를 외부 에셋 정의로 분리하고, `build.rs`를 통해 컴파일 타임에 64B 정렬 고정 슬랩 바이너리(`sprites.atlas`)로 패킹하여 `include_bytes!`로 제로-카피 로드하는 상용 에셋 파이프라인 구축.
 - **대상 파일:**
   1. `crates/axiom-render/build.rs` (신규 파일):
