@@ -262,3 +262,41 @@ Axiom 1.0.0은 순수 결정론적 고정소수점 연산(`Fixed`), L1 캐시라
 - 581 KB 경량 WASM 모듈에서 640x480 화면을 오프스크린 캔버스에 렌더링 후 메인 캔버스로 고속 블릿.
 - 비트 시프트 기반 32비트 고속 픽셀 포맷 변환으로 프레임당 복사 오버헤드 0.05ms 미만 달성.
 - GitHub Pages([https://hyedelle.github.io/Axiom/](https://hyedelle.github.io/Axiom/))를 통해 브라우저에서 즉시 체험 가능.
+
+---
+
+## 14. Data-Driven Architecture & Universal Engine SDK (v1.2.0)
+
+Axiom Engine은 특정 게임(팩토리, RPG 등)의 고유 로직에 얽매이지 않고, 임의의 게임/시뮬레이션을 구동할 수 있는 **완전 범용 데이터 드리븐 엔진**으로 진화했습니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Axiom Universal Engine SDK Layer                     │
+├──────────────────────────────────┬─────────────────────────────────────┤
+│      crates/axiom-core/schema    │     crates/axiom-core/tile_entity   │
+│  - 64B TypeDefinition 슬랩      │  - 64B TileCell (인벤토리/상태/스탯) │
+│  - 64B RecipeDefinition 레시피   │  - TileGrid<W, H> 고정 무할당 그리드│
+│  - TypeRegistry / RecipeRegistry │  - O(1) 좌표 접근 & 이웃 순회       │
+│  - FNV-1a 결정론적 스키마 해시   │  - process_recipes 데이터 변환 엔진 │
+├──────────────────────────────────┴─────────────────────────────────────┤
+│                    crates/axiom-sdk (Universal C-ABI)                  │
+│   - axiom_engine_create / destroy / tick / state_hash                  │
+│   - axiom_schema_register_type / recipe (런타임 데이터 주입)           │
+│   - axiom_grid_set_tile / get_tile / push_item / pop_item              │
+│   - 제로-카피(Zero-Copy) 64B 버퍼 포인터 메모리 블릿 매핑              │
+├────────────────────────────────────────────────────────────────────────┤
+│              Client / Track 1 Reference Implementation                 │
+│         crates/axiom-game::schema_catalog (8종 구조물/5종 아이템/레시피)│
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 14.1 핵심 컴포넌트
+1. **64B 캐시라인 일치 `TypeDefinition` & `RecipeDefinition`**:
+   - `id`, `category_flags`, `default_hp`, `base_speed`, `base_power`, `primary_color` 등 완벽한 DOD 구조.
+   - 고정 슬랩 기반 `TypeRegistry<256>`, `RecipeRegistry<128>`로 무할당 O(1) 룩업 보장.
+2. **범용 64B `TileCell` & `TileGrid<W, H>`**:
+   - `type_id`, `state_flags`, `hp`/`max_hp`, `work_progress`, `recipe_id`, 4슬롯 인벤토리(`inventory_types`, `inventory_counts`), 32B 커스텀 페이로드로 구성되어 L1 캐시라인 1개에 정확히 밀착.
+   - `process_recipes`를 통해 스키마에 정의된 레시피를 자율 순회하며 변환 처리.
+3. **범용 C-ABI SDK (`crates/axiom-sdk`)**:
+   - 외부 호스트 언어(TypeScript, C#, Python, Rust)에서 엔진 생명주기 및 그리드, 스키마를 제어할 수 있는 표준 C-ABI 게이트웨이.
+   - 제로-카피 버퍼 포인터 `axiom_grid_buffer_ptr`를 통해 WASM 메모리 직접 매핑 지원.

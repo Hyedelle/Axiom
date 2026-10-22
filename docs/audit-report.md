@@ -8,19 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-22 10:15 KST
-- **감사 대상:** Axiom Engine v1.1.0 Open-World Factory RPG 종합 마일스톤 감사 (`axiom-core`, `axiom-game`, `axiom-render`, `axiom-cli`, `axiom-wasm` + GitHub Pages 배포)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 결정론/물류/방어/WASM 종합 검증 완벽 통과 (v1.1.0 공식 승인)**
+- **일시:** 2026-10-22 10:55 KST
+- **감사 대상:** Axiom Engine v1.2.0 범용 데이터 드리븐 엔진 아키텍처 피벗 감사 (`axiom-core`, `axiom-sdk`, `axiom-game`, `axiom-wasm` + Universal C-ABI)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 데이터 드리븐 스키마/무할당 C-ABI/제로-카피 버퍼 완벽 통과 (v1.2.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core` 및 `axiom-game` 전체 코드베이스 0건 누출 (`tools/guard.ps1` 검증 통과)
-  2. **DOD 64바이트 캐시라인 정렬**: `FactoryStructure`, `WorkerAssignment`, `WaveDirector` 100% L1 캐시라인 하드웨어 정렬 완료
-  3. **32x32 공장 물류 루프 초고속 연산**: 틱당 **6.1 µs** (100틱 100% 비트 일치 해시 `0xF62F1795D5860647`)
-  4. **무한 청크 절차적 매장지 & 경계 물류**: 4대 광맥 PCG 스폰, `CrossChunkLogistics` 무손실 벨트 이송 (100틱 해시 `0x199049755F60B310`)
-  5. **10만 NPC 주민 노동력 자동화**: `ColonyWorkforce` 슬랩, 직무 배정, 스태미나 소비/휴식 및 생산성 증속 버프 (100틱 해시 `0xE3FD24FCCCC2FD94`)
-  6. **거점 방어 & 몬스터 웨이브 오토배틀러**: 자동 포탑, 탄약 보급, 파괴 잔해 회수, 성벽 회피 미로 길찾기(Mazing) 및 성벽 집중 타격 돌파 (100틱 해시 `0xF4D127AA8361ED57`)
-  7. **웹(WASM) 하드웨어 오프스크린 더블 버퍼링**: 581 KB 초경량 WASM, 고속 32비트 픽셀 블릿(0.05ms) 및 브라우저 실시간 건설 툴바 완비
-  8. **GitHub Pages 라이브 배포**: [https://hyedelle.github.io/Axiom/](https://hyedelle.github.io/Axiom/) 60fps 라이브 작동 확인
-  9. **총 45개 태스크(T-001 ~ T-045) 100% 완수**: 기획된 전 로드맵 및 서브시스템 100% 완수 판정
+  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core`, `axiom-sdk`, `axiom-game` 전체 코드베이스 0건 (`tools/guard.ps1` 통과)
+  2. **DOD 64B L1 캐시라인 정렬 레코드**: `TypeDefinition`, `RecipeDefinition`, `SchemaHeader`, `TileCell` 100% 정렬 컴파일 타임 단언 검증 완료
+  3. **고정 슬랩 무할당 레지스트리**: `TypeRegistry<256>`, `RecipeRegistry<128>` O(1) 룩업 및 FNV-1a 결정론적 해시 계산
+  4. **범용 64B `TileCell` & `TileGrid<W, H>`**: 인벤토리 4슬롯, 32B 커스텀 페이로드, `process_recipes` 자율 제작 파이프라인
+  5. **범용 C-ABI SDK (`axiom-sdk`)**: `axiom_engine_*`, `axiom_schema_*`, `axiom_grid_*` 생명주기/스키마/타일 제로-카피 버퍼 포인터 연동
+  6. **게임 도메인 분리 실증 (`schema_catalog.rs`)**: 팩토리 RPG 구조물 8종, 아이템 5종, 레시피 3종을 순수 스키마 데이터로 등록하여 엔진-게임 100% 디커플링 달성
+  7. **전체 워크스페이스 단위 테스트 100% 통과**: 38개 단위 테스트 및 FFI 테스트 올패스
+
+---
+
+## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261022-v1.1.0] Axiom Engine v1.1.0 Open-World Factory RPG 종합 마일스톤 감사
+- **일시:** 2026-10-22 10:15 KST
+- **판정:** 🟢 **ALL CLEAR (v1.1.0 릴리즈 승인)**
+- **검증:** 무한 청크 물류, 10만 NPC 노동력, 거점 방어 A* 길찾기(Mazing), 웹 하드웨어 더블 버퍼링, GitHub Pages 라이브 배포 완료.
 
 ---
 

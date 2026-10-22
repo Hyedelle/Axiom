@@ -1,8 +1,8 @@
 ﻿# Axiom Autonomous Engine Telemetry & Health Dashboard
 
-> **Generated:** 2026-10-22 10:55:52 KST  
-> **Workspace Version:** v1.1.0 | **Autonomous Loop:** ACTIVE & UNINTERRUPTED  
-> **Total Verified Commits:** 62 (78acff4: feat(sdk): build universal data-driven C-ABI and engine SDK (T-048))  
+> **Generated:** 2026-10-22 10:57:29 KST  
+> **Workspace Version:** v1.2.0 | **Autonomous Loop:** ACTIVE & UNINTERRUPTED  
+> **Total Verified Commits:** 63 (df070cb: refactor(game): decouple domain types into data-driven schema catalog (T-049))  
 > **Mechanical Guard Status:** 100% CONSTITUTIONAL PASS  
 
 ---
@@ -36,11 +36,11 @@
 ## Recent Commit History
 
 ``text
+df070cb refactor(game): decouple domain types into data-driven schema catalog (T-049)
 78acff4 feat(sdk): build universal data-driven C-ABI and engine SDK (T-048)
 d862f9d feat(core): implement data-driven tile entity and spatial grid pipeline (T-047)
 4d6a0a7 feat(core): implement data-driven schema and zero-allocation registry (T-046)
 911cdec fix(wasm): auto-equip newly placed turrets with ammo and enlarge ammo chest stock
-f07b3be feat(release): Axiom v1.1.0 Open-World Factory RPG milestone release (T-045)
 ``
 
 ---
