@@ -6,22 +6,23 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-067: 데이터 드리븐 팩토리/게임플레이 스키마 정의 및 무할당 런타임 변환 엔진 (`schema.rs`, `tile_entity.rs`)**
+- [ ] **T-068: 10만 엔티티 초고속 무할당 공간 분할 가속기 (Spatial Grid / BVH, 64B L1 Cache)**
   - **목표:**
-    - C# 또는 JSON 스키마에서 주입된 `TypeDefinition` 및 `RecipeDefinition`만으로 기물과 아이템 변환을 런타임에 완벽히 시뮬레이션
-    - 하드코딩된 기물 열거형에 의존하지 않고 임의의 기물(채굴기, 벨트, 화로, 화학 공장, 포탑 등)을 생성/작동시키는 범용 타일 엔티티 파이프라인 완성
+    - 대규모 유닛/타일의 사거리, 충돌, 가시성(FOV) 쿼리를 단일 코어에서 1ms 이내로 해결하는 64B L1 캐시 정렬 공간 인덱싱 서브시스템 (`SpatialIndex`)
+    - 0-Float 정수 좌표계 기반 O(1) 버킷 해싱 및 AABB 쿼리 파이프라인
   - **시공:** 🏛️ Antigravity (총괄 관제탑)
   - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-068: 10만 엔티티 초고속 무할당 공간 분할 가속기 (Spatial Grid / BVH, 64B L1 Cache)**
 - [ ] **T-069: Unity `steel-the-show` 프로젝트 연동 스모크 테스트 및 FFI 실전 검증**
+- [ ] **T-070: 무한 절차적 오픈월드 청크 스트리밍 & 바이옴 PCG (Phase 3 본격 진입)**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-067: 데이터 드리븐 팩토리/게임플레이 스키마 정의 및 무할당 런타임 변환 엔진 (`schema.rs`, `tile_entity.rs`)** (`crates/axiom-core/src/schema.rs`, `crates/axiom-core/src/tile_entity.rs`, `crates/axiom-sdk/src/lib.rs`, `TileGrid::step_simulation` 4단계 힙 제로 결정론 파이프라인 구현, `PRODUCER` 전방 자동 사출/생산, `TRANSPORTER` 2단계 충돌 없는 전방 이송 및 인서터 후방 흡입 모드, `RecipeRegistry` 무할당 다원 레시피 가공, `COMBATANT` 원거리 피해 타격, `test_data_driven_production_and_logistics_pipeline` 채굴-벨트-제련-투입-상자 100% 데이터 드리븐 실증, C# 바인딩 `axiom_sdk.dll` 연동 검증 및 `tools/guard.ps1` 통과)
 - [x] **T-066: Unity / C# FFI 바인딩 및 DLL 배포 파이프라인 (`bindings/csharp/AxiomSdk.cs` & `tools/export_sdk_csharp.ps1`)** (`bindings/csharp/AxiomSdk.cs`, `crates/axiom-sdk/src/lib.rs`, `tools/export_sdk_csharp.ps1`, Unity 6 및 C# 5+ / IL2CPP 완벽 호환 P/Invoke 래퍼 완성, 64B L1 캐시 정렬 구조체 `TileCell`/`TypeDefinition`/`RecipeDefinition` 및 16B `GridAction` 크기/오프셋 100% 일치, 호스트 스택 비정렬 포인터 방어 `read_unaligned`/`write_unaligned` 안전화, `AxiomEngine` 및 `AxiomRollbackSession` 고수준 `IDisposable` 객체 제공, `tools/export_sdk_csharp.ps1` 인메모리 C# 100틱 시뮬레이션 및 P2P 롤백 넷코드 무인 검증 통과, `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-065: 스팀(Steam) 출시용 단일 배포 바이너리 패키징 스크립트** (`tools/package.ps1`, `Cargo.toml` `strip = true` 및 LTO 최적화, 489KB(0.48MB) 초경량 단일 독립 바이너리 `axiom.exe` 빌드, 186KB `axiom-v1.5.0-windows-x64.zip` 배포 아카이브 생성, `README.txt` 조작 가이드, `manifest.json` SHA256 체크섬 메타데이터, `saves/` 영속성 번들링, `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-064: 3대 신규 기물(레이저 터렛, 고속 벨트, 필터 투입기) 및 웨이브 몬스터 다양화** (`crates/axiom-game/src/defense.rs`, `crates/axiom-game/src/factory.rs`, `crates/axiom-render/build.rs`, `crates/axiom-cli/src/desktop.rs`, `LaserTurret` 16B 페이로드 40 데미지 7 사거리 전력 빔 포탑 및 빔 궤적선 래스터라이저, `FastBelt` 2배속 물류 운반 벨트(speed 100, 1틱 1칸 이송), `FilterInserter` `ItemType` 지정 선별 스마트 투입기, `MonsterKind` 3종 다형성 아키텍처(표준 `Goblin`, 3배 장갑 탱커 `Golem`, 1틱 질주 무리 `Runner`), `FactoryStructure` 64B L1 캐시 정렬 엄수, 88개 16x16 비트맵 슬랩(90,176B) 빌드타임 아틀라스 패킹, 데스크톱 스튜디오 9/0/L 단축키 및 좌측 툴바 통합, 단위 테스트 100% 통과, `tools/guard.ps1` 무결성 검증 완료)

@@ -53,9 +53,9 @@ impl EngineContext {
         }
     }
 
-    /// Step the engine by 1 tick: runs data-driven recipes across grid and advances tick count.
+    /// Step the engine by 1 tick: runs full data-driven simulation across grid and advances tick count.
     pub fn tick(&mut self) -> u64 {
-        self.grid.process_recipes(&self.recipes);
+        self.grid.step_simulation(&self.types, &self.recipes);
         self.tick_count = self.tick_count.wrapping_add(1);
         self.tick_count
     }

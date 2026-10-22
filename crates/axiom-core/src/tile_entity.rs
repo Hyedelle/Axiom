@@ -3,7 +3,7 @@
 //! Provides cache-line aligned (64-byte) generic spatial tile cells and fixed-slab spatial grid
 //! data structures completely decoupled from hardcoded game types or domains.
 
-use crate::schema::RecipeRegistry;
+use crate::schema::{category, RecipeDefinition, RecipeRegistry, TypeDefinition, TypeRegistry};
 
 /// 64-Byte Cache-Line Aligned Generic Tile Entity Cell.
 ///
@@ -517,6 +517,196 @@ impl<const W: usize, const H: usize> TileGrid<W, H> {
         }
     }
 
+    /// Advances the generic data-driven simulation across the entire grid by 1 tick:
+    ///
+    /// 1. **Producers**: Extract / generate items according to their `base_speed`.
+    /// 2. **Transporters**: Move items forward into neighboring tiles (2-phase conflict-free buffer).
+    /// 3. **Recipes**: Process item transformations via `RecipeRegistry`.
+    /// 4. **Defenders**: Engage enemy targets within weapon `range`.
+    pub fn step_simulation<const TYPE_CAP: usize, const RECIPE_CAP: usize>(
+        &mut self,
+        types: &TypeRegistry<TYPE_CAP>,
+        recipes: &RecipeRegistry<RECIPE_CAP>,
+    ) {
+        // --- Phase 1: Producers ---
+        for y in 0..H {
+            for x in 0..W {
+                let cell = self.cells[y][x];
+                if cell.is_empty() || !cell.has_flag(tile_flags::ACTIVE) {
+                    continue;
+                }
+
+                if let Some(tdef) = types.get(cell.type_id as u16) {
+                    if tdef.has_category(category::PRODUCER)
+                        && !tdef.has_category(category::CONSUMER)
+                    {
+                        let target_item = u16::from_le_bytes([cell.custom_payload[2], cell.custom_payload[3]]);
+                        if target_item != 0 {
+                            let speed = tdef.base_speed.max(1);
+                            let new_progress = cell.work_progress.saturating_add(speed);
+                            if new_progress >= 100 {
+                                self.cells[y][x].work_progress = 0;
+                                let dir = cell.custom_payload[0];
+                                let fwd = match dir {
+                                    0 if y > 0 => Some((x, y - 1)),
+                                    1 if x + 1 < W => Some((x + 1, y)),
+                                    2 if y + 1 < H => Some((x, y + 1)),
+                                    3 if x > 0 => Some((x - 1, y)),
+                                    _ => None,
+                                };
+                                let mut pushed = false;
+                                if let Some((fx, fy)) = fwd {
+                                    if !self.cells[fy][fx].is_empty() && self.cells[fy][fx].has_flag(tile_flags::ACTIVE) {
+                                        pushed = self.cells[fy][fx].push_item(target_item, 1);
+                                    }
+                                }
+                                if !pushed {
+                                    self.cells[y][x].push_item(target_item, 1);
+                                }
+                            } else {
+                                self.cells[y][x].work_progress = new_progress;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Phase 2: Transporters (Conveyors & Inserters) ---
+        const MAX_TRANSFERS: usize = 256;
+        let mut transfers = [(0u16, 0u16, 0u16, 0u16, 0u16); MAX_TRANSFERS];
+        let mut transfer_count = 0;
+
+        for y in 0..H {
+            for x in 0..W {
+                let cell = &self.cells[y][x];
+                if cell.is_empty() || !cell.has_flag(tile_flags::ACTIVE) {
+                    continue;
+                }
+
+                if let Some(tdef) = types.get(cell.type_id as u16) {
+                    if tdef.has_category(category::TRANSPORTER) {
+                        let dir = cell.custom_payload[0];
+                        let is_pull_mode = cell.custom_payload[1] == 1;
+
+                        // Check items held
+                        let mut item_held = 0u16;
+                        for i in 0..4 {
+                            if cell.inventory_types[i] != 0 && cell.inventory_counts[i] > 0 {
+                                item_held = cell.inventory_types[i];
+                                break;
+                            }
+                        }
+
+                        if is_pull_mode && item_held == 0 {
+                            // Inserter: pull item from behind (opposite direction)
+                            let back_dir = (dir + 2) % 4;
+                            let back_pos = match back_dir {
+                                0 if y > 0 => Some((x, y - 1)),
+                                1 if x + 1 < W => Some((x + 1, y)),
+                                2 if y + 1 < H => Some((x, y + 1)),
+                                3 if x > 0 => Some((x - 1, y)),
+                                _ => None,
+                            };
+                            if let Some((bx, by)) = back_pos {
+                                let back_cell = &self.cells[by][bx];
+                                for i in 0..4 {
+                                    if back_cell.inventory_types[i] != 0 && back_cell.inventory_counts[i] > 0 {
+                                        let cand = back_cell.inventory_types[i];
+                                        if transfer_count < MAX_TRANSFERS {
+                                            transfers[transfer_count] = (bx as u16, by as u16, x as u16, y as u16, cand);
+                                            transfer_count += 1;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        } else if item_held != 0 {
+                            // Forward push to neighbor in front
+                            let fwd_pos = match dir {
+                                0 if y > 0 => Some((x, y - 1)),
+                                1 if x + 1 < W => Some((x + 1, y)),
+                                2 if y + 1 < H => Some((x, y + 1)),
+                                3 if x > 0 => Some((x - 1, y)),
+                                _ => None,
+                            };
+                            if let Some((fx, fy)) = fwd_pos {
+                                let dest = &self.cells[fy][fx];
+                                if !dest.is_empty() && dest.has_flag(tile_flags::ACTIVE) {
+                                    if transfer_count < MAX_TRANSFERS {
+                                        transfers[transfer_count] = (x as u16, y as u16, fx as u16, fy as u16, item_held);
+                                        transfer_count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Apply transfers
+        for i in 0..transfer_count {
+            let (fx, fy, tx, ty, item) = transfers[i];
+            let fx = fx as usize;
+            let fy = fy as usize;
+            let tx = tx as usize;
+            let ty = ty as usize;
+
+            if self.cells[ty][tx].push_item(item, 1) {
+                self.cells[fy][fx].pop_item(item, 1);
+            }
+        }
+
+        // --- Phase 3: Recipes Transformation ---
+        self.process_recipes(recipes);
+
+        // --- Phase 4: Defensive & Combatant ---
+        for y in 0..H {
+            for x in 0..W {
+                let cell = &mut self.cells[y][x];
+                if cell.is_empty() || !cell.has_flag(tile_flags::ACTIVE) {
+                    continue;
+                }
+
+                if let Some(tdef) = types.get(cell.type_id as u16) {
+                    if tdef.has_category(category::COMBATANT)
+                        && tdef.range > 0
+                        && tdef.base_power > 0
+                    {
+                        let cooldown = tdef.cooldown.max(1);
+                        let timer = &mut cell.custom_payload[8];
+                        *timer = timer.saturating_add(1);
+                        if *timer as u16 >= cooldown {
+                            *timer = 0;
+                            let r = tdef.range as isize;
+                            let mut target_found = false;
+                            for dy in -r..=r {
+                                if target_found { break; }
+                                for dx in -r..=r {
+                                    if dx == 0 && dy == 0 { continue; }
+                                    let tx = x as isize + dx;
+                                    let ty = y as isize + dy;
+                                    if tx >= 0 && tx < W as isize && ty >= 0 && ty < H as isize {
+                                        let target = &mut self.cells[ty as usize][tx as usize];
+                                        if !target.is_empty() && target.has_flag(tile_flags::DAMAGED) {
+                                            target.hp = target.hp.saturating_sub(tdef.base_power);
+                                            if target.hp == 0 {
+                                                target.clear();
+                                            }
+                                            target_found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Computes a 64-bit FNV-1a hash of the entire grid state for deterministic synchronization verification.
     pub fn state_hash(&self) -> u64 {
         const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
@@ -681,5 +871,90 @@ mod tests {
         let clear_act = GridAction::clear_tile(1, 2, 2);
         assert!(grid.apply_action(&clear_act));
         assert!(grid.get(2, 2).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_data_driven_production_and_logistics_pipeline() {
+        let mut types = TypeRegistry::<32>::new();
+        let mut recipes = RecipeRegistry::<16>::new();
+
+        // Type 10: Mining Drill (PRODUCER, speed 100)
+        let mut drill = TypeDefinition::empty();
+        drill.id = 10;
+        drill.category_flags = category::SOLID | category::PRODUCER;
+        drill.base_speed = 100;
+        types.register(drill);
+
+        // Type 11: Conveyor Belt (TRANSPORTER, mode 0 = push)
+        let mut belt = TypeDefinition::empty();
+        belt.id = 11;
+        belt.category_flags = category::PASSABLE | category::TRANSPORTER;
+        types.register(belt);
+
+        // Type 12: Smelter Furnace (CONSUMER | PRODUCER, recipe transforms IronOre 101 -> IronPlate 201)
+        let mut smelter = TypeDefinition::empty();
+        smelter.id = 12;
+        smelter.category_flags = category::SOLID | category::CONSUMER | category::PRODUCER;
+        types.register(smelter);
+
+        // Type 13: Inserter Arm (TRANSPORTER, mode 1 = pull from behind, push forward)
+        let mut inserter = TypeDefinition::empty();
+        inserter.id = 13;
+        inserter.category_flags = category::SOLID | category::TRANSPORTER;
+        types.register(inserter);
+
+        // Type 14: Storage Chest (CONTAINER)
+        let mut chest = TypeDefinition::empty();
+        chest.id = 14;
+        chest.category_flags = category::SOLID | category::CONTAINER;
+        types.register(chest);
+
+        // Recipe: 1 IronOre (101) -> 1 IronPlate (201) in 2 ticks
+        let mut recipe = RecipeDefinition::empty();
+        recipe.id = 1;
+        recipe.input_id = 101;
+        recipe.input_count = 1;
+        recipe.output_id = 201;
+        recipe.output_count = 1;
+        recipe.required_ticks = 2;
+        recipes.register(recipe);
+
+        // Build layout on a 6x1 grid:
+        // (0,0): Drill (facing East, target item 101)
+        // (1,0): Belt (facing East, mode 0)
+        // (2,0): Smelter (Recipe 1)
+        // (3,0): Inserter (facing East, mode 1)
+        // (4,0): Chest
+        let mut grid = TileGrid::<6, 1>::new();
+
+        let mut drill_cell = TileCell::new(10, 300);
+        drill_cell.custom_payload[0] = 1; // Facing East
+        drill_cell.custom_payload[2..4].copy_from_slice(&101u16.to_le_bytes()); // Target item 101
+        grid.set(0, 0, drill_cell);
+
+        let mut belt_cell = TileCell::new(11, 100);
+        belt_cell.custom_payload[0] = 1; // Facing East, mode 0
+        grid.set(1, 0, belt_cell);
+
+        let mut smelter_cell = TileCell::new(12, 500);
+        smelter_cell.recipe_id = 1;
+        grid.set(2, 0, smelter_cell);
+
+        let mut inserter_cell = TileCell::new(13, 150);
+        inserter_cell.custom_payload[0] = 1; // Facing East
+        inserter_cell.custom_payload[1] = 1; // Mode 1: Inserter (pull from behind)
+        grid.set(3, 0, inserter_cell);
+
+        let chest_cell = TileCell::new(14, 200);
+        grid.set(4, 0, chest_cell);
+
+        // Run simulation for 10 ticks
+        for _ in 0..10 {
+            grid.step_simulation(&types, &recipes);
+        }
+
+        // Verify that IronPlates were produced and stored in Chest (4, 0)
+        let chest_content = grid.get(4, 0).unwrap().count_item(201);
+        assert!(chest_content > 0, "Chest at (4, 0) should contain at least 1 IronPlate (got {})", chest_content);
     }
 }

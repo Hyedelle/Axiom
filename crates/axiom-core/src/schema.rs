@@ -106,6 +106,11 @@ impl TypeDefinition {
     pub const fn has_category(&self, flag: u16) -> bool {
         (self.category_flags & flag) == flag
     }
+
+    #[inline(always)]
+    pub const fn has_any_category(&self, flags: u16) -> bool {
+        (self.category_flags & flags) != 0
+    }
 }
 
 // ---------------------------------------------------------------------------
