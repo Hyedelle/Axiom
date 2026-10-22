@@ -38,7 +38,30 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
-### [RECIPE-20261022-T054] 1인 인디 개발자를 위한 네이티브 데스크톱 윈도우 러너 (`minifb`)
+### [RECIPE-20261022-T055] 1인 인디 개발자를 위한 디스크 세이브/로드(F5/F9) 및 영속성 슬롯 (`saves/*.axiom`)
+- **목표:** 1인 인디 개발자가 데스크톱에서 기지를 건설하고 웨이브를 막아낸 상태를 F5 퀵세이브로 디스크 파일(`saves/quick.axiom`)에 100% 무손실 저장하고, F9 퀵로드로 1초 만에 그대로 복원하여 게임플레이를 연속 검증할 수 있는 파일 영속성 구축.
+- **대상 파일:**
+  1. `crates/axiom-cli/src/desktop.rs`:
+     - `SaveFileHeader`: 64B 정렬 매직 헤더 (`0x4D4F495841564153`), 버전 `0x00010300`, 틱, 베이스 하트 HP, 웨이브, 총 제련 수, FNV-1a 해시
+     - `DesktopEngine::save_to_file(&self, path: &str) -> std::io::Result<()>`:
+       - `saves/` 디렉터리 자동 생성 (`std::fs::create_dir_all("saves")`)
+       - `grid` 32x32 타일 데이터, 하트 HP, 포탑 탄약, 몬스터 배열, 웨이브 정보 바이너리 패킹 및 파일 기록
+       - 저장 성공 시 HUD에 `[QUICK SAVE: saves/quick.axiom]` 안내 메시지 트리거
+     - `DesktopEngine::load_from_file(&mut self, path: &str) -> std::io::Result<()>`:
+       - 파일 헤더 매직 넘버 및 체크섬 검증
+       - 타일 그리드, 웨이브, 하트 HP, 몬스터 상태 무손실 복원
+       - 로드 성공 시 HUD에 `[QUICK LOAD COMPLETED (Tick XXX)]` 안내 메시지 트리거
+     - 키보드 F5 (퀵세이브), F9 (퀵로드) 키 이벤트 바인딩 (`minifb::Key::F5`, `minifb::Key::F9`)
+  2. 신규 단위 테스트 추가:
+     - `crates/axiom-cli/src/desktop.rs`: `test_desktop_save_load_roundtrip` (임의의 기지 배치 후 저장 ➔ 복원 후 상태 비트 일치 검증)
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 원천 배제 및 비트 일치 결정론적 바이너리 직렬화
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
+### [RECIPE-20261022-T054] 1인 인디 개발자를 위한 네이티브 데스크톱 윈도우 러너 (`minifb`) [완료]
 - **목표:** 웹 브라우저를 벗어나, `cargo run -p axiom-cli` 단 한 줄로 Windows 데스크톱에 60/144 FPS 인터랙티브 게임 창을 즉시 띄우고 실시간 마우스/키보드로 팩토리 디펜스 게임플레이를 조작할 수 있는 환경 완성.
 - **대상 파일:**
   1. `crates/axiom-cli/Cargo.toml`:

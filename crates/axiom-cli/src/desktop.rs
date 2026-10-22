@@ -3,6 +3,8 @@
 //! Provides a 60 FPS interactive graphical window powered by `minifb` and `axiom-render`.
 //! Complete interactive factory defense simulation with real-time mouse and keyboard controls.
 
+use std::cell::RefCell;
+use std::io::Write;
 use std::time::Duration;
 
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
@@ -22,6 +24,211 @@ pub const TILE_SIZE: i32 = 14;
 pub const GRID_PIXEL_SIZE: i32 = GRID_W as i32 * TILE_SIZE; // 448 px
 pub const GRID_OFFSET_X: i32 = (WIN_WIDTH as i32 - GRID_PIXEL_SIZE) / 2; // 96 px
 pub const GRID_OFFSET_Y: i32 = (WIN_HEIGHT as i32 - GRID_PIXEL_SIZE) / 2; // 16 px
+
+pub const SAVE_MAGIC: u64 = 0x4D4F_4958_4156_4153; // "SAVAXIOM"
+pub const SAVE_VERSION: u32 = 0x0001_0300; // v1.3.0
+
+/// 64-byte aligned binary header for Axiom Desktop saves.
+#[repr(C, align(64))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SaveFileHeader {
+    pub magic: u64,
+    pub version: u32,
+    pub _pad0: u32,
+    pub tick: u64,
+    pub heart_hp: i32,
+    pub heart_max_hp: i32,
+    pub wave: u32,
+    pub _pad1: u32,
+    pub total_smelted: u64,
+    pub checksum: u64,
+    pub reserved: [u8; 8],
+}
+
+const _: () = assert!(core::mem::size_of::<SaveFileHeader>() == 64);
+const _: () = assert!(core::mem::align_of::<SaveFileHeader>() == 64);
+
+/// Computes a standard 64-bit FNV-1a checksum over a byte slice.
+pub fn fnv1a_hash(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in bytes {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    hash
+}
+
+/// Native interactive desktop engine holding grid, wave director, and persistence.
+pub struct DesktopEngine {
+    pub grid: FactoryGrid<GRID_W, GRID_H>,
+    pub director: WaveDirector<64>,
+    pub tick: u64,
+    pub notification: RefCell<Option<(String, u32)>>,
+}
+
+impl DesktopEngine {
+    /// Creates a new engine initialized with starter base and wave defense.
+    pub fn new(seed: u64) -> Self {
+        let mut grid = FactoryGrid::<GRID_W, GRID_H>::new();
+        setup_starter_base(&mut grid, seed);
+
+        let mut director = WaveDirector::<64>::new(seed);
+        director.bind_chunk(ChunkCoord::new(0, 0));
+
+        Self {
+            grid,
+            director,
+            tick: 0,
+            notification: RefCell::new(None),
+        }
+    }
+
+    /// Advances simulation by one deterministic tick.
+    pub fn step(&mut self) {
+        self.director.tick(&mut self.grid);
+        self.grid.step();
+        self.tick += 1;
+
+        let mut notif = self.notification.borrow_mut();
+        if let Some((_, ref mut count)) = *notif {
+            if *count > 0 {
+                *count -= 1;
+            } else {
+                *notif = None;
+            }
+        }
+    }
+
+    /// Retrieves current HUD notification message if active.
+    pub fn notification(&self) -> Option<(String, u32)> {
+        self.notification.borrow().clone()
+    }
+
+    /// Sets HUD notification with a display lifetime in frames.
+    pub fn set_notification(&self, msg: impl Into<String>, duration_ticks: u32) {
+        *self.notification.borrow_mut() = Some((msg.into(), duration_ticks));
+    }
+
+    /// Saves the current engine state (grid, monsters, wave director, stats) to a binary file.
+    pub fn save_to_file(&self, path: &str) -> std::io::Result<()> {
+        let _ = std::fs::create_dir_all("saves");
+        if let Some(parent) = std::path::Path::new(path).parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let d_rep = self.director.report(&self.grid);
+        let f_rep = self.grid.report();
+
+        let grid_size = core::mem::size_of::<FactoryGrid<GRID_W, GRID_H>>();
+        let director_size = core::mem::size_of::<WaveDirector<64>>();
+        let mut payload = Vec::with_capacity(grid_size + director_size);
+
+        let grid_bytes = unsafe {
+            core::slice::from_raw_parts(&self.grid as *const _ as *const u8, grid_size)
+        };
+        let director_bytes = unsafe {
+            core::slice::from_raw_parts(&self.director as *const _ as *const u8, director_size)
+        };
+        payload.extend_from_slice(grid_bytes);
+        payload.extend_from_slice(director_bytes);
+
+        let checksum = fnv1a_hash(&payload);
+
+        let header = SaveFileHeader {
+            magic: SAVE_MAGIC,
+            version: SAVE_VERSION,
+            _pad0: 0,
+            tick: self.tick,
+            heart_hp: d_rep.heart_hp as i32,
+            heart_max_hp: d_rep.heart_max_hp as i32,
+            wave: d_rep.wave_number as u32,
+            _pad1: 0,
+            total_smelted: f_rep.total_smelted,
+            checksum,
+            reserved: [0; 8],
+        };
+
+        let header_bytes = unsafe {
+            core::slice::from_raw_parts(
+                &header as *const SaveFileHeader as *const u8,
+                core::mem::size_of::<SaveFileHeader>(),
+            )
+        };
+
+        let mut file = std::fs::File::create(path)?;
+        file.write_all(header_bytes)?;
+        file.write_all(&payload)?;
+        file.flush()?;
+
+        self.set_notification(format!("[QUICK SAVE: {}]", path), 120);
+        Ok(())
+    }
+
+    /// Restores engine state from a binary save archive with full integrity validation.
+    pub fn load_from_file(&mut self, path: &str) -> std::io::Result<()> {
+        let bytes = std::fs::read(path)?;
+        let header_size = core::mem::size_of::<SaveFileHeader>();
+        let grid_size = core::mem::size_of::<FactoryGrid<GRID_W, GRID_H>>();
+        let director_size = core::mem::size_of::<WaveDirector<64>>();
+        let expected_size = header_size + grid_size + director_size;
+
+        if bytes.len() < expected_size {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "Corrupted save file: size {} bytes is less than expected {} bytes",
+                    bytes.len(),
+                    expected_size
+                ),
+            ));
+        }
+
+        let header = unsafe { core::ptr::read_unaligned(bytes.as_ptr() as *const SaveFileHeader) };
+        if header.magic != SAVE_MAGIC {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "Invalid save magic: expected 0x{:X}, found 0x{:X}",
+                    SAVE_MAGIC, header.magic
+                ),
+            ));
+        }
+        if header.version != SAVE_VERSION {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "Unsupported save version: expected 0x{:X}, found 0x{:X}",
+                    SAVE_VERSION, header.version
+                ),
+            ));
+        }
+
+        let payload_bytes = &bytes[header_size..expected_size];
+        let computed_checksum = fnv1a_hash(payload_bytes);
+        if computed_checksum != header.checksum {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "Save checksum mismatch: expected 0x{:X}, computed 0x{:X}",
+                    header.checksum, computed_checksum
+                ),
+            ));
+        }
+
+        self.grid = unsafe {
+            core::ptr::read_unaligned(payload_bytes.as_ptr() as *const FactoryGrid<GRID_W, GRID_H>)
+        };
+        self.director = unsafe {
+            core::ptr::read_unaligned(payload_bytes[grid_size..].as_ptr() as *const WaveDirector<64>)
+        };
+        self.tick = header.tick;
+
+        self.set_notification(format!("[QUICK LOAD COMPLETED (Tick {})]", header.tick), 120);
+        Ok(())
+    }
+}
 
 /// User selectable build tools (keys 1~8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -461,6 +668,9 @@ fn glyph_3x5(c: char) -> u16 {
         '.' => 0x0002,
         '[' => 0x7247,
         ']' => 0x7127,
+        '(' => 0x2922,
+        ')' => 0x224A,
+        '_' => 0x0007,
         _ => 0,
     }
 }
@@ -507,12 +717,8 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
     window.limit_update_rate(Some(Duration::from_micros(16600)));
     window.set_target_fps(60);
 
-    let mut grid = FactoryGrid::<GRID_W, GRID_H>::new();
     let seed = 0xABCD_9999_7777;
-    setup_starter_base(&mut grid, seed);
-
-    let mut director = WaveDirector::<64>::new(seed);
-    director.bind_chunk(ChunkCoord::new(0, 0));
+    let mut engine = DesktopEngine::new(seed);
 
     let mut framebuffer = FrameBuffer::new(WIN_WIDTH, WIN_HEIGHT);
 
@@ -520,10 +726,9 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
     let mut cursor_y: usize = 16;
     let mut selected_tool = SelectedTool::Turret;
     let mut current_direction = Direction::East;
-    let mut tick: u64 = 0;
 
     println!("🚀 [Axiom Desktop Studio] Launched in 640x480 native window at 60 FPS.");
-    println!("   Controls: WASD (Move cursor), 1~8 (Select tool), R (Rotate), LMB (Build), RMB (Clear), ESC (Exit)");
+    println!("   Controls: WASD (Move cursor), 1~8 (Select tool), R (Rotate), LMB (Build), RMB (Clear), F5 (QuickSave), F9 (QuickLoad), ESC (Exit)");
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // --- 1. Keyboard Input Handling ---
@@ -574,12 +779,26 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
 
         // Space / Enter: Place structure at cursor
         if window.is_key_pressed(Key::Space, KeyRepeat::No) || window.is_key_pressed(Key::Enter, KeyRepeat::No) {
-            place_structure(&mut grid, cursor_x, cursor_y, selected_tool, current_direction);
+            place_structure(&mut engine.grid, cursor_x, cursor_y, selected_tool, current_direction);
         }
 
         // Delete / Backspace: Clear structure at cursor
         if window.is_key_pressed(Key::Delete, KeyRepeat::No) || window.is_key_pressed(Key::Backspace, KeyRepeat::No) {
-            demolish_tile(&mut grid, cursor_x, cursor_y);
+            demolish_tile(&mut engine.grid, cursor_x, cursor_y);
+        }
+
+        // F5: Quicksave
+        if window.is_key_pressed(Key::F5, KeyRepeat::No) {
+            if let Err(e) = engine.save_to_file("saves/quick.axiom") {
+                engine.set_notification(format!("[SAVE FAILED: {}]", e), 120);
+            }
+        }
+
+        // F9: Quickload
+        if window.is_key_pressed(Key::F9, KeyRepeat::No) {
+            if let Err(e) = engine.load_from_file("saves/quick.axiom") {
+                engine.set_notification(format!("[LOAD FAILED: {}]", e), 120);
+            }
         }
 
         // --- 2. Mouse Input Handling ---
@@ -593,23 +812,21 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
                 cursor_y = gy as usize;
 
                 if window.get_mouse_down(MouseButton::Left) {
-                    place_structure(&mut grid, cursor_x, cursor_y, selected_tool, current_direction);
+                    place_structure(&mut engine.grid, cursor_x, cursor_y, selected_tool, current_direction);
                 }
                 if window.get_mouse_down(MouseButton::Right) {
-                    demolish_tile(&mut grid, cursor_x, cursor_y);
+                    demolish_tile(&mut engine.grid, cursor_x, cursor_y);
                 }
             }
         }
 
         // --- 3. Simulation Step ---
-        director.tick(&mut grid);
-        grid.step();
-        tick += 1;
+        engine.step();
 
         // --- 4. Render Scene into FrameBuffer ---
         framebuffer.clear(0xFF0A0F1D);
-        let phase = (tick & 0x7FFF_FFFF) as i32;
-        let now = director.current_tick as u32;
+        let phase = (engine.tick & 0x7FFF_FFFF) as i32;
+        let now = engine.director.current_tick as u32;
 
         // 4.1 Floor & Structures
         for y in 0..GRID_H {
@@ -618,14 +835,14 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
                 let sx = GRID_OFFSET_X + x as i32 * TILE_SIZE;
                 let floor = if (x + y) % 2 == 0 { 0xFF141F30 } else { 0xFF0F1726 };
                 framebuffer.draw_rect(sx, sy, TILE_SIZE, TILE_SIZE, floor);
-                draw_cell(&mut framebuffer, &grid.cells[y][x], sx, sy, TILE_SIZE, phase);
+                draw_cell(&mut framebuffer, &engine.grid.cells[y][x], sx, sy, TILE_SIZE, phase);
             }
         }
 
         // 4.2 Monsters from WaveDirector Arena
         let ms = (TILE_SIZE * 3 / 5).max(2);
         let mo = (TILE_SIZE - ms) / 2;
-        for u in director.arena.units.iter() {
+        for u in engine.director.arena.units.iter() {
             if !u.is_alive() || u.team != MONSTER_TEAM {
                 continue;
             }
@@ -640,7 +857,7 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         if now > 0 {
             for y in 0..GRID_H {
                 for x in 0..GRID_W {
-                    let cell = &grid.cells[y][x];
+                    let cell = &engine.grid.cells[y][x];
                     let t = match cell.kind {
                         StructureKind::Turret(t) => t,
                         _ => continue,
@@ -657,7 +874,7 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
                     let range_sq = t.range as i64 * t.range as i64;
                     let mut best: Option<(i32, i32)> = None;
                     let mut best_d = i64::MAX;
-                    for u in director.arena.units.iter() {
+                    for u in engine.director.arena.units.iter() {
                         if !u.is_alive() || u.team != MONSTER_TEAM {
                             continue;
                         }
@@ -726,8 +943,8 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         framebuffer.draw_rect(544, 0, 96, WIN_HEIGHT as i32, 0xFF0B1322);
         framebuffer.draw_rect(544, 0, 1, WIN_HEIGHT as i32, 0xFF1E293B);
 
-        let d_rep = director.report(&grid);
-        let f_rep = grid.report();
+        let d_rep = engine.director.report(&engine.grid);
+        let f_rep = engine.grid.report();
 
         draw_text(&mut framebuffer, "DEFENSE", 552, 12, 0xFFF43F5E);
         draw_text(&mut framebuffer, &format!("WAVE:{}", d_rep.wave_number), 552, 24, 0xFFE2E8F0);
@@ -749,7 +966,9 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         draw_text(&mut framebuffer, "RMB:CLEAR", 552, 174, 0xFF94A3B8);
         draw_text(&mut framebuffer, "1-8:TOOL", 552, 184, 0xFF94A3B8);
         draw_text(&mut framebuffer, "R:ROTATE", 552, 194, 0xFF94A3B8);
-        draw_text(&mut framebuffer, "ESC:EXIT", 552, 204, 0xFF94A3B8);
+        draw_text(&mut framebuffer, "F5:QSAVE", 552, 204, 0xFF38BDF8);
+        draw_text(&mut framebuffer, "F9:QLOAD", 552, 214, 0xFF38BDF8);
+        draw_text(&mut framebuffer, "ESC:EXIT", 552, 224, 0xFF94A3B8);
 
         // 4.7 Top Header Bar (Heart HP & Status)
         framebuffer.draw_rect(96, 0, 448, 16, 0xFF0F172A);
@@ -775,11 +994,29 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             draw_text(
                 &mut framebuffer,
-                &format!("NEXT WAVE: TICK {}", director.next_wave_tick),
+                &format!("NEXT WAVE: TICK {}", engine.director.next_wave_tick),
                 350,
                 5,
                 0xFFFBBF24,
             );
+        }
+
+        // 4.8 Notification Toast / Alert Banner
+        if let Some((ref msg, _)) = engine.notification() {
+            let box_w = (msg.len() as i32 * 4 + 16).max(180);
+            let box_h = 16;
+            let box_x = GRID_OFFSET_X + (GRID_PIXEL_SIZE - box_w) / 2;
+            let box_y = 22;
+
+            framebuffer.draw_rect(box_x, box_y, box_w, box_h, 0xFF042F2E);
+            framebuffer.draw_rect(box_x, box_y, box_w, 1, 0xFF14B8A6);
+            framebuffer.draw_rect(box_x, box_y + box_h - 1, box_w, 1, 0xFF14B8A6);
+            framebuffer.draw_rect(box_x, box_y, 1, box_h, 0xFF14B8A6);
+            framebuffer.draw_rect(box_x + box_w - 1, box_y, 1, box_h, 0xFF14B8A6);
+
+            let text_x = box_x + (box_w - (msg.len() as i32 * 4)) / 2;
+            let text_y = box_y + 5;
+            draw_text(&mut framebuffer, msg, text_x, text_y, 0xFF5EEAD4);
         }
 
         // --- 5. Push Frame to Desktop Window ---
@@ -788,4 +1025,108 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🛑 [Axiom Desktop Studio] Clean shutdown completed.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_desktop_save_load_roundtrip() {
+        let seed = 0xABCD_9999_7777;
+        let mut engine = DesktopEngine::new(seed);
+
+        // Place custom structures (turret, smelter, drill)
+        engine.grid.place_turret(5, 5);
+        if let StructureKind::Turret(ref mut t) = engine.grid.cells[5][5].kind {
+            t.ammo = 42;
+            t.ammo_item = ItemType::IronPlate;
+        }
+
+        engine.grid.place_smelter(6, 5, 20);
+        if let StructureKind::Smelter(ref mut s) = engine.grid.cells[5][6].kind {
+            s.input_count = 5;
+            s.output_count = 2;
+        }
+
+        engine.grid.place_drill(7, 5, Direction::North, 30);
+
+        // Advance simulation several ticks
+        for _ in 0..10 {
+            engine.step();
+        }
+
+        let save_path = "tmp/test_save.axiom";
+        let saved_cells = engine.grid.cells;
+        let saved_tick = engine.tick;
+        let saved_wave = engine.director.wave_number;
+        let saved_director_tick = engine.director.current_tick;
+        let saved_mined = engine.grid.total_mined;
+        let saved_smelted = engine.grid.total_smelted;
+
+        engine.save_to_file(save_path).expect("Failed to save desktop state");
+
+        // Mutate engine state significantly
+        engine.grid.place_wall(5, 5);
+        engine.grid.cells[5][6] = FactoryStructure::empty();
+        engine.grid.cells[5][7] = FactoryStructure::empty();
+        engine.tick += 500;
+        engine.director.wave_number += 10;
+        engine.grid.total_smelted += 999;
+
+        assert_ne!(engine.grid.cells, saved_cells);
+        assert_ne!(engine.tick, saved_tick);
+
+        // Load back from file
+        engine.load_from_file(save_path).expect("Failed to load desktop state");
+
+        // Verify exact match of grid state and properties
+        assert_eq!(engine.grid.cells, saved_cells);
+        assert_eq!(engine.tick, saved_tick);
+        assert_eq!(engine.director.wave_number, saved_wave);
+        assert_eq!(engine.director.current_tick, saved_director_tick);
+        assert_eq!(engine.grid.total_mined, saved_mined);
+        assert_eq!(engine.grid.total_smelted, saved_smelted);
+
+        // Clean up temporary test file
+        let _ = std::fs::remove_file(save_path);
+    }
+
+    #[test]
+    fn test_desktop_save_corruption_checks() {
+        let seed = 0xABCD_9999_7777;
+        let engine = DesktopEngine::new(seed);
+        let save_path = "tmp/test_corrupt.axiom";
+
+        engine.save_to_file(save_path).expect("Failed to save desktop state");
+
+        // 1. Truncated file test
+        let mut bytes = std::fs::read(save_path).unwrap();
+        let short_bytes = &bytes[..40];
+        let short_path = "tmp/test_short.axiom";
+        std::fs::write(short_path, short_bytes).unwrap();
+
+        let mut load_engine = DesktopEngine::new(seed);
+        assert!(load_engine.load_from_file(short_path).is_err());
+        let _ = std::fs::remove_file(short_path);
+
+        // 2. Corrupted magic test
+        let orig_magic = bytes[0];
+        bytes[0] ^= 0xFF;
+        let corrupt_magic_path = "tmp/test_bad_magic.axiom";
+        std::fs::write(corrupt_magic_path, &bytes).unwrap();
+        assert!(load_engine.load_from_file(corrupt_magic_path).is_err());
+        let _ = std::fs::remove_file(corrupt_magic_path);
+        bytes[0] = orig_magic;
+
+        // 3. Checksum tampering test
+        let last_idx = bytes.len() - 1;
+        bytes[last_idx] ^= 0xFF;
+        let tampered_path = "tmp/test_tampered.axiom";
+        std::fs::write(tampered_path, &bytes).unwrap();
+        assert!(load_engine.load_from_file(tampered_path).is_err());
+        let _ = std::fs::remove_file(tampered_path);
+
+        let _ = std::fs::remove_file(save_path);
+    }
 }
