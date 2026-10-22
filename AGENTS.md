@@ -57,3 +57,23 @@
 │    - 구현 완료 및 단위 테스트 통과 즉시 /exit으로 클린 리셋                  │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 4. Claude Code Max 헤드리스 인증 복구 프로토콜 (SOP)
+
+모바일 원격 접속 중이거나 로컬 브라우저가 직접 뜨지 않는 환경에서 Claude Code 세션(`~/.claude/.credentials.json`)이 만료되었을 때 사용하는 6단계 복구 절차입니다:
+
+1. **관제탑 백그라운드 태스크 기동:**
+   - Antigravity가 `claude.cmd auth login --email <email> --claudeai` 명령을 비동기 백그라운드로 실행.
+2. **OAuth 인가 URL 추출 및 디렉터 전달:**
+   - 실행 로그에서 `https://claude.com/cai/oauth/authorize?client_id=...&login_hint=<email>` 링크를 추출하여 대화창에 제공.
+3. **디렉터 모바일 원격 승인 및 2FA:**
+   - 디렉터가 스마트폰 브라우저에서 해당 링크에 접속, 이메일로 수신된 6자리 확인 코드 입력 후 `Authorize` 승인.
+4. **OAuth 콜백 코드 회수:**
+   - 브라우저에 표시된 코드(`CODE#STATE`)를 디렉터가 복사하여 대화창에 전달.
+5. **표준 입력(`send_input`) 주입:**
+   - 백그라운드 대기 중인 `claude.cmd` 프로세스에 Antigravity가 `manage_task(Action='send_input', Input='<code>')`로 코드를 자동 주입.
+6. **세션 복구 검증:**
+   - `claude auth status`를 실행하여 `loggedIn: true`, `subscriptionType: "max"` 확인 완료. API 종량제 과금 없이 월 $200 Max 플랜 5x 한도로 즉시 복귀.
+
