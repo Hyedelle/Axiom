@@ -576,3 +576,38 @@
 - **이유:** 5대 기둥 중 핵심인 "카드 선택 덱빌딩"과 "로그라이크 보스 진행"을 복싱 액션과 완벽히 융합하여, 런이 거듭될수록 내 로봇이 강력해지는 진정한 로그라이트 루프를 완성하기 위함.
 - **영향:** `crates/axiom-game/src/card.rs`, `crates/axiom-game/src/boxing.rs`, `crates/axiom-cli/src/boxing_view.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`.
 
+---
+
+### [D-039] Steel The Show 정밀 모방(Mimic) 복제 & Axiom 차세대 결정론 엔진 리팩토링 (T-078)
+- **날짜:** 2026-10-22
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **외장 리포지토리 무수정 원칙 하의 완전 독립 복제 리팩토링 (`crates/axiom-game/src/sts/`)**:
+     - 상용 프로젝트 `C:\Dreamhub\Game\steel-the-show`를 직접 수정하지 않고, 그 핵심 시스템(부품, 드라이브, 세트 시너지, 강화, 4로봇 리그, 인바운드 역공학 드래프트, 타이틀전)을 Axiom 엔진의 헌법(0-Float, 100% 비트 결정론, 64B L1 캐시 정렬)으로 완전 리팩토링 복제.
+  2. **4슬롯 부품 카탈로그 & 16B POD 아키텍처 (`part.rs`)**:
+     - Head, Core, Arm, Leg 4슬롯 구조 및 5대 드라이브 계열(Steam, Gear, Hydraulic, Spring, Condenser).
+     - `parts.json` 정본 20종 부품 카탈로그(`EyeTarget`, `CorePower`, `ArmPiston`, `LegSprint`, THESEUS 전용 `EyeHawk`, `CorePhoenix`, `ArmExecutioner`, `LegGhost` 등).
+     - 정확히 16바이트 POD `Part` 구조체.
+  3. **동종 부품 드래그 강화 합성 시스템 (`upgrade_part`, D-316/319)**:
+     - 2장의 동일 Tier 1 부품을 합성하여 Tier 2로 강화.
+     - 난수 시드 기반 공 +1, 방 +1, 열 -1 중 1개 옵션이 100% 결정론적으로 확정.
+  4. **로봇 어셈블리 & 3-세트 시너지 효과 (`robot.rs`, D-287/294)**:
+     - 64B L1 캐시 정렬 `RobotAssembly`(장착 4부품 + 16슬롯 인벤토리 원장).
+     - 공격력(ATK), 방어력(DEF), 발열량(HEAT) 순수 정수 합산.
+     - 3-세트 시너지 발동:
+       - 증기 3개: `SteamBarrage` (필살기 발열 절반 감소)
+       - 기어 3개: `GearAimLock` (카운터 크리티컬 추가 피해)
+       - 유압 3개: `HydraulicDeflect` (가드 성공 시 피해 50% 반사)
+  5. **4로봇 리그전 & 타이틀전 사다리 (`league.rs`, D-308/315)**:
+     - 4로봇(ELPIS, TINKER, CIPHER, PIKE) 3라운드 6경기 풀리그 라운드로빈 스케줄러.
+     - 승점 3/1/0, KO 승수, 득실차 정수 타이브레이커 순위 산출.
+     - 3·4위 탈락(Game Over 패배 엔딩), 1·2위 결정전 진출.
+     - 결정전 승자 ➔ 챔피언 타이틀전 vs THESEUS(파운드리 챔피언) ➔ 승리 시 우승 엔딩 및 챔피언 부품 드래프트.
+  6. **실시간 링 엔진 연동 & 인바운드 역공학 3택 드래프트 (`season.rs`, D-282/283)**:
+     - `BoxingRingEngine`과 실시간 연동되어 방어력 비례 Max HP, 공격력 비례 데미지, 시너지 버프 실시간 반영.
+     - 매 경기 후 상대 부품 중 3개 후보 역공학 드래프트.
+  7. **검증 체계 (`tests/test_steel_the_show.rs`)**: 8개 단위 테스트 100% 통과, `tools/guard.ps1` 헌법 무결성 검증 완벽 통과.
+- **이유:** 기존 `steel-the-show`의 복잡한 C#/Unity 의존성과 미세 끊김 이슈를 근본적으로 해결하고, 초고속 0-Float 64B L1 캐시 정렬 차세대 Axiom 엔진 위에서 완벽한 손맛과 결정론을 갖춘 고품질 리팩토링 버전을 확보하기 위함.
+- **영향:** `crates/axiom-game/src/sts/` (part, robot, league, season, mod), `crates/axiom-game/tests/test_steel_the_show.rs` 신설, `crates/axiom-game/src/lib.rs` 공용 API 노출.
+
+

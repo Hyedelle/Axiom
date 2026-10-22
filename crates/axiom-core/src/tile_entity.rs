@@ -3,7 +3,7 @@
 //! Provides cache-line aligned (64-byte) generic spatial tile cells and fixed-slab spatial grid
 //! data structures completely decoupled from hardcoded game types or domains.
 
-use crate::schema::{category, RecipeDefinition, RecipeRegistry, TypeDefinition, TypeRegistry};
+use crate::schema::{category, RecipeRegistry, TypeRegistry};
 
 /// 64-Byte Cache-Line Aligned Generic Tile Entity Cell.
 ///
@@ -731,7 +731,7 @@ impl<const W: usize, const H: usize> TileGrid<W, H> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{RecipeDefinition, RecipeRegistry};
+    use crate::schema::{RecipeDefinition, RecipeRegistry, TypeDefinition};
 
     #[test]
     fn test_tile_cell_size_and_alignment() {

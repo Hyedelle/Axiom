@@ -24,7 +24,7 @@ use axiom_core::chunk::{
 use axiom_core::effector::{
     AtbArena, AtbUnit, Element, StatusKind, MAX_ACTIVE_UNITS,
 };
-use axiom_core::fixed::{Fixed, FixedVec2};
+use axiom_core::fixed::FixedVec2;
 use axiom_core::hash::deterministic_hash;
 use axiom_core::npc_crowd::NpcCrowdPool;
 use axiom_core::pathfinding::{Path, PathFinder, DEFAULT_GRID_H, DEFAULT_GRID_W, MAX_PATH_WAYPOINTS};

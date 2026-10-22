@@ -108,7 +108,7 @@ impl BoxerAction {
 
 /// 64-byte aligned Boxer state.
 #[repr(C, align(64))]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BoxerState {
     pub hp: i32,
     pub max_hp: i32,
@@ -242,7 +242,7 @@ pub enum BoxingEvent {
 
 /// 64-byte aligned Boxing Ring Simulation Engine (256 bytes total).
 #[repr(C, align(64))]
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoxingRingEngine {
     pub tick: u64,
     pub _pad0: [u8; 8],
