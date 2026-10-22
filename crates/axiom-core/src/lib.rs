@@ -16,6 +16,7 @@ pub mod entity;
 pub mod fixed;
 pub mod grid_netcode;
 pub mod hash;
+pub mod hpa;
 pub mod input;
 pub mod logistics;
 pub mod monster_spawn;
@@ -53,6 +54,13 @@ pub use effector::{
 pub use entity::Entity;
 pub use fixed::{Fixed, FixedVec2};
 pub use hash::{deterministic_hash, Fnv1aHasher};
+pub use hpa::{
+    chunk_bfs, ChunkPortalCache, HierarchicalPathfinder, HpaStats, Portal,
+    DEFAULT_HPA_MAX_CHUNKS, DEFAULT_HPA_MAX_PORTALS, HPA_CHUNK_TILES_MAX, HPA_HEAP_CAPACITY,
+    HPA_INDEX_BUCKETS, HPA_MAX_CHUNK_SIZE, HPA_MAX_WAYPOINTS, HPA_NO_NODE, HPA_UNREACHABLE,
+    MAX_PORTALS_PER_CHUNK, PORTAL_EDGE_EAST, PORTAL_EDGE_NORTH, PORTAL_EDGE_SOUTH,
+    PORTAL_EDGE_WEST,
+};
 pub use input::InputState;
 pub use logistics::{
     LogisticsCell, LogisticsGrid, DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST, ITEM_COAL,

@@ -48,6 +48,36 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T072] 무한 청크 계층형 정수 길찾기 (Hierarchical Pathfinding, HPA*)
+- **목표:** T-070 `ChunkManager`의 무한 좌표계($-\infty \sim +\infty$) 위에서 수천 마리의 유닛/몬스터가 장거리(수백 타일, 수 청크)를 이동할 때 발생하는 $O(N^2)$ 타일 A* 탐색 병목을 박멸하기 위해, 청크 경계 포털(Portal) 그래프 기반 2계층 무할당 정수 HPA* 엔진(`HierarchicalPathfinder`)을 구축한다.
+- **대상 파일 및 구현 상세:**
+  1. `crates/axiom-core/src/pathfinding.rs` (또는 신규 `crates/axiom-core/src/hpa.rs`):
+     - `Portal` 구조체 (16B POD):
+       * `chunk: ChunkCoord`: 소속 청크 좌표
+       * `edge: u8`: 0=North, 1=East, 2=South, 3=West
+       * `start_offset: u8`, `end_offset: u8`: 경계면 보행 가능 연속 구간
+       * `center_world: (i32, i32)`: 포털 중심 월드 타일 좌표
+     - `ChunkPortalCache<const S: usize = 32>` (64B L1 캐시 정렬):
+       * 청크 4개 경계면을 스캔하여 인접 청크로 넘어가는 개구부(Portal) 최대 16개를 무할당으로 캐싱.
+       * 청크 내부 포털 간 연결성(Intra-chunk Reachability) 및 정수 맨해튼 거리 행렬.
+     - `HierarchicalPathfinder<const MAX_CHUNKS: usize = 64, const MAX_PORTALS: usize = 256>`:
+       * 64B L1 정렬 고정 슬랩 (힙 재할당 0건).
+       * **Phase 1 (매크로 포털 A*)**: 출발지 ➔ 인근 포털 ➔ ... ➔ 목표지 인근 포털 간의 성긴 포털 그래프 A* 경로 탐색 (단 수십 개 노드만 탐색하여 수 마이크로초 컷).
+       * **Phase 2 (로컬 타일 스티어링)**: 유닛이 속한 현재 청크 내에서는 다음 포털 웨이포인트를 향해 직선 레이캐스트 또는 로컬 32x32 BFS로 전진.
+       * `find_path(&self, start: (i64, i64), goal: (i64, i64), chunks: &ChunkManager, out_waypoints: &mut [(i64, i64)]) -> usize`
+  2. `crates/axiom-core/src/lib.rs`:
+     - `pub use pathfinding::{HierarchicalPathfinder, Portal, ChunkPortalCache};`
+  3. 단위 테스트 (`crates/axiom-core/tests/test_hpa_pathfinding.rs`):
+     - `test_hpa_portal_extraction`: 수역/암벽 장애물 경계에서 포털 정확 추출 검증.
+     - `test_hpa_long_distance_planning`: 5~10 청크(160~320타일) 장거리 경로 50µs 이내 탐색 및 장애물 우회 검증.
+     - `test_hpa_path_determinism`: 동일 시작/목표점에 대한 100% 비트 일치 웨이포인트 수열 검증.
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 0건 (정수 맨해튼/체비쇼프 거리만 사용)
+  - 런타임 틱당 힙 재할당 0건
+  - `tools/guard.ps1` 100% 통과 필수
+
+---
+
 ### [RECIPE-20261022-T071] 절차적 바이옴 동적 몬스터 스폰 및 거점 영역 방어 (Phase 3)
 - **목표:** T-070에서 도입된 8종 바이옴(`BiomeKind`) 및 자원 레이어를 기반으로, 바이옴별 특화 몬스터 아키타입(8종)과 무할당 스폰 가중치 테이블(`BiomeSpawnTable`), 그리고 절차적 월드 좌표 기반 몬스터 스폰 및 거점(`BaseHeart`) 영역 방어 웨이브 파이프라인을 구축한다.
 - **대상 파일 및 구현 상세:**
