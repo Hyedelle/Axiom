@@ -18,6 +18,7 @@ pub mod grid_netcode;
 pub mod hash;
 pub mod input;
 pub mod logistics;
+pub mod monster_spawn;
 pub mod netcode;
 pub mod npc_crowd;
 pub mod pathfinding;
@@ -56,6 +57,14 @@ pub use input::InputState;
 pub use logistics::{
     LogisticsCell, LogisticsGrid, DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST, ITEM_COAL,
     ITEM_COPPER_ORE, ITEM_IRON_ORE, ITEM_NONE,
+};
+pub use monster_spawn::{
+    biome_allows, pick_spawn_entry, tier_for_chunk_distance, DefensePost, DefenseTickReport,
+    MonsterArchetype, MonsterSpawner, MonsterState, SpawnEntry, SpawnStats, TerritoryDefense,
+    WorldMonster, BIOME_SPAWN_DENSITY, BIOME_SPAWN_TABLE, DEFAULT_DESPAWN_RADIUS,
+    DEFAULT_MAX_DEFENSE_POSTS, DEFAULT_MAX_MONSTERS_PER_CHUNK, DEFAULT_MAX_WORLD_MONSTERS,
+    DEFAULT_SPAWN_INTERVAL, DEFAULT_STRONGHOLD_HP, DEFAULT_TERRITORY_RADIUS, GUARDIAN_DEPOSIT_THRESHOLD,
+    MAX_TIER, TIER_CHUNK_STEP, WAVE_RING_MARGIN,
 };
 pub use netcode::{
     PlayerInputQueue, RollbackFrameStats, RollbackSession, SimulatedNetworkPipe,
