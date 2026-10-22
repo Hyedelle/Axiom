@@ -385,6 +385,8 @@ impl<const W: usize, const H: usize> TileGrid<W, H> {
             grid_action_kind::SET_TILE => {
                 let mut cell = TileCell::new(action.type_id, action.param2);
                 cell.state_flags |= tile_flags::PLAYER_PLACED;
+                cell.custom_payload[0] = action.player_id as u8;
+                cell.custom_payload[1] = action.param1 as u8;
                 self.set(x, y, cell)
             }
             grid_action_kind::CLEAR_TILE => self.clear_at(x, y),

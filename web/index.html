@@ -293,6 +293,7 @@
 
   <div class="controls">
     <button id="btnFactory" class="active" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
+    <button id="btnCoop" onclick="switchMode('coop')">🌐 P2P Co-op Factory</button>
     <button id="btnRpg" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
     <button id="btnOpenWorld" onclick="switchMode('openworld')">🌍 100k NPC Streamer</button>
     <button id="btnArena" onclick="switchMode('arena')">⚔️ Auto-Battler (100v100)</button>
@@ -309,6 +310,29 @@
     <button class="action-btn" id="tool-remove" onclick="setFactoryTool(0)">❌ Demolish</button>
     <button class="action-btn" id="tool-rot" onclick="rotateDir()" style="color: #38bdf8; border-color: #0284c7;">🔄 Dir: East</button>
     <button class="action-btn" onclick="switchMode('factory')" style="color: #4ade80; border-color: #166534;">🛠️ Repair / Reset</button>
+  </div>
+
+  <div id="coopActionBar" class="action-bar" style="display: none; flex-wrap: wrap; gap: 6px;">
+    <button class="action-btn active" id="coop-tool-drill" onclick="setCoopTool(2)">⛏️ Drill</button>
+    <button class="action-btn" id="coop-tool-belt" onclick="setCoopTool(1)">➡️ Belt</button>
+    <button class="action-btn" id="coop-tool-smelter" onclick="setCoopTool(3)">🔥 Smelter</button>
+    <button class="action-btn" id="coop-tool-chest" onclick="setCoopTool(4)">📦 Chest</button>
+    <button class="action-btn" id="coop-tool-wall" onclick="setCoopTool(5)">🧱 Wall</button>
+    <button class="action-btn" id="coop-tool-turret" onclick="setCoopTool(6)">🏹 Turret</button>
+    <button class="action-btn" id="coop-tool-remove" onclick="setCoopTool(0)">❌ Demolish</button>
+    <button class="action-btn" id="coop-tool-rot" onclick="rotateCoopDir()" style="color: #38bdf8; border-color: #0284c7;">🔄 Dir: East</button>
+    <button class="action-btn" id="coop-player-toggle" onclick="toggleCoopPlayer()" style="color: #38bdf8; border-color: #0284c7; font-weight: bold;">👤 Control: P0 (Blue)</button>
+    <button class="action-btn" id="coop-webrtc-btn" onclick="openWebRtcModal()" style="color: #a855f7; border-color: #9333ea;">📡 WebRTC P2P</button>
+    <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #94a3b8; margin-left: 6px;">
+      <span>⏱️ Latency:</span>
+      <input type="range" id="netLatency" min="0" max="300" step="20" value="120" style="width: 65px;" oninput="updateNetLatency(this.value)">
+      <span id="latencyVal" style="color: #38bdf8; font-weight: bold;">120ms</span>
+    </span>
+    <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #94a3b8; margin-left: 6px;">
+      <span>📉 Drop:</span>
+      <input type="range" id="netDrop" min="0" max="30" step="5" value="0" style="width: 55px;" oninput="updateNetDrop(this.value)">
+      <span id="dropVal" style="color: #f87171; font-weight: bold;">0%</span>
+    </span>
   </div>
 
   <div id="rpgActionBar" class="action-bar" style="display: none;">
@@ -378,6 +402,30 @@
     </div>
   </div>
 
+  <!-- WebRTC P2P Modal -->
+  <div id="webrtcModal" class="modal-overlay">
+    <div class="modal" style="max-width: 500px;">
+      <button class="modal-close" onclick="closeWebRtcModal()">✕</button>
+      <h2>📡 WebRTC P2P Direct DataChannel</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 12px 0;">
+        별도 서버 없는 순수 브라우저 간 P2P 바이너리 연결입니다. Offer/Answer 교환으로 2인 실시간 협동 팩토리를 구동합니다.
+      </p>
+
+      <div style="margin-bottom: 8px;">
+        <button class="action-btn" onclick="generateRtcOffer()" style="color: #38bdf8; border-color: #0284c7; width: 48%;">1. Host Offer 생성</button>
+        <button class="action-btn" onclick="acceptRtcAnswer()" style="color: #4ade80; border-color: #166534; width: 48%;">2. Answer 적용</button>
+      </div>
+
+      <textarea id="rtcSignalBox" placeholder="Offer 또는 Answer SDP 코드가 여기에 표시됩니다..." style="width: 100%; height: 90px; background: #0f172a; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; font-family: monospace; font-size: 11px; padding: 6px; box-sizing: border-box;"></textarea>
+
+      <div style="margin-top: 8px; display: flex; gap: 8px;">
+        <button class="action-btn" onclick="copyRtcSignal()" style="flex: 1; color: #facc15; border-color: #ca8a04;">📋 SDP 복사</button>
+        <button class="action-btn" onclick="connectRtcPeer()" style="flex: 1; color: #a855f7; border-color: #9333ea;">🔗 Peer 연결 완료</button>
+      </div>
+      <div id="rtcStatus" style="margin-top: 10px; font-size: 12px; color: #94a3b8; text-align: center;">상태: 로컬 루프백 모드 (120ms 시뮬레이션 대기 중)</div>
+    </div>
+  </div>
+
   <script>
     const width = 640;
     const height = 480;
@@ -402,6 +450,67 @@
     let selectedTool = 2; // Default: Mining Drill
     let selectedDir = 1; // Default: East
     const dirNames = ['North', 'East', 'South', 'West'];
+
+    // Co-op Multiplayer State
+    let coopSelectedTool = 2;
+    let coopSelectedDir = 1;
+    let coopActivePlayer = 0; // 0: Player 0 (Blue), 1: Player 1 (Orange)
+    let netLatencyMs = 120;
+    let netDropRate = 0;
+    let packetPipe = [];
+
+    // WebRTC Direct P2P DataChannel State
+    let rtcPeer = null;
+    let rtcChannel = null;
+
+    function setCoopTool(toolId) {
+      coopSelectedTool = toolId;
+      const toolMap = {
+        2: 'coop-tool-drill',
+        1: 'coop-tool-belt',
+        3: 'coop-tool-smelter',
+        4: 'coop-tool-chest',
+        5: 'coop-tool-wall',
+        6: 'coop-tool-turret',
+        0: 'coop-tool-remove'
+      };
+      document.querySelectorAll('#coopActionBar .action-btn').forEach(b => {
+        if (!b.id.startsWith('coop-tool-rot') && !b.id.startsWith('coop-player-toggle') && !b.id.startsWith('coop-webrtc-btn')) {
+          b.classList.remove('active');
+        }
+      });
+      const el = document.getElementById(toolMap[toolId]);
+      if (el) el.classList.add('active');
+    }
+
+    function rotateCoopDir() {
+      coopSelectedDir = (coopSelectedDir + 1) % 4;
+      document.getElementById('coop-tool-rot').innerText = `🔄 Dir: ${dirNames[coopSelectedDir]}`;
+    }
+
+    function toggleCoopPlayer() {
+      coopActivePlayer = (coopActivePlayer === 0) ? 1 : 0;
+      const btn = document.getElementById('coop-player-toggle');
+      if (coopActivePlayer === 0) {
+        btn.innerText = '👤 Control: P0 (Blue)';
+        btn.style.color = '#38bdf8';
+        btn.style.borderColor = '#0284c7';
+      } else {
+        btn.innerText = '👤 Control: P1 (Orange)';
+        btn.style.color = '#fb923c';
+        btn.style.borderColor = '#ea580c';
+      }
+    }
+
+    function updateNetLatency(val) {
+      netLatencyMs = parseInt(val);
+      document.getElementById('latencyVal').innerText = val + 'ms';
+    }
+
+    function updateNetDrop(val) {
+      netDropRate = parseInt(val);
+      document.getElementById('dropVal').innerText = val + '%';
+    }
 
     function setFactoryTool(toolId) {
       selectedTool = toolId;
@@ -473,6 +582,17 @@
           let item = (selectedTool === 4) ? 10 : (selectedTool === 2 ? 1 : 0);
           wasmInstance.axiom_factory_place(tileX, tileY, selectedTool, selectedDir, item);
         }
+      } else if (mode === 'coop') {
+        const cursorX = wasmInstance.axiom_coop_get_cursor_x();
+        const cursorY = wasmInstance.axiom_coop_get_cursor_y();
+        const ts = 14;
+        const ox = width / 2 - cursorX * ts;
+        const oy = height / 2 - cursorY * ts + 18;
+        const tileX = Math.floor((mouseX - ox) / ts);
+        const tileY = Math.floor((mouseY - oy) / ts);
+        if (tileX >= 0 && tileX < 32 && tileY >= 0 && tileY < 32) {
+          handleCoopClick(tileX, tileY);
+        }
       }
     });
 
@@ -503,6 +623,17 @@
           let item = (selectedTool === 4) ? 10 : (selectedTool === 2 ? 1 : 0);
           wasmInstance.axiom_factory_place(tileX, tileY, selectedTool, selectedDir, item);
         }
+      } else if (mode === 'coop') {
+        const cursorX = wasmInstance.axiom_coop_get_cursor_x();
+        const cursorY = wasmInstance.axiom_coop_get_cursor_y();
+        const ts = 14;
+        const ox = width / 2 - cursorX * ts;
+        const oy = height / 2 - cursorY * ts + 18;
+        const tileX = Math.floor((mouseX - ox) / ts);
+        const tileY = Math.floor((mouseY - oy) / ts);
+        if (tileX >= 0 && tileX < 32 && tileY >= 0 && tileY < 32) {
+          handleCoopClick(tileX, tileY);
+        }
       }
       e.preventDefault();
     }, { passive: false });
@@ -528,16 +659,20 @@
     function switchMode(newMode) {
       mode = newMode;
       document.getElementById('btnFactory').className = mode === 'factory' ? 'active' : '';
+      const btnCoop = document.getElementById('btnCoop');
+      if (btnCoop) btnCoop.className = mode === 'coop' ? 'active' : '';
       document.getElementById('btnRpg').className = mode === 'rpg' ? 'active' : '';
       document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
       document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
 
       const factoryBar = document.getElementById('factoryActionBar');
+      const coopBar = document.getElementById('coopActionBar');
       const rpgBar = document.getElementById('rpgActionBar');
       const instruction = document.getElementById('instruction');
 
       if (mode === 'factory') {
         factoryBar.style.display = 'flex';
+        if (coopBar) coopBar.style.display = 'none';
         rpgBar.style.display = 'none';
         instruction.innerText = '🏭 캔버스 클릭: 구조물 건설/철거 | R키: 회전 | WASD: 기지 탐험 | 몬스터 웨이브 방어!';
         wasmInstance.axiom_factory_init(BigInt(888999), width, height);
@@ -568,22 +703,188 @@
         wasmInstance.axiom_factory_place(17, 10, 3, 0, 0); // Smelter
         wasmInstance.axiom_factory_place(18, 10, 7, 1, 0); // Inserter (East)
         wasmInstance.axiom_factory_place(19, 10, 4, 0, 0); // Output Chest
+      } else if (mode === 'coop') {
+        factoryBar.style.display = 'none';
+        if (coopBar) coopBar.style.display = 'flex';
+        rpgBar.style.display = 'none';
+        instruction.innerText = '🌐 P2P Co-op Factory: 0ms 입력 지연 GGPO 롤백 넷코드 | P0(블루)/P1(오렌지) 실시간 협동 건설 | 지연 패킷 수신 시 즉시 롤백 재렌더링!';
+        wasmInstance.axiom_coop_init(0, width, height);
+
+        // Pre-build starter co-op production & defense layout
+        wasmInstance.axiom_coop_place(14, 14, 6, 0, 0); // Turret
+        wasmInstance.axiom_coop_place(18, 14, 6, 0, 0); // Turret
+        wasmInstance.axiom_coop_place(14, 18, 6, 0, 0); // Turret
+        wasmInstance.axiom_coop_place(18, 18, 6, 0, 0); // Turret
+        wasmInstance.axiom_coop_place(12, 10, 2, 1, 0); // Drill on Iron
+        wasmInstance.axiom_coop_place(13, 10, 1, 1, 0); // Belt East
+        wasmInstance.axiom_coop_place(14, 10, 1, 1, 0); // Belt East
+        wasmInstance.axiom_coop_place(15, 10, 3, 0, 0); // Smelter
+        wasmInstance.axiom_coop_place(16, 10, 4, 0, 0); // Chest
       } else if (mode === 'arena') {
         factoryBar.style.display = 'none';
+        if (coopBar) coopBar.style.display = 'none';
         rpgBar.style.display = 'none';
         instruction.innerText = '⚔️ 100 vs 100 대규모 자동 전투 시뮬레이션 (순수 Q32.16 고정소수점 결정론)';
         wasmInstance.axiom_wasm_init(BigInt(424242), width, height);
       } else if (mode === 'openworld') {
         factoryBar.style.display = 'none';
+        if (coopBar) coopBar.style.display = 'none';
         rpgBar.style.display = 'none';
         instruction.innerText = '🌍 WASD / D-Pad 조작: 무한 절차적 청크 지형 스트리밍 & 100,000 NPC 생태계 미니맵';
         wasmInstance.axiom_openworld_init(BigInt(777123), width, height, 100000);
       } else if (mode === 'rpg') {
         factoryBar.style.display = 'none';
+        if (coopBar) coopBar.style.display = 'none';
         rpgBar.style.display = 'flex';
         instruction.innerText = '💡 클릭하여 2D A* AI 경로 탐색 | WASD / D-Pad 이동 | 버튼으로 퀘스트 & ATB 전투';
         wasmInstance.axiom_rpg_init(BigInt(0x12345678), width, height, 100000);
       }
+    }
+
+    function handleCoopClick(tileX, tileY) {
+      const typeId = coopSelectedTool;
+      const kind = (coopSelectedTool === 0) ? 2 : 1; // 2: CLEAR_TILE, 1: SET_TILE
+      const p1 = coopSelectedDir;
+      const p2 = (coopSelectedTool === 5) ? 500 : (coopSelectedTool === 6 ? 250 : 300);
+
+      if (coopActivePlayer === 0) {
+        // Local Player 0 action: Zero local input lag execution!
+        const frame = wasmInstance.axiom_coop_place(tileX, tileY, typeId, p1, 0);
+
+        // Transmit to peer
+        transmitAction(0, frame, kind, tileX, tileY, typeId, p1, p2);
+      } else {
+        // Simulated Player 1 remote action
+        const currentTick = wasmInstance.axiom_coop_get_tick();
+        transmitAction(1, currentTick, kind, tileX, tileY, typeId, p1, p2);
+      }
+    }
+
+    function transmitAction(sender, frame, kind, x, y, typeId, p1, p2) {
+      // 1. Direct WebRTC DataChannel (if open)
+      if (rtcChannel && rtcChannel.readyState === 'open') {
+        const buf = new ArrayBuffer(24);
+        const view = new DataView(buf);
+        view.setUint16(0, sender, true);
+        view.setUint16(2, kind, true);
+        view.setUint16(4, x, true);
+        view.setUint16(6, y, true);
+        view.setUint32(8, typeId, true);
+        view.setUint16(12, p1, true);
+        view.setUint16(14, p2, true);
+        view.setBigUint64(16, BigInt(frame), true);
+        rtcChannel.send(buf);
+      }
+
+      // 2. Simulated network pipe with programmable latency & drop
+      if (Math.random() * 100 >= netDropRate) {
+        packetPipe.push({
+          deliverAt: performance.now() + netLatencyMs,
+          sender: sender,
+          frame: frame,
+          kind: kind,
+          x: x,
+          y: y,
+          typeId: typeId,
+          p1: p1,
+          p2: p2
+        });
+      }
+    }
+
+    // WebRTC Direct P2P Functions
+    function openWebRtcModal() {
+      document.getElementById('webrtcModal').style.display = 'flex';
+    }
+    function closeWebRtcModal() {
+      document.getElementById('webrtcModal').style.display = 'none';
+    }
+
+    async function generateRtcOffer() {
+      try {
+        rtcPeer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        rtcChannel = rtcPeer.createDataChannel('axiom-coop', { ordered: false, maxRetransmits: 0 });
+        setupRtcChannel(rtcChannel);
+
+        const offer = await rtcPeer.createOffer();
+        await rtcPeer.setLocalDescription(offer);
+
+        rtcPeer.onicecandidate = (e) => {
+          if (!e.candidate) {
+            document.getElementById('rtcSignalBox').value = btoa(JSON.stringify(rtcPeer.localDescription));
+            document.getElementById('rtcStatus').innerText = '호스트 Offer 생성 완료! 상대방에게 전달하세요.';
+          }
+        };
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function acceptRtcAnswer() {
+      try {
+        const raw = document.getElementById('rtcSignalBox').value.trim();
+        if (!raw) return;
+        const desc = JSON.parse(atob(raw));
+        if (desc.type === 'offer') {
+          rtcPeer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+          rtcPeer.ondatachannel = (e) => {
+            setupRtcChannel(e.channel);
+          };
+          await rtcPeer.setRemoteDescription(desc);
+          const answer = await rtcPeer.createAnswer();
+          await rtcPeer.setLocalDescription(answer);
+
+          rtcPeer.onicecandidate = (e) => {
+            if (!e.candidate) {
+              document.getElementById('rtcSignalBox').value = btoa(JSON.stringify(rtcPeer.localDescription));
+              document.getElementById('rtcStatus').innerText = 'Answer 생성 완료! 호스트에게 회신하세요.';
+            }
+          };
+        } else if (desc.type === 'answer') {
+          await rtcPeer.setRemoteDescription(desc);
+          document.getElementById('rtcStatus').innerText = 'P2P 연결 수립 완료!';
+        }
+      } catch (err) {
+        alert('유효하지 않은 SDP 코드입니다.');
+      }
+    }
+
+    function setupRtcChannel(ch) {
+      rtcChannel = ch;
+      rtcChannel.binaryType = 'arraybuffer';
+      rtcChannel.onopen = () => {
+        document.getElementById('rtcStatus').innerText = '✅ WebRTC P2P DataChannel 연결 완료!';
+        document.getElementById('coop-webrtc-btn').innerText = '🟢 P2P Connected';
+        closeWebRtcModal();
+      };
+      rtcChannel.onmessage = (e) => {
+        if (e.data instanceof ArrayBuffer && e.data.byteLength === 24) {
+          const view = new DataView(e.data);
+          const sender = view.getUint16(0, true);
+          const kind = view.getUint16(2, true);
+          const x = view.getUint16(4, true);
+          const y = view.getUint16(6, true);
+          const typeId = view.getUint32(8, true);
+          const p1 = view.getUint16(12, true);
+          const p2 = view.getUint16(14, true);
+          const frame = view.getBigUint64(16, true);
+
+          if (wasmInstance && mode === 'coop') {
+            wasmInstance.axiom_coop_receive_remote(sender, frame, kind, x, y, typeId, p1, p2);
+          }
+        }
+      };
+    }
+
+    function copyRtcSignal() {
+      const box = document.getElementById('rtcSignalBox');
+      box.select();
+      navigator.clipboard.writeText(box.value);
+      alert('SDP 코드가 복사되었습니다!');
+    }
+
+    function connectRtcPeer() {
+      acceptRtcAnswer();
     }
 
     async function init() {
@@ -673,6 +974,41 @@
           `<span class="green">Quests:</span> ${activeQuests}/${doneQuests} | ` +
           `<span class="gold">XP:</span> ${xp} | ` +
           `<span class="red">Combat:</span> ${inCombat ? 'ACTIVE' : 'IDLE'} (${combatDmg} Dmg)`;
+      } else if (mode === 'coop') {
+        let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+        let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+
+        // Process delayed loopback simulation packets
+        const nowMs = performance.now();
+        const pending = [];
+        for (const p of packetPipe) {
+          if (nowMs >= p.deliverAt) {
+            wasmInstance.axiom_coop_receive_remote(p.sender, BigInt(p.frame), p.kind, p.x, p.y, p.typeId, p.p1, p.p2);
+          } else {
+            pending.push(p);
+          }
+        }
+        packetPipe = pending;
+
+        wasmInstance.axiom_coop_step(dx, dy);
+        wasmInstance.axiom_coop_render(14);
+        ptr = wasmInstance.axiom_coop_get_framebuffer_ptr();
+        len = width * height;
+        tick = wasmInstance.axiom_coop_get_tick();
+
+        const confirmed = wasmInstance.axiom_coop_get_confirmed_tick();
+        const rollbacks = wasmInstance.axiom_coop_get_rollbacks();
+        const resim = wasmInstance.axiom_coop_get_resimulated();
+        const hash = wasmInstance.axiom_coop_get_hash();
+        const playerBadge = coopActivePlayer === 0 ? '<span class="blue">P0 (Blue)</span>' : '<span class="orange">P1 (Orange)</span>';
+
+        document.getElementById('hudDetail').innerHTML =
+          `${playerBadge} | ` +
+          `<span class="gold">Frame:</span> ${tick} | ` +
+          `<span class="green">Confirmed:</span> ${confirmed} | ` +
+          `<span class="red">Rollbacks:</span> ${rollbacks} | ` +
+          `<span class="blue">Resim:</span> ${resim} | ` +
+          `<span class="gray">Hash:</span> 0x${hash.toString(16).toUpperCase()}`;
       }
 
       // High-performance double-buffered pixel blit

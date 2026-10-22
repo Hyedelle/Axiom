@@ -11,13 +11,17 @@ use axiom_core::chunk::ChunkManager;
 use axiom_core::combat::BattleArena;
 use axiom_core::effector::{AtbArena, AtbUnit, Element, StatusKind, MAX_ACTIVE_UNITS};
 use axiom_core::fixed::{Fixed, FixedVec2};
+use axiom_core::grid_netcode::GridRollbackSession;
 use axiom_core::input::InputState;
 use axiom_core::netcode::RollbackSession;
 use axiom_core::npc_crowd::NpcCrowdPool;
 use axiom_core::pathfinding::{Path, PathFinder, DEFAULT_GRID_H, DEFAULT_GRID_W, MAX_PATH_WAYPOINTS};
 use axiom_core::pcg::TileMap;
 use axiom_core::quest::{ObjectiveType, QuestJournal, QuestRecord, QuestStatus};
+use axiom_core::schema::{RecipeDefinition, RecipeRegistry};
 use axiom_core::state::TickState;
+pub use axiom_core::tile_entity::grid_action_kind;
+use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_render::FrameBuffer;
 
 #[allow(static_mut_refs)]
@@ -860,6 +864,414 @@ pub extern "C" fn axiom_net_get_framebuffer_ptr() -> *const u32 {
         } else {
             core::ptr::null()
         }
+    }
+}
+
+// =========================================================================
+// Real-Time P2P Multiplayer Data-Driven Factory Rollback Bindings (T-052)
+// =========================================================================
+
+pub const COOP_W: usize = 32;
+pub const COOP_H: usize = 32;
+pub const COOP_FRAMES: usize = 32;
+pub const COOP_PLAYERS: usize = 2;
+pub const COOP_RECIPES: usize = 32;
+
+#[allow(static_mut_refs)]
+struct CoopFactoryWasmEngine {
+    session: Box<GridRollbackSession<COOP_W, COOP_H, COOP_FRAMES, COOP_PLAYERS, COOP_RECIPES>>,
+    framebuffer: FrameBuffer,
+    local_player_id: u32,
+    cursor_x: i32,
+    cursor_y: i32,
+    last_rollback_frame: u64,
+}
+
+impl CoopFactoryWasmEngine {
+    pub fn render(&mut self, tile_size: u32) {
+        let ts = (tile_size as i32).clamp(8, 64);
+        let fb = &mut self.framebuffer;
+        fb.clear(0xFF0A0F1D); // Deep dark industrial background
+
+        let half_w = (fb.width / 2) as i32;
+        let half_h = (fb.height / 2) as i32;
+
+        // Camera offset centered around cursor
+        let cam_x = self.cursor_x * ts;
+        let cam_y = self.cursor_y * ts;
+        let origin_x = half_w - cam_x;
+        let origin_y = half_h - cam_y + 18; // offset for top HUD bar
+
+        // 1. Draw 32x32 Spatial Tile Grid
+        for y in 0..COOP_H {
+            for x in 0..COOP_W {
+                let sx = origin_x + (x as i32) * ts;
+                let sy = origin_y + (y as i32) * ts;
+
+                // Viewport boundary clipping
+                if sx + ts < 0 || sx >= fb.width as i32 || sy + ts < 0 || sy >= fb.height as i32 {
+                    continue;
+                }
+
+                // Grid cell background
+                fb.draw_rect(sx, sy, ts, ts, 0xFF111827);
+                fb.draw_rect(sx + 1, sy + 1, ts - 2, ts - 2, 0xFF1E293B);
+
+                if let Some(cell) = self.session.current_grid.get(x, y) {
+                    if !cell.is_empty() {
+                        let inner = (ts - 4).max(2);
+                        let ix = sx + 2;
+                        let iy = sy + 2;
+
+                        match cell.type_id {
+                            1 => {
+                                // Conveyor Belt (Slate Gray + direction arrow)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF334155);
+                                let dir = cell.custom_payload[1];
+                                let mid_x = sx + ts / 2;
+                                let mid_y = sy + ts / 2;
+                                let arr_w = (ts / 4).max(2);
+                                match dir {
+                                    0 => fb.draw_rect(mid_x - arr_w / 2, sy + 3, arr_w, arr_w, 0xFF94A3B8),
+                                    1 => fb.draw_rect(sx + ts - 3 - arr_w, mid_y - arr_w / 2, arr_w, arr_w, 0xFF94A3B8),
+                                    2 => fb.draw_rect(mid_x - arr_w / 2, sy + ts - 3 - arr_w, arr_w, arr_w, 0xFF94A3B8),
+                                    _ => fb.draw_rect(sx + 3, mid_y - arr_w / 2, arr_w, arr_w, 0xFF94A3B8),
+                                }
+                            }
+                            2 => {
+                                // Mining Drill (Amber / Gold machinery)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFFD97706);
+                                fb.draw_rect(ix + 2, iy + 2, (inner - 4).max(1), (inner - 4).max(1), 0xFFF59E0B);
+                                let spin = ((self.session.current_frame as i32) / 3) % (inner.max(2));
+                                fb.draw_rect(ix + spin, iy + inner / 2 - 1, 2, 2, 0xFFFEF08A);
+                            }
+                            3 => {
+                                // Smelter (Dark stone furnace + orange fire mouth)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF3F3F46);
+                                let fire_h = (inner / 2).max(1);
+                                let fire_color = if (self.session.current_frame / 4) % 2 == 0 { 0xFFEA580C } else { 0xFFFBBF24 };
+                                fb.draw_rect(ix + 2, iy + inner - fire_h - 1, inner - 4, fire_h, fire_color);
+                            }
+                            4 => {
+                                // Chest (Brown crate + golden lock)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF92400E);
+                                fb.draw_rect(ix + 1, iy + 1, inner - 2, 2, 0xFFB45309);
+                                fb.draw_rect(sx + ts / 2 - 1, sy + ts / 2 - 1, 3, 3, 0xFFFDE047);
+                            }
+                            5 => {
+                                // Wall (Steel gray fortified block)
+                                fb.draw_rect(sx + 1, sy + 1, ts - 2, ts - 2, 0xFF94A3B8);
+                                fb.draw_rect(sx + 2, sy + 2, ts - 4, ts - 4, 0xFF64748B);
+                            }
+                            6 => {
+                                // Turret (Deep cyan base + sky blue barrel)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF0369A1);
+                                fb.draw_rect(sx + ts / 2 - 2, sy + ts / 2 - 2, 5, 5, 0xFF38BDF8);
+                            }
+                            9 => {
+                                // Base Heart (Rose / Crimson pulsating core)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF9F1239);
+                                let pulse = ((self.session.current_frame / 6) % 2) as i32;
+                                fb.draw_rect(ix + 2 - pulse, iy + 2 - pulse, (inner - 4 + pulse * 2).max(1), (inner - 4 + pulse * 2).max(1), 0xFFF43F5E);
+                            }
+                            10 => {
+                                // Iron Ore Vein (Metallic silver speckles)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF475569);
+                                fb.draw_rect(ix + 2, iy + 2, 3, 3, 0xFFCBD5E1);
+                            }
+                            11 => {
+                                // Copper Ore Vein (Copper rust brown)
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF78350F);
+                                fb.draw_rect(ix + 2, iy + 2, 3, 3, 0xFFFB923C);
+                            }
+                            _ => {
+                                fb.draw_rect(ix, iy, inner, inner, 0xFF7C3AED);
+                            }
+                        }
+
+                        // Ownership border highlight (P0 = Sky Blue, P1 = Vibrant Orange)
+                        if cell.has_flag(tile_flags::PLAYER_PLACED) {
+                            let owner = cell.custom_payload[0];
+                            let border_color = if owner == 0 {
+                                0xFF38BDF8 // Player 0: Sky Blue
+                            } else {
+                                0xFFFB923C // Player 1: Vibrant Orange
+                            };
+                            fb.draw_rect(sx, sy, ts, 1, border_color);
+                            fb.draw_rect(sx, sy + ts - 1, ts, 1, border_color);
+                            fb.draw_rect(sx, sy, 1, ts, border_color);
+                            fb.draw_rect(sx + ts - 1, sy, 1, ts, border_color);
+                        }
+                    }
+                }
+
+                // Cursor border highlight
+                if x == self.cursor_x as usize && y == self.cursor_y as usize {
+                    fb.draw_rect(sx, sy, ts, 2, 0xFFFFFFFF);
+                    fb.draw_rect(sx, sy + ts - 2, ts, 2, 0xFFFFFFFF);
+                    fb.draw_rect(sx, sy, 2, ts, 0xFFFFFFFF);
+                    fb.draw_rect(sx + ts - 2, sy, 2, ts, 0xFFFFFFFF);
+                }
+            }
+        }
+
+        // 2. Netcode Rollback HUD Banner (Top 36px)
+        fb.draw_rect(0, 0, fb.width as i32, 36, 0xFF020617);
+        fb.draw_rect(0, 36, fb.width as i32, 1, 0xFF1E293B);
+
+        // Status pill: Green (Consensus) or Glowing Yellow (Rollback active)
+        let is_rolling_back = self.session.current_frame.saturating_sub(self.last_rollback_frame) < 15;
+        let status_color = if is_rolling_back { 0xFFEAB308 } else { 0xFF22C55E };
+        fb.draw_rect(12, 10, 16, 16, status_color);
+
+        // Local Player ID indicator
+        let local_color = if self.local_player_id == 0 { 0xFF38BDF8 } else { 0xFFFB923C };
+        fb.draw_rect(36, 10, 48, 16, local_color);
+        fb.draw_rect(38, 12, 44, 12, 0xFF0F172A);
+
+        // State Hash bitfield display
+        let hash = self.session.state_hash();
+        for b in 0..16 {
+            let bit_color = if (hash >> (b * 4)) & 1 == 1 { 0xFF38BDF8 } else { 0xFF64748B };
+            fb.draw_rect(96 + b * 4, 14, 3, 8, bit_color);
+        }
+
+        // Rollback activity bar
+        let rollbacks = self.session.total_rollbacks;
+        if rollbacks > 0 {
+            let rb_w = ((rollbacks as i32) * 4).min(80);
+            fb.draw_rect(180, 14, rb_w, 8, 0xFFF59E0B);
+        }
+    }
+}
+
+#[allow(static_mut_refs)]
+static mut COOP_ENGINE: Option<CoopFactoryWasmEngine> = None;
+
+#[inline(always)]
+fn coop_engine() -> Option<&'static mut CoopFactoryWasmEngine> {
+    unsafe { (*core::ptr::addr_of_mut!(COOP_ENGINE)).as_mut() }
+}
+
+/// Initializes a peer-to-peer multiplayer data-driven factory rollback session.
+#[no_mangle]
+pub extern "C" fn axiom_coop_init(local_player_id: u32, width: u32, height: u32) {
+    let mut recipes = RecipeRegistry::<COOP_RECIPES>::new();
+
+    // Data-Driven Factory Recipes:
+    // Recipe 1: 2 Iron Ore (item 1) -> 1 Iron Ingot (item 2) in 3 ticks
+    let mut r1 = RecipeDefinition::empty();
+    r1.id = 1;
+    r1.input_id = 1;
+    r1.input_count = 2;
+    r1.output_id = 2;
+    r1.output_count = 1;
+    r1.required_ticks = 3;
+    recipes.register(r1);
+
+    // Recipe 2: 1 Copper Ore (item 3) -> 1 Copper Wire (item 4) in 2 ticks
+    let mut r2 = RecipeDefinition::empty();
+    r2.id = 2;
+    r2.input_id = 3;
+    r2.input_count = 1;
+    r2.output_id = 4;
+    r2.output_count = 1;
+    r2.required_ticks = 2;
+    recipes.register(r2);
+
+    // Recipe 3: 2 Iron Ingot (item 2) -> 1 Steel Plate (item 5) in 4 ticks
+    let mut r3 = RecipeDefinition::empty();
+    r3.id = 3;
+    r3.input_id = 2;
+    r3.input_count = 2;
+    r3.output_id = 5;
+    r3.output_count = 1;
+    r3.required_ticks = 4;
+    recipes.register(r3);
+
+    let mut initial_grid = TileGrid::<COOP_W, COOP_H>::new();
+
+    // Spawn natural ore deposits and base heart
+    initial_grid.set(16, 16, TileCell::new(9, 2000)); // Base Heart at center
+
+    // Iron deposit near (12, 10)
+    for dy in 0..2 {
+        for dx in 0..2 {
+            initial_grid.set(11 + dx, 9 + dy, TileCell::new(10, 1000));
+        }
+    }
+
+    // Copper deposit near (20, 22)
+    for dy in 0..2 {
+        for dx in 0..2 {
+            initial_grid.set(19 + dx, 21 + dy, TileCell::new(11, 1000));
+        }
+    }
+
+    let session = GridRollbackSession::new_boxed(local_player_id as usize, initial_grid, recipes);
+    let framebuffer = FrameBuffer::new(width as usize, height as usize);
+
+    unsafe {
+        COOP_ENGINE = Some(CoopFactoryWasmEngine {
+            session,
+            framebuffer,
+            local_player_id,
+            cursor_x: 16,
+            cursor_y: 16,
+            last_rollback_frame: 0,
+        });
+    }
+}
+
+/// Advances 1 local frame with zero input latency, updating camera/cursor.
+#[no_mangle]
+pub extern "C" fn axiom_coop_step(dx: i32, dy: i32) -> u64 {
+    if let Some(engine) = coop_engine() {
+        engine.cursor_x = (engine.cursor_x + dx).clamp(0, COOP_W as i32 - 1);
+        engine.cursor_y = (engine.cursor_y + dy).clamp(0, COOP_H as i32 - 1);
+        let stats = engine.session.advance_frame(GridAction::NONE);
+        stats.current_frame
+    } else {
+        0
+    }
+}
+
+/// Places or demolishes a structure on the spatial grid with 0ms local lag.
+#[no_mangle]
+pub extern "C" fn axiom_coop_place(x: u16, y: u16, kind: u32, direction: u32, item: u32) -> u64 {
+    if let Some(engine) = coop_engine() {
+        let pid = engine.local_player_id as u16;
+        let action = match kind {
+            0 => GridAction::clear_tile(pid, x, y),
+            1..=11 => {
+                let hp = match kind {
+                    5 => 500,  // Wall
+                    6 => 250,  // Turret
+                    9 => 2000, // Base Heart
+                    _ => 300,
+                };
+                let mut act = GridAction::set_tile(pid, x, y, kind, hp);
+                act.param1 = direction as u16;
+                act.param2 = hp;
+                act
+            }
+            _ => GridAction::NONE,
+        };
+
+        let stats = engine.session.advance_frame(action);
+
+        // Optional item stocking (e.g. ammo chest or ore deposit)
+        if (kind == 4 || kind == 2) && item != 0 {
+            if let Some(cell) = engine.session.current_grid.get_mut(x as usize, y as usize) {
+                cell.push_item(item as u16, 50);
+            }
+        }
+
+        stats.current_frame
+    } else {
+        0
+    }
+}
+
+/// Delivers a remote grid action arrived from WebRTC DataChannel.
+/// Triggers speculative rollback and resimulation if mispredicted.
+#[no_mangle]
+pub extern "C" fn axiom_coop_receive_remote(
+    remote_player_id: u32,
+    frame: u64,
+    kind: u16,
+    x: u16,
+    y: u16,
+    type_id: u32,
+    param1: u16,
+    param2: u16,
+) -> bool {
+    if let Some(engine) = coop_engine() {
+        let action = GridAction::new(kind, remote_player_id as u16, x, y, type_id, param1, param2);
+        let rolled_back = engine.session.receive_remote_action(remote_player_id as usize, frame, action);
+        if rolled_back {
+            engine.last_rollback_frame = engine.session.current_frame;
+        }
+        rolled_back
+    } else {
+        false
+    }
+}
+
+/// Renders the cooperative factory grid, structures, and GGPO rollback HUD.
+#[no_mangle]
+pub extern "C" fn axiom_coop_render(tile_size: u32) {
+    if let Some(engine) = coop_engine() {
+        engine.render(tile_size);
+    }
+}
+
+/// Returns raw pointer to cooperative framebuffer memory.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_framebuffer_ptr() -> *const u32 {
+    coop_engine().map(|e| e.framebuffer.as_slice().as_ptr()).unwrap_or(core::ptr::null())
+}
+
+/// Returns pixel count in cooperative framebuffer.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_framebuffer_len() -> u32 {
+    coop_engine().map(|e| e.framebuffer.pixels.len() as u32).unwrap_or(0)
+}
+
+/// Returns current frame of the rollback session.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_tick() -> u64 {
+    coop_engine().map(|e| e.session.current_frame).unwrap_or(0)
+}
+
+/// Returns confirmed frame boundary watermark.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_confirmed_tick() -> u64 {
+    coop_engine().map(|e| e.session.confirmed_frame).unwrap_or(0)
+}
+
+/// Returns total rollbacks performed by the session.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_rollbacks() -> u64 {
+    coop_engine().map(|e| e.session.total_rollbacks).unwrap_or(0)
+}
+
+/// Returns total resimulated frames executed during rollbacks.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_resimulated() -> u64 {
+    coop_engine().map(|e| e.session.total_frames_resimulated).unwrap_or(0)
+}
+
+/// Returns deterministic 64-bit master state hash.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_hash() -> u64 {
+    coop_engine().map(|e| e.session.state_hash()).unwrap_or(0)
+}
+
+/// Returns the frame number of the most recent rollback.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_last_rollback() -> u64 {
+    coop_engine().map(|e| e.last_rollback_frame).unwrap_or(0)
+}
+
+/// Returns cursor X coordinate.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_cursor_x() -> i32 {
+    coop_engine().map(|e| e.cursor_x).unwrap_or(16)
+}
+
+/// Returns cursor Y coordinate.
+#[no_mangle]
+pub extern "C" fn axiom_coop_get_cursor_y() -> i32 {
+    coop_engine().map(|e| e.cursor_y).unwrap_or(16)
+}
+
+/// Sets cursor coordinates directly.
+#[no_mangle]
+pub extern "C" fn axiom_coop_set_cursor(x: i32, y: i32) {
+    if let Some(engine) = coop_engine() {
+        engine.cursor_x = x.clamp(0, COOP_W as i32 - 1);
+        engine.cursor_y = y.clamp(0, COOP_H as i32 - 1);
     }
 }
 
@@ -1718,6 +2130,37 @@ mod tests {
         axiom_net_render();
         let ptr = axiom_net_get_framebuffer_ptr();
         assert!(!ptr.is_null());
+    }
+
+    #[test]
+    fn test_coop_factory_rollback_wasm_bindings() {
+        axiom_coop_init(0, 640, 480);
+        assert_eq!(axiom_coop_get_tick(), 0);
+        assert_eq!(axiom_coop_get_rollbacks(), 0);
+
+        // Player 0 places a Mining Drill at (12, 10)
+        let f1 = axiom_coop_place(12, 10, 2, 1, 0);
+        assert_eq!(f1, 1);
+        assert_eq!(axiom_coop_get_tick(), 1);
+
+        // Step 5 frames forward locally
+        for _ in 0..5 {
+            axiom_coop_step(1, 0);
+        }
+        assert_eq!(axiom_coop_get_tick(), 6);
+
+        // Late remote action arriving from Player 1 for frame 2 (Wall at (14, 14))
+        let rolled_back = axiom_coop_receive_remote(1, 2, grid_action_kind::SET_TILE, 14, 14, 5, 0, 500);
+        assert!(rolled_back, "Delayed remote building placement must trigger speculative rollback");
+        assert!(axiom_coop_get_rollbacks() > 0);
+        assert_eq!(axiom_coop_get_tick(), 6); // Frame preserved at 6
+
+        // Render verification
+        axiom_coop_render(14);
+        let ptr = axiom_coop_get_framebuffer_ptr();
+        assert!(!ptr.is_null());
+        assert_eq!(axiom_coop_get_framebuffer_len(), 640 * 480);
+        assert_ne!(axiom_coop_get_hash(), 0);
     }
 
     // ---------------------------------------------------------------------

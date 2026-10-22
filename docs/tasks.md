@@ -6,22 +6,24 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-052: 브라우저 WebRTC DataChannel을 통한 원격 멀티플레이어 팩토리 협동 시연**
+- [ ] **T-053: Axiom Engine v1.3.0 멀티플레이어 데이터 드리븐 릴리즈 및 최종 감사**
   - **목표:**
-    - `axiom_grid_net_*` SDK C-ABI를 `axiom-wasm` 및 브라우저 JS/HTML5 캔버스 인터페이스에 연동.
-    - WebRTC DataChannel 바이너리 패킷 송수신을 통한 브라우저 2인 P2P 팩토리 동시 협동 건설/물류 시연.
-    - 지연 패킷 도착 시 실시간 캔버스 롤백 재렌더링 시각화.
+    - `Cargo.toml` v1.3.0 공식 판올림.
+    - `docs/architecture.md` Section 15 등재 (WebRTC DataChannel & 그리드 롤백 넷코드 아키텍처).
+    - `docs/decisions.md` 및 `docs/audit-report.md` v1.3.0 공식 종합 감사 승인 보고서 발행.
+    - `tools/guard.ps1` 전체 워크스페이스 검증 100% 통과 및 마일스톤 완결.
   - **시공:** Antigravity (총괄 관제탑)
-  - **검증:** WASM 빌드 및 `tools/guard.ps1` 통과
+  - **검증:** `tools/guard.ps1` 통과 및 git 커밋
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-053: Axiom Engine v1.3.0 멀티플레이어 데이터 드리븐 릴리즈 및 최종 감사**
+(Empty / Ready for next milestone)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-052: 브라우저 WebRTC DataChannel을 통한 원격 멀티플레이어 팩토리 협동 시연** (`crates/axiom-wasm/src/lib.rs`, `CoopFactoryWasmEngine`, `axiom_coop_*` 11개 C-ABI 바인딩, `index.html` 및 `web/index.html` WebRTC DataChannel 24B 바이너리 패킷 송수신, 모의 네트워크 파이프(0~300ms 지연 / 0~30% 드랍율), P0(블루)/P1(오렌지) 2인 P2P 팩토리 동시 협동 건설/물류, 지연 패킷 도착 시 실시간 캔버스 GGPO 롤백 재렌더링 시각화, `tools/guard.ps1` 무부동소수점 무결성 통과)
 - [x] **T-051: 멀티플레이어 P2P 넷코드와 데이터 드리븐 SDK 그리드 동기화 바인딩** (`crates/axiom-core/src/grid_netcode.rs`, `GridAction` 16B 캐시라인 정렬 레코드, `GridInputQueue` 64비트 프레임 태그 기반 무한 랩어라운드 링 버퍼, `GridRollbackSession` 64B 타일 그리드 분산 롤백 세션, `SimulatedGridNetworkPipe` 200ms 대륙간 지연 및 15% 패킷 드랍 환경 100% 비트 일치 `state_hash` 합의 검증, `crates/axiom-sdk` `axiom_grid_net_*` 10개 C-ABI 엔드포인트 바인딩, `tools/guard.ps1` 무부동소수점 무결성 통과)
 - [x] **HOTFIX: 몬스터 타겟팅 우선순위 정상화 및 방어 구조물 유인/정지 버그 패치** (`crates/axiom-game/src/defense.rs`, 하트(`BaseHeart`) 1차 전략 목표 고정, 사거리 내 근접 위협 타일만 선별 교전, 임의 벽/포탑 설치 시 엉뚱한 방향 끌림 및 뭉침 멈춤 버그 완전 해결, 신규 단위 테스트 `test_monster_prioritizes_heart_over_distraction_walls` 검증 완료)
 - [x] **T-050: Axiom Engine v1.2.0 범용 엔진 아키텍처 공식 감사 및 릴리즈** (`Cargo.toml` v1.2.0 공식 판올림, `docs/architecture.md` Section 14 등재, `docs/decisions.md` [D-015] 채택, `docs/audit-report.md` 공식 종합 감사 승인, `axiom-sdk` 및 `schema_catalog` 데이터 드리븐 스키마 전면 배포 완료)
