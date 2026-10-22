@@ -48,6 +48,49 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T071] 절차적 바이옴 동적 몬스터 스폰 및 거점 영역 방어 (Phase 3)
+- **목표:** T-070에서 도입된 8종 바이옴(`BiomeKind`) 및 자원 레이어를 기반으로, 바이옴별 특화 몬스터 아키타입(8종)과 무할당 스폰 가중치 테이블(`BiomeSpawnTable`), 그리고 절차적 월드 좌표 기반 몬스터 스폰 및 거점(`BaseHeart`) 영역 방어 웨이브 파이프라인을 구축한다.
+- **대상 파일 및 구현 상세:**
+  1. `crates/axiom-game/src/defense.rs`:
+     - `MonsterKind` 열거형 확장 (`repr(u8)`, 8종 아키타입):
+       * `0 = Goblin`: 기본 척후병 (온대 평원 대표, 표준 스탯)
+       * `1 = Golem`: 고장갑 방패괴수 (화산 암벽/동토 대표, 3배 HP, 2배 공격력, 4틱 속도)
+       * `2 = Runner`: 고속 돌격대 (건조 사막/온대 평원 대표, 1틱 질주, 낮은 HP)
+       * `3 = FrostWolf`: 동토 맹수 (동토 툰드라 대표, 1틱 질주, 높은 치명 공격력)
+       * `4 = DesertScorpion`: 사막 독전갈 (건조 사막 대표, 중장갑 + 독침 타격)
+       * `5 = SwampHydra`: 늪지 히드라 (늪지대 대표, 고체력 재생, 둔화 타격)
+       * `6 = SporeCarrier`: 포자 보균체 (균사 지대 대표, 피격 자폭, 거점 지속 침식)
+       * `7 = DeepSiren`: 심해의 전령 (심해/수역 대표, 원거리 음파 공격)
+     - `BiomeSpawnTable` 구조체 (`#[repr(C, align(64))]` 64바이트 L1 캐시 정렬):
+       * `pub biome: BiomeKind`
+       * `pub weights: [u8; 8]`: 8종 몬스터 스폰 가중치 (0~255)
+       * `pub hp_mult_pct: u16`: 바이옴 몬스터 HP 보정 백분율 (예: 툰드라 120%, 화산 150%)
+       * `pub atk_mult_pct: u16`: 공격력 보정 백분율
+       * `pub speed_bonus: u8`: 속도 보정
+       * `pub spawn_rate_pct: u16`: 스폰 수량 보정
+       * `pub _pad: [u8; 47]`: 64바이트 패딩
+       * 컴파일 타임 상수 `pub const BIOME_SPAWN_TABLES: [BiomeSpawnTable; 8]`
+     - 몬스터 생성 보조 함수:
+       * `pub fn roll_biome_monster(biome: BiomeKind, rng: &mut Rng) -> MonsterKind`
+       * 스폰 가중치 누적합과 `rng.range_u32`를 통한 O(1) 결정론적 몬스터 추첨 (동적 할당 0건)
+     - `WaveDirector` 동적 바이옴 스폰 메서드:
+       * `pub fn spawn_biome_wave<const W: usize, const H: usize>(&mut self, grid: &FactoryGrid<W, H>, biome: BiomeKind) -> u16`: 지정 바이옴 스폰 테이블 적용
+       * `pub fn spawn_world_wave<const S: usize, const MC: usize, const MF: usize>(&mut self, world: &WorldFactory<S, MC, MF>, world_seed: u64) -> u16`: 거점 청크 외곽 월드 좌표의 실제 바이옴(`sample_world_biome`)을 무할당 샘플링하여 4방위별 바이옴 몬스터를 지능적으로 스폰
+     - 거점 영역 방어(Base Heart Area Defense) 로직 고도화:
+       * `is_defense_tile`: `BaseHeart`, `Wall`, `Turret`, `LaserTurret` 식별 유지
+       * 거점 하트 파괴 시 즉각적인 방어 종료 및 리포트 통계(`base_fallen = true`)
+  2. 단위 테스트 (`crates/axiom-game/src/defense.rs` 내부):
+     - `test_biome_monster_roll_determinism`: 8종 바이옴별 몬스터 추첨 가중치 검증 및 100% 비트 동일성
+     - `test_biome_spawn_tables_cache_alignment`: `BiomeSpawnTable`이 64바이트 L1 캐시 정렬(`align_of == 64`)을 만족함을 검증
+     - `test_biome_wave_stat_scaling`: 바이옴별 HP/공격력 배율 적용 정합성 검증
+     - `test_world_biome_edge_wave_defense`: 월드 팩토리 연동 시 경계선 바이옴 기반 동적 웨이브 스폰 및 100틱 방어 전투 결정론 검증
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 절대 금지 (정수 연산 및 비트 시프트만 허용)
+  - 런타임 틱당 힙 재할당 0건 (고정 슬랩/스택 버퍼)
+  - `tools/guard.ps1` 100% 무결점 통과 필수
+
+---
+
 ### [RECIPE-20261022-T070] 무한 절차적 오픈월드 청크 스트리밍 & 바이옴 PCG (Phase 3 본격 진입)
 - **목표:** 기존 64x64 고정 그리드에서 벗어나, 무한 좌표계($-\infty \sim +\infty$)에서 동작하는 8종 다원 바이옴(Biome) 절차적 생성, 자원 광맥 클러스터링, 그리고 청크 언로드/재로드 시 플레이어 수정 내역을 무할당으로 보존하는 64B L1 캐시 정렬 차세대 `ChunkManager` 파이프라인 구축.
 - **대상 파일 및 구현 상세:**

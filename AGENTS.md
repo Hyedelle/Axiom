@@ -77,3 +77,18 @@
 6. **세션 복구 검증:**
    - `claude auth status`를 실행하여 `loggedIn: true`, `subscriptionType: "max"` 확인 완료. API 종량제 과금 없이 월 $200 Max 플랜 5x 한도로 즉시 복귀.
 
+---
+
+## 5. 폴더 구조 및 디스크 용량 정리 프로토콜 (SOP)
+
+개발 태스크가 누적됨에 따라 빌드 캐시, 임시 로그, 비추적 바이너리가 누적되어 용량과 디렉터리가 비대해지는 것을 방지하는 정기 위생 프로토콜입니다.
+
+* **실행 명령:** `powershell -ExecutionPolicy Bypass -File tools/cleanup.ps1 [-CargoClean]`
+* **5단계 자동 정리 파이프라인:**
+  1. **스토리지 베이스라인 점검**: C드라이브 SSD 용량과 D드라이브 대용량 캐시 잔여량 확인.
+  2. **D드라이브 정션 무결성 검증**: `target` ➔ `D:\axiom\cache\target`, `tmp` ➔ `D:\axiom\cache\tmp` 심볼릭 정션 상태를 확인하고, C드라이브 물리 디렉터리로 풀려있을 경우 자동 마이그레이션 및 재연결.
+  3. **임시 로그 소거**: `tmp/`에 누적된 수십 개의 컴파일/테스트 잔여 로그 일괄 삭제.
+  4. **미추적 바이너리/클러터 제거**: `bindings/csharp/*.exe`, `*.pdb`, `*.tmp`, `*.rs.bk` 등 테스트 도중 생성된 미추적 잔여물 삭제.
+  5. **캐시 최적화 및 헌법 가드 확인**: (`-CargoClean` 옵션 시 수 GB 빌드 슬랩 리셋), 최종적으로 `tools/guard.ps1`을 가동하여 정리 후에도 엔진 무결성 100%를 보증.
+
+
