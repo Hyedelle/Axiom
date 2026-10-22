@@ -10,13 +10,11 @@ pub mod card;
 pub mod defense;
 pub mod factory;
 pub mod schema_catalog;
-pub mod sts;
 pub mod world_factory;
 pub mod worker;
 
 pub use boxing::{ActionKind, AiPhase, BoxerAction, BoxerState, BoxingEvent, BoxingRingEngine};
 pub use card::{CardKind, DeckState, TacticalCard};
-pub use sts::{ContenderId, DriveTag, InboundDraftState, Part, PartId, RobotAssembly, SetSynergy, Slot, StsLeague, StsPhase, StsSeasonEngine, UpgradeBonus};
 
 pub use factory::{
     Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, FilterInserter,

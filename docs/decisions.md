@@ -578,36 +578,25 @@
 
 ---
 
-### [D-039] Steel The Show 정밀 모방(Mimic) 복제 & Axiom 차세대 결정론 엔진 리팩토링 (T-078)
+### [D-039] Mimic The Show (mimic-the-show) 독립 게임 분리 및 Axiom 엔진 연동 아키텍처 (T-078)
 - **날짜:** 2026-10-22
 - **결정권자:** Hyedelle (디렉터)
 - **내용:**
-  1. **외장 리포지토리 무수정 원칙 하의 완전 독립 복제 리팩토링 (`crates/axiom-game/src/sts/`)**:
-     - 상용 프로젝트 `C:\Dreamhub\Game\steel-the-show`를 직접 수정하지 않고, 그 핵심 시스템(부품, 드라이브, 세트 시너지, 강화, 4로봇 리그, 인바운드 역공학 드래프트, 타이틀전)을 Axiom 엔진의 헌법(0-Float, 100% 비트 결정론, 64B L1 캐시 정렬)으로 완전 리팩토링 복제.
-  2. **4슬롯 부품 카탈로그 & 16B POD 아키텍처 (`part.rs`)**:
-     - Head, Core, Arm, Leg 4슬롯 구조 및 5대 드라이브 계열(Steam, Gear, Hydraulic, Spring, Condenser).
-     - `parts.json` 정본 20종 부품 카탈로그(`EyeTarget`, `CorePower`, `ArmPiston`, `LegSprint`, THESEUS 전용 `EyeHawk`, `CorePhoenix`, `ArmExecutioner`, `LegGhost` 등).
-     - 정확히 16바이트 POD `Part` 구조체.
-  3. **동종 부품 드래그 강화 합성 시스템 (`upgrade_part`, D-316/319)**:
-     - 2장의 동일 Tier 1 부품을 합성하여 Tier 2로 강화.
-     - 난수 시드 기반 공 +1, 방 +1, 열 -1 중 1개 옵션이 100% 결정론적으로 확정.
-  4. **로봇 어셈블리 & 3-세트 시너지 효과 (`robot.rs`, D-287/294)**:
-     - 64B L1 캐시 정렬 `RobotAssembly`(장착 4부품 + 16슬롯 인벤토리 원장).
-     - 공격력(ATK), 방어력(DEF), 발열량(HEAT) 순수 정수 합산.
-     - 3-세트 시너지 발동:
-       - 증기 3개: `SteamBarrage` (필살기 발열 절반 감소)
-       - 기어 3개: `GearAimLock` (카운터 크리티컬 추가 피해)
-       - 유압 3개: `HydraulicDeflect` (가드 성공 시 피해 50% 반사)
-  5. **4로봇 리그전 & 타이틀전 사다리 (`league.rs`, D-308/315)**:
-     - 4로봇(ELPIS, TINKER, CIPHER, PIKE) 3라운드 6경기 풀리그 라운드로빈 스케줄러.
-     - 승점 3/1/0, KO 승수, 득실차 정수 타이브레이커 순위 산출.
-     - 3·4위 탈락(Game Over 패배 엔딩), 1·2위 결정전 진출.
-     - 결정전 승자 ➔ 챔피언 타이틀전 vs THESEUS(파운드리 챔피언) ➔ 승리 시 우승 엔딩 및 챔피언 부품 드래프트.
-  6. **실시간 링 엔진 연동 & 인바운드 역공학 3택 드래프트 (`season.rs`, D-282/283)**:
-     - `BoxingRingEngine`과 실시간 연동되어 방어력 비례 Max HP, 공격력 비례 데미지, 시너지 버프 실시간 반영.
-     - 매 경기 후 상대 부품 중 3개 후보 역공학 드래프트.
-  7. **검증 체계 (`tests/test_steel_the_show.rs`)**: 8개 단위 테스트 100% 통과, `tools/guard.ps1` 헌법 무결성 검증 완벽 통과.
-- **이유:** 기존 `steel-the-show`의 복잡한 C#/Unity 의존성과 미세 끊김 이슈를 근본적으로 해결하고, 초고속 0-Float 64B L1 캐시 정렬 차세대 Axiom 엔진 위에서 완벽한 손맛과 결정론을 갖춘 고품질 리팩토링 버전을 확보하기 위함.
-- **영향:** `crates/axiom-game/src/sts/` (part, robot, league, season, mod), `crates/axiom-game/tests/test_steel_the_show.rs` 신설, `crates/axiom-game/src/lib.rs` 공용 API 노출.
+  1. **엔진-게임 완전 분리 헌법 (Engine vs Game Decoupling)**:
+     - 엔진(`C:\Dreamhub\Engine\Axiom`)은 게임 중립적인 물리, 복싱 링 시뮬레이터(`BoxingRingEngine`), 2D 만화 컷신 래스터라이저(`render_cutin_overlay`), 전술 카드 인터페이스를 제공.
+     - 상용 `steel-the-show`를 모방/복제한 신규 게임 프로젝트는 완전히 독립된 게임 프로젝트 디렉터리인 `C:\Dreamhub\Game\mimic-the-show`로 분리하여 엔진을 오염시키지 않는 클린 아키텍처 확립.
+  2. **독립 게임 프로젝트 구조 (`C:\Dreamhub\Game\mimic-the-show`)**:
+     - `Cargo.toml`: Axiom 엔진 패스 의존성(`axiom-core`, `axiom-game`, `axiom-render`).
+     - `src/part.rs`: Head, Core, Arm, Leg 4슬롯 구조, 5대 드라이브 계열(Steam, Gear, Hydraulic, Spring, Condenser), 20종 부품 카탈로그, 16B POD 레이아웃, 동종 부품 드래그 강화 합성 시스템(`upgrade_part`, D-316/319).
+     - `src/robot.rs`: 64B L1 캐시 정렬 `RobotAssembly` 및 3대 세트 시너지(증기 난타, 기어 조준고정, 유압 받아치기, D-287/294).
+     - `src/league.rs`: 4로봇(ELPIS, TINKER, CIPHER, PIKE) 3라운드 6경기 풀리그 라운드로빈 스케줄러, 승점 순위표, 1·2위 결정전 및 챔피언 THESEUS 타이틀전 사다리(D-308/315).
+     - `src/season.rs`: 차고 $\rightarrow$ 경기 $\rightarrow$ 3택 인바운드 역공학 드래프트(D-282/283) $\rightarrow$ 플레이오프 풀 시즌 루프.
+     - `src/main.rs`: 터미널 기반 네이티브 인터랙티브/시뮬레이션 러너.
+     - `Play.cmd`: 원클릭 실행 윈도우 스크립트.
+  3. **검증 체계**:
+     - `mimic-the-show`: 단위 테스트 전수 통과, 100% 결정론적 풀 시즌 리그 및 타이틀전 완주 실증 완료.
+     - `Axiom`: `tools/guard.ps1` 헌법 무결성 검증 100% 통과.
+- **이유:** 게임 로직이 엔진 코드베이스에 뒤섞여 복잡도를 높이는 것을 방지하고, 엔진은 범용 플랫폼으로 순수하게 유지하면서 게임은 `C:\Dreamhub\Game\mimic-the-show`에서 자유롭고 빠르게 개발·반복하기 위함.
+- **영향:** `C:\Dreamhub\Game\mimic-the-show` 신규 독립 저장소 생성, Axiom 엔진의 `axiom-game` 순수성 보존.
 
 
