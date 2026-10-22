@@ -22,6 +22,7 @@
 ---
 
 ## 📜 [COMPLETED]
+- [x] **HOTFIX: 몬스터 타겟팅 우선순위 정상화 및 방어 구조물 유인/정지 버그 패치** (`crates/axiom-game/src/defense.rs`, 하트(`BaseHeart`) 1차 전략 목표 고정, 사거리 내 근접 위협 타일만 선별 교전, 임의 벽/포탑 설치 시 엉뚱한 방향 끌림 및 뭉침 멈춤 버그 완전 해결, 신규 단위 테스트 `test_monster_prioritizes_heart_over_distraction_walls` 검증 완료)
 - [x] **T-050: Axiom Engine v1.2.0 범용 엔진 아키텍처 공식 감사 및 릴리즈** (`Cargo.toml` v1.2.0 공식 판올림, `docs/architecture.md` Section 14 등재, `docs/decisions.md` [D-015] 채택, `docs/audit-report.md` 공식 종합 감사 승인, `axiom-sdk` 및 `schema_catalog` 데이터 드리븐 스키마 전면 배포 완료)
 - [x] **T-049: 팩토리 RPG를 신규 데이터 드리븐 SDK 위의 예제 게임으로 리팩토링** (`crates/axiom-game/src/schema_catalog.rs`, 팩토리 전용 구조물 8종 및 아이템 5종을 `category` 비트플래그 기반 데이터 드리븐 `TypeDefinition`으로 매핑, 제련/가공 변환 3종 `RecipeDefinition` 등록 브릿지 완성, 엔진 코어와 게임 콘텐츠의 100% 분리 실증 및 38개 단위 테스트 무부동소수점 결정론 통과)
 - [x] **T-048: 범용 C-ABI 및 WASM Engine SDK 아키텍처 구축 (`crates/axiom-sdk`)** (`crates/axiom-sdk`, `EngineContext` 범용 컨텍스트, `axiom_engine_*` 생명주기 API, `axiom_schema_*` 런타임 스키마/레시피 등록 C-ABI, `axiom_grid_*` 64B 제로-카피 타일 조작 및 버퍼 포인터 연동, FNV-1a 엔진 상태 해시, 3개 단위 C-ABI 테스트 및 무부동소수점 무결성 검증 완료)

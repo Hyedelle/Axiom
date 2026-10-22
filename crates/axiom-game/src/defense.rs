@@ -618,6 +618,20 @@ impl<const CAP: usize> WaveDirector<CAP> {
             }
         }
 
+        // Scan base heart position (primary strategic target)
+        let mut heart_pos: Option<(usize, usize)> = None;
+        for y in 0..H {
+            for x in 0..W {
+                if matches!(grid.cells[y][x].kind, StructureKind::BaseHeart(_)) {
+                    heart_pos = Some((x, y));
+                    break;
+                }
+            }
+            if heart_pos.is_some() {
+                break;
+            }
+        }
+
         let move_now = self.current_tick.is_multiple_of(MONSTER_MOVE_INTERVAL);
 
         for i in 0..CAP {
@@ -630,14 +644,37 @@ impl<const CAP: usize> WaveDirector<CAP> {
             }
 
             let (mx, my) = (u.pos.x.to_int(), u.pos.y.to_int());
+
+            // Target Priority:
+            // 1. If an active defense structure is within immediate attack reach (<= attack_range), engage it!
+            // 2. Otherwise, march relentlessly toward BaseHeart.
+            // 3. If BaseHeart is fallen, target nearest remaining defense tile.
             let mut best: Option<(usize, usize)> = None;
-            let mut best_d = i64::MAX;
+
+            // Check if any defense tile is in immediate attack reach
             for &(tx, ty) in tiles[..n_tiles].iter() {
                 let (dx, dy) = (tx as i64 - mx, ty as i64 - my);
-                let d = dx * dx + dy * dy;
-                if d < best_d {
-                    best_d = d;
+                let reach = dx.abs().max(dy.abs());
+                if reach <= u.attack_range as i64 {
                     best = Some((tx as usize, ty as usize));
+                    break;
+                }
+            }
+
+            // If none in immediate reach, move toward BaseHeart or closest fallback
+            if best.is_none() {
+                if let Some(hp) = heart_pos {
+                    best = Some(hp);
+                } else {
+                    let mut best_d = i64::MAX;
+                    for &(tx, ty) in tiles[..n_tiles].iter() {
+                        let (dx, dy) = (tx as i64 - mx, ty as i64 - my);
+                        let d = dx * dx + dy * dy;
+                        if d < best_d {
+                            best_d = d;
+                            best = Some((tx as usize, ty as usize));
+                        }
+                    }
                 }
             }
 
@@ -1175,5 +1212,37 @@ mod tests {
         let y = pos.y.to_int();
         // Position changed towards target
         assert!(x > 8 || y != 16 || d.structure_damage > 0);
+    }
+
+    #[test]
+    fn test_monster_prioritizes_heart_over_distraction_walls() {
+        let mut g = FactoryGrid::<32, 32>::new();
+        g.place_base_heart(16, 16);
+
+        // Distraction wall placed at (2, 2) near spawn
+        g.place_wall(2, 2);
+
+        let mut d = Director::with_schedule(1234, 1000, 1000, 0, 0); // No auto-spawns
+        // Spawn a monster at (0, 16)
+        let slot = d.arena.spawn_unit(
+            1,
+            MONSTER_TEAM,
+            50,
+            8,
+            1,
+            12,
+            FixedVec2::from_ints(0, 16),
+        );
+        assert!(slot.is_some());
+
+        // Advance 10 ticks (2 move cycles at interval 5)
+        for _ in 0..10 {
+            d.tick(&mut g);
+        }
+
+        // Monster should move East toward Heart (16, 16), NOT North toward Wall (2, 2)
+        let m = d.arena.units[slot.unwrap()];
+        assert!(m.pos.x.to_int() > 0, "Monster should advance East toward Heart");
+        assert_eq!(m.pos.y.to_int(), 16, "Monster should not deviate toward Wall at (2, 2)");
     }
 }
