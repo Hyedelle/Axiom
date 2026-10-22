@@ -528,3 +528,25 @@
   4. **검증 체계**: `test_power_grid_brownout_and_accumulator`(잉여 20/틱 충전 ➔ 부족 20/틱 방전 ➔ 고갈 후 83% 브라운아웃 및 34/33/33 정확 배분 ➔ 발전기 철거 블랙아웃 ➔ 과잉 발전 `wasted` 50 ➔ 무전신주 섬 `NO_NET`), `test_fluid_mass_conservation_and_flow`(13구간 U자관 400틱 질량 보존·인접 ≤ 1단위 수렴, 펌프 순환 링 200틱 보존·효율 0% 정지, 수평/수직 체크 밸브 역류 0, 온도 혼합), `test_power_fluid_determinism`(2망 전력 + 펌프 효율 커플링 400틱 틱별 해시 전수 일치, 복제 중간 상태 50틱 동일 진행, 주입량 1단위 차이로 유체 해시만 분기).
 - **이유:** 팩토리 자동화의 전력·유체는 부동소수점 누적 오차와 힙 할당의 전형적 진입점이다. 역할별 필드 다중화로 16B를 지키고, 비율 계산을 "바닥 배분 + 나머지 순차 분배"로 바꿔 에너지/질량 보존을 비트 단위로 증명 가능하게 했다. 유니온-파인드 최소 인덱스 루트와 슬롯 순 순회만으로 리플레이 결정론이 성립한다.
 - **영향:** `crates/axiom-core/src/power_grid.rs`, `crates/axiom-core/src/fluid.rs` 신설, `lib.rs` 재수출, `crates/axiom-core/tests/test_power_and_fluid.rs`. 게임 레이어(`TileGrid`/`axiom-game`) 연동 및 세이브 아카이브 직렬화는 후속 과제.
+
+---
+
+### [D-037] Axiom 네이티브 펀치아웃 복싱 & 5대 기둥 코어 루프 엔진 (T-075)
+- **날짜:** 2026-10-22
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **Axiom 순수 네이티브 펀치아웃 복싱 엔진 (`crates/axiom-game/src/boxing.rs`)**:
+     - 외장 상용 엔진(Unity 등)을 전면 배제하고, Axiom의 헌법(0-Float, 100% 비트 결정론, 64B L1 캐시 정렬)을 엄수하는 네이티브 메카 복싱 엔진 구축.
+     - 16B POD `BoxerAction`(동작 종류 `ActionKind`, 진행 프레임, 최대 프레임, 데미지, 발열, 가드력), 64B L1 캐시 정렬 `BoxerState`(HP, 최대 HP, 코어 발열, 액션, x좌표 오프셋).
+     - 64B 정렬 `BoxingRingEngine`: 60Hz 고정 틱 시뮬레이션, 상대 AI 텔레그래프-공격-후딜 4단계 상태 머신, 플레이어 슬립 위빙(A/D) 회피 성공 시 카운터 크리티컬(150% 데미지) 판정, 가드(S) 80% 피해 흡수(Chip 20%만 관통), 0.08초 히트스톱(Hit-Stop) 및 카메라 셰이크, FNV-1a 64비트 상태 해시 `compute_hash`.
+  2. **전술 카드 드래프트 및 덱 원장 (`crates/axiom-game/src/card.rs`)**:
+     - 16B POD `TacticalCard`(id, 위력, 발열, 가드력, 종류 `CardKind`, 필살기 연계 `fin_kind`), 64B 정렬 `DeckState<16>` 덱 상태 원장.
+  3. **2D 만화 컷신 래스터라이저 (`crates/axiom-render/src/cutin.rs`)**:
+     - 사선 컬러 액션 밴드, 방사형 집중선(Speed lines), 비트맵 폰트 기반 대형 텍스트(`FINISHER!`, `KNOCKOUT!`)를 소프트웨어 프레임버퍼에 직접 렌더링.
+  4. **60 FPS 네이티브 데스크톱 윈도우 러너 (`crates/axiom-cli/src/boxing_view.rs`)**:
+     - `minifb` 기반 704×544 창에서 `cargo run -p axiom-cli -- --boxing`으로 0.1초 즉시 부팅.
+     - `Tab` 키를 통해 Factory ➔ World ➔ Boxing 3대 모드를 실시간 순환 전환.
+  5. **검증 체계**: `test_boxing_mechanics_and_determinism`(300틱 위빙 회피, 가드 차단, 카운터 크리티컬, 양방향 100% 비트 동일 상태 해시 검증), `test_guard_blocks_and_reduces_damage`, `test_tactical_card_deck`, `test_2d_cutin_render`.
+- **이유:** `steel-the-show`의 5대 기둥(카드 선택, 로그라이크, 3D 복싱 액션, 카툰 셰이딩, 2D 컷인)의 재미 공식과 메커니즘을 외부 엔진에 의존하지 않고, Axiom의 가볍고 결정론적인 순수 Rust 기술로 직접 네이티브 구현하여 초경량 독립 배포와 즉각적인 손맛을 완성함.
+- **영향:** `crates/axiom-game/src/boxing.rs`, `crates/axiom-game/src/card.rs`, `crates/axiom-render/src/cutin.rs`, `crates/axiom-cli/src/boxing_view.rs` 신설, `desktop.rs` `ViewMode::Boxing` 및 CLI `--boxing` 플래그 추가.
+

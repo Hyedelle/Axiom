@@ -15,8 +15,14 @@ fn main() {
     let has_benchmark = args.iter().any(|a| a == "--benchmark");
     let has_headless = args.iter().any(|a| a == "--headless");
     let has_window = args.iter().any(|a| a == "--window");
+    let has_boxing = args.iter().any(|a| a == "--boxing");
 
-    if has_benchmark || has_headless || (args.len() > 1 && !has_window) {
+    if has_boxing {
+        if let Err(e) = axiom_cli::desktop::run_desktop_window_with_mode(axiom_cli::ViewMode::Boxing) {
+            eprintln!("Failed to launch desktop boxing window: {:?}", e);
+            std::process::exit(1);
+        }
+    } else if has_benchmark || has_headless || (args.len() > 1 && !has_window) {
         run_headless_suite();
     } else if let Err(e) = axiom_cli::desktop::run_desktop_window() {
         eprintln!("Failed to launch desktop window: {:?}", e);

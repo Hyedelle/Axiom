@@ -5,11 +5,16 @@
 
 #![no_std]
 
+pub mod boxing;
+pub mod card;
 pub mod defense;
 pub mod factory;
 pub mod schema_catalog;
 pub mod world_factory;
 pub mod worker;
+
+pub use boxing::{ActionKind, AiPhase, BoxerAction, BoxerState, BoxingEvent, BoxingRingEngine};
+pub use card::{CardKind, DeckState, TacticalCard};
 
 pub use factory::{
     Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, FilterInserter,

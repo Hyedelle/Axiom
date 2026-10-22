@@ -3,6 +3,7 @@
 //! Command-line tools for headless replay verification, state dumping, and benchmarks.
 
 pub mod balancer;
+pub mod boxing_view;
 pub mod coop;
 pub mod desktop;
 pub mod replayer;
@@ -14,6 +15,7 @@ pub mod time_travel;
 pub mod world_view;
 
 pub use balancer::{MatchStats, MonteCarloBalancer};
+pub use boxing_view::BoxingView;
 pub use coop::{MultiplayerRaidPeer, RaidCommand, BOSS_ID, HERO_1_ID, HERO_2_ID};
 pub use desktop::{
     run_desktop_window, DesktopEngine, ProfilerMetrics, SaveFileHeader, ViewMode, DT_FIXED,

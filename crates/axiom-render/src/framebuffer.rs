@@ -274,6 +274,155 @@ impl FrameBuffer {
         upscale_nearest_2x(&self.pixels, self.width, self.height, &mut dst.pixels);
         dst
     }
+
+    /// Alpha blends a solid color over existing framebuffer pixels using pure integer math.
+    pub fn draw_rect_blend(&mut self, x: i32, y: i32, w: i32, h: i32, color: u32) {
+        let a = (color >> 24) & 0xFF;
+        if a == 0 {
+            return;
+        }
+        if a == 255 {
+            self.draw_rect(x, y, w, h, color);
+            return;
+        }
+        let inv_a = 255 - a;
+        let cr = (color >> 16) & 0xFF;
+        let cg = (color >> 8) & 0xFF;
+        let cb = color & 0xFF;
+
+        let x_start = x.max(0) as usize;
+        let x_end = ((x + w).min(self.width as i32)).max(0) as usize;
+        let y_start = y.max(0) as usize;
+        let y_end = ((y + h).min(self.height as i32)).max(0) as usize;
+
+        for cur_y in y_start..y_end {
+            let row_offset = cur_y * self.width;
+            for cur_x in x_start..x_end {
+                let idx = row_offset + cur_x;
+                let bg = self.pixels[idx];
+                let br = (bg >> 16) & 0xFF;
+                let bg_g = (bg >> 8) & 0xFF;
+                let bb = bg & 0xFF;
+
+                let out_r = (cr * a + br * inv_a) / 255;
+                let out_g = (cg * a + bg_g * inv_a) / 255;
+                let out_b = (cb * a + bb * inv_a) / 255;
+
+                self.pixels[idx] = (0xFF << 24) | (out_r << 16) | (out_g << 8) | out_b;
+            }
+        }
+    }
+
+    /// Renders a single 3x5 font character.
+    pub fn draw_char(&mut self, c: char, x: i32, y: i32, color: u32) {
+        let glyph = glyph_3x5(c);
+        if glyph == 0 {
+            return;
+        }
+        for row in 0..5 {
+            for col in 0..3 {
+                let bit = 14 - (row * 3 + col);
+                if (glyph & (1 << bit)) != 0 {
+                    self.set_pixel(x + col, y + row, color);
+                }
+            }
+        }
+    }
+
+    /// Renders a string of text using 3x5 bitmap font (4 pixels pitch).
+    pub fn draw_text(&mut self, mut x: i32, y: i32, text: &str, color: u32) {
+        for c in text.chars() {
+            if c == ' ' {
+                x += 3;
+            } else {
+                self.draw_char(c, x, y, color);
+                x += 4;
+            }
+        }
+    }
+
+    /// Renders 2x scaled bold text using 3x5 bitmap font.
+    pub fn draw_text_2x(&mut self, mut x: i32, y: i32, text: &str, color: u32) {
+        for c in text.chars() {
+            if c == ' ' {
+                x += 6;
+            } else {
+                let glyph = glyph_3x5(c);
+                if glyph != 0 {
+                    for row in 0..5 {
+                        for col in 0..3 {
+                            let bit = 14 - (row * 3 + col);
+                            if (glyph & (1 << bit)) != 0 {
+                                let px = x + col * 2;
+                                let py = y + row * 2;
+                                self.set_pixel(px, py, color);
+                                self.set_pixel(px + 1, py, color);
+                                self.set_pixel(px, py + 1, color);
+                                self.set_pixel(px + 1, py + 1, color);
+                            }
+                        }
+                    }
+                }
+                x += 8;
+            }
+        }
+    }
+}
+
+/// 3x5 Bitmap font glyph lookup table.
+pub fn glyph_3x5(c: char) -> u16 {
+    match c.to_ascii_uppercase() {
+        '0' => 0x7557,
+        '1' => 0x2C97,
+        '2' => 0x71E7,
+        '3' => 0x71CF,
+        '4' => 0x5BC9,
+        '5' => 0x79CF,
+        '6' => 0x79EF,
+        '7' => 0x7152,
+        '8' => 0x7BEF,
+        '9' => 0x7BCF,
+        'A' => 0x2BE5,
+        'B' => 0x6DAE,
+        'C' => 0x3923,
+        'D' => 0x6D6E,
+        'E' => 0x79A7,
+        'F' => 0x79A4,
+        'G' => 0x396B,
+        'H' => 0x5BE5,
+        'I' => 0x7497,
+        'J' => 0x126A,
+        'K' => 0x5D35,
+        'L' => 0x4927,
+        'M' => 0x5FE5,
+        'N' => 0x6D65,
+        'O' => 0x2D62,
+        'P' => 0x7BE4,
+        'Q' => 0x2D73,
+        'R' => 0x7BA5,
+        'S' => 0x3896,
+        'T' => 0x7492,
+        'U' => 0x5D67,
+        'V' => 0x5D52,
+        'W' => 0x5D7D,
+        'X' => 0x5AAB,
+        'Y' => 0x5A92,
+        'Z' => 0x72A7,
+        '!' => 0x2482,
+        ':' => 0x0410,
+        '-' => 0x01C0,
+        '/' => 0x12A4,
+        '.' => 0x0002,
+        '[' => 0x7247,
+        ']' => 0x7127,
+        '(' => 0x2922,
+        ')' => 0x224A,
+        '_' => 0x0007,
+        '|' => 0x2492,
+        '+' => 0x0BA0,
+        '%' => 0x52A5,
+        _ => 0,
+    }
 }
 
 /// Upscales a source pixel buffer by a factor of 2 using nearest-neighbor replication.

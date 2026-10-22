@@ -127,6 +127,8 @@ pub struct DesktopEngine {
     pub view_mode: ViewMode,
     /// Infinite streaming open world (T-073) with its own integer camera.
     pub world: OpenWorldView,
+    /// Mecha Boxing Punch-Out simulation and 2D cutins (T-075).
+    pub boxing: crate::boxing_view::BoxingView,
 }
 
 /// Scene shown in the 512x512 viewport panel.
@@ -136,13 +138,16 @@ pub enum ViewMode {
     Factory,
     /// Infinite chunk-streamed open world with a free camera.
     OpenWorld,
+    /// 3D Punch-Out Mecha Boxing Match.
+    Boxing,
 }
 
 impl ViewMode {
     pub const fn toggle(self) -> Self {
         match self {
             Self::Factory => Self::OpenWorld,
-            Self::OpenWorld => Self::Factory,
+            Self::OpenWorld => Self::Boxing,
+            Self::Boxing => Self::Factory,
         }
     }
 
@@ -150,6 +155,7 @@ impl ViewMode {
         match self {
             Self::Factory => "FACTORY",
             Self::OpenWorld => "WORLD",
+            Self::Boxing => "BOXING",
         }
     }
 }
@@ -176,12 +182,18 @@ impl DesktopEngine {
             current_direction: Direction::East,
             view_mode: ViewMode::Factory,
             world: OpenWorldView::new(seed),
+            boxing: crate::boxing_view::BoxingView::new(seed),
         }
     }
 
     /// Advances simulation by one deterministic tick. Only the scene currently on screen
     /// advances so the factory is never overrun while the player is exploring the world.
     pub fn step(&mut self) {
+        if self.view_mode == ViewMode::Boxing {
+            self.tick += 1;
+            self.decay_notification();
+            return;
+        }
         if self.view_mode == ViewMode::OpenWorld {
             self.world.step();
             self.tick += 1;
@@ -940,6 +952,13 @@ pub(crate) fn draw_text(fb: &mut FrameBuffer, text: &str, mut x: i32, y: i32, co
 impl DesktopEngine {
     /// Renders the entire factory scene, arena units, tracer bullets, cursor, sidebars, and overlays.
     pub fn render(&self, fb: &mut FrameBuffer) {
+        if self.view_mode == ViewMode::Boxing {
+            self.boxing.render(fb);
+            if self.show_profiler {
+                self.render_profiler_overlay(fb);
+            }
+            return;
+        }
         fb.clear(0xFF0A0F1D);
         if self.view_mode == ViewMode::OpenWorld {
             self.render_world(fb);
@@ -1390,11 +1409,17 @@ pub fn create_desktop_window(mode: ScaleMode) -> Result<Window, minifb::Error> {
 
 /// Main desktop window runner.
 pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
+    run_desktop_window_with_mode(ViewMode::Factory)
+}
+
+/// Desktop window runner with a designated initial view mode.
+pub fn run_desktop_window_with_mode(initial_mode: ViewMode) -> Result<(), Box<dyn std::error::Error>> {
     let mut scale_mode = ScaleMode::X1;
     let mut window = create_desktop_window(scale_mode)?;
 
     let seed = 0xABCD_9999_7777;
     let mut engine = DesktopEngine::new(seed);
+    engine.view_mode = initial_mode;
 
     let mut framebuffer = FrameBuffer::new(WIN_WIDTH, WIN_HEIGHT);
 
@@ -1409,7 +1434,7 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🚀 [Axiom Desktop Studio] Launched in 704x544 native window at {} Hz fixed simulation.", TICK_RATE_HZ);
     println!("   Controls: WASD (Move), 1~8 (Tool), R (Rotate), LMB (Build), RMB (Clear), F3 (Profiler), F5 (Save), F9 (Load), F10 (Scale), F11 (Fullscreen), ESC (Exit)");
-    println!("   World:    TAB (Factory/World), WASD+Shift (Pan/Sprint), MMB/RMB drag (Pan), H (Home), G (Chunk grid)");
+    println!("   Boxing:   TAB (Factory/World/Boxing), A/D (Slip Weave), S (Guard), J/K/L (Punches), SPACE (2D Cutin)");
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let current_time = std::time::Instant::now();
@@ -1421,7 +1446,7 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         accumulator += delta_time;
 
         // --- 1. Keyboard Input Handling ---
-        // Tab: toggle Factory <-> Open World viewport
+        // Tab: toggle Factory <-> Open World <-> Boxing viewport
         if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
             engine.view_mode = engine.view_mode.toggle();
             engine.world.camera.end_drag();
@@ -1433,7 +1458,9 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         let left = window.is_key_pressed(Key::A, KeyRepeat::Yes) || window.is_key_pressed(Key::Left, KeyRepeat::Yes);
         let right = window.is_key_pressed(Key::D, KeyRepeat::Yes) || window.is_key_pressed(Key::Right, KeyRepeat::Yes);
 
-        if engine.view_mode == ViewMode::OpenWorld {
+        if engine.view_mode == ViewMode::Boxing {
+            engine.boxing.step(&window);
+        } else if engine.view_mode == ViewMode::OpenWorld {
             // WASD / Arrows: pan the world camera (Shift = sprint). Streaming follows the camera.
             let sprint = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
             let dx = (right as i64) - (left as i64);
