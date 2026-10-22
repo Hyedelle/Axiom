@@ -530,6 +530,23 @@
           gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
           osc.start(t);
           osc.stop(t + 0.5);
+        } else if (code === 8 || code === 10) {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, t);
+          osc.frequency.setValueAtTime(659.25, t + 0.1);
+          osc.frequency.setValueAtTime(783.99, t + 0.2);
+          gain.gain.setValueAtTime(0.35, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+          osc.start(t);
+          osc.stop(t + 0.35);
+        } else if (code === 9) {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, t);
+          osc.frequency.exponentialRampToValueAtTime(880, t + 0.15);
+          gain.gain.setValueAtTime(0.4, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+          osc.start(t);
+          osc.stop(t + 0.15);
         }
       } catch (e) {}
     }
@@ -630,13 +647,22 @@
     window.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
       if (mode === 'boxing') {
-        if (k === 'a' || e.key === 'ArrowLeft') sendBoxingInput(5);
-        else if (k === 'd' || e.key === 'ArrowRight') sendBoxingInput(6);
-        else if (k === 's' || e.key === 'ArrowDown') sendBoxingInput(4);
-        else if (k === 'j' || k === 'z') sendBoxingInput(1);
-        else if (k === 'k' || k === 'x') sendBoxingInput(2);
-        else if (k === 'l' || k === 'c') sendBoxingInput(3);
-        else if (e.key === ' ' || e.code === 'Space') { sendBoxingInput(7); e.preventDefault(); }
+        const phase = wasmInstance ? wasmInstance.axiom_boxing_get_phase() : 0;
+        if (phase === 1) { // Drafting
+          if (k === '1' || k === 'j') sendBoxingInput(1);
+          else if (k === '2' || k === 'k') sendBoxingInput(2);
+          else if (k === '3' || k === 'l') sendBoxingInput(3);
+        } else if (phase === 3) { // Defeat
+          if (e.key === ' ' || e.code === 'Space') { sendBoxingInput(7); e.preventDefault(); }
+        } else {
+          if (k === 'a' || e.key === 'ArrowLeft') sendBoxingInput(5);
+          else if (k === 'd' || e.key === 'ArrowRight') sendBoxingInput(6);
+          else if (k === 's' || e.key === 'ArrowDown') sendBoxingInput(4);
+          else if (k === 'j' || k === 'z') sendBoxingInput(1);
+          else if (k === 'k' || k === 'x') sendBoxingInput(2);
+          else if (k === 'l' || k === 'c') sendBoxingInput(3);
+          else if (e.key === ' ' || e.code === 'Space') { sendBoxingInput(7); e.preventDefault(); }
+        }
       }
       if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
       if (k === 'a' || e.key === 'ArrowLeft') keys.a = true;
@@ -661,7 +687,16 @@
       const mouseX = (e.clientX - rect.left) * scaleX;
       const mouseY = (e.clientY - rect.top) * scaleY;
 
-      if (mode === 'rpg') {
+      if (mode === 'boxing') {
+        const phase = wasmInstance.axiom_boxing_get_phase();
+        if (phase === 1) { // Drafting: click left/middle/right card
+          if (mouseX < width / 3) sendBoxingInput(1);
+          else if (mouseX < width * 2 / 3) sendBoxingInput(2);
+          else sendBoxingInput(3);
+        } else if (phase === 3) { // Defeat: click to restart
+          sendBoxingInput(7);
+        }
+      } else if (mode === 'rpg') {
         const tileSize = 20;
         const tileX = Math.floor((mouseX - width / 2) / tileSize);
         const tileY = Math.floor((mouseY - height / 2) / tileSize);
@@ -702,7 +737,16 @@
       const mouseX = (touch.clientX - rect.left) * scaleX;
       const mouseY = (touch.clientY - rect.top) * scaleY;
 
-      if (mode === 'rpg') {
+      if (mode === 'boxing') {
+        const phase = wasmInstance.axiom_boxing_get_phase();
+        if (phase === 1) { // Drafting: click left/middle/right card
+          if (mouseX < width / 3) sendBoxingInput(1);
+          else if (mouseX < width * 2 / 3) sendBoxingInput(2);
+          else sendBoxingInput(3);
+        } else if (phase === 3) { // Defeat: click to restart
+          sendBoxingInput(7);
+        }
+      } else if (mode === 'rpg') {
         const tileSize = 20;
         const tileX = Math.floor((mouseX - width / 2) / tileSize);
         const tileY = Math.floor((mouseY - height / 2) / tileSize);
@@ -1033,16 +1077,27 @@
         const playerHeat = wasmInstance.axiom_boxing_get_player_heat();
         const oppHp = wasmInstance.axiom_boxing_get_opponent_hp();
         const score = wasmInstance.axiom_boxing_get_score();
-        const isKo = wasmInstance.axiom_boxing_is_ko();
+        const phase = wasmInstance.axiom_boxing_get_phase();
+        const stage = wasmInstance.axiom_boxing_get_stage();
+        const pwr = wasmInstance.axiom_boxing_get_bonus_power();
 
         if (ev > 0) playBoxingSfx(ev);
 
+        let phaseBadge = '';
+        if (phase === 1) {
+          phaseBadge = ' | <span class="gold" style="font-weight:bold;">★ DRAFTING UPGRADE (PRESS 1, 2, 3)</span>';
+        } else if (phase === 3) {
+          phaseBadge = ' | <span class="red" style="font-weight:bold;">💀 MECHA DOWN (PRESS SPACE)</span>';
+        }
+
         document.getElementById('hudDetail').innerHTML =
-          `<span class="green">Player HP:</span> ${playerHp}/100 | ` +
-          `<span class="gold">Core Heat:</span> ${playerHeat}/100 | ` +
-          `<span class="red">Opponent HP:</span> ${oppHp}/120 | ` +
-          `<span class="blue">Score:</span> ${score}` +
-          (isKo ? ` | <span class="gold" style="font-weight:bold;">🏆 KNOCKOUT!</span>` : '');
+          `<span class="purple" style="font-weight:bold;">STAGE ${stage}</span> | ` +
+          `<span class="green">HP:</span> ${playerHp} | ` +
+          `<span class="gold">Heat:</span> ${playerHeat}/100 | ` +
+          `<span class="red">Boss HP:</span> ${oppHp} | ` +
+          `<span class="blue">Power:</span> +${pwr} | ` +
+          `<span class="gold">Score:</span> ${score}` +
+          phaseBadge;
       } else if (mode === 'factory') {
         let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
         let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);

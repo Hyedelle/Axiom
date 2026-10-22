@@ -5,6 +5,8 @@
 
 use core::fmt;
 
+use crate::card::{CardKind, DeckState, TacticalCard};
+
 /// Discrete actions a boxer can perform.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,7 +77,7 @@ pub struct BoxerAction {
     pub damage: u16,
     pub heat: u16,
     pub guard_power: u16,
-    pub _pad: [u8; 6],
+    pub _pad: [u8; 4],
 }
 
 impl BoxerAction {
@@ -87,7 +89,7 @@ impl BoxerAction {
             damage: 0,
             heat: 0,
             guard_power: 0,
-            _pad: [0; 6],
+            _pad: [0; 4],
         }
     }
 
@@ -99,7 +101,7 @@ impl BoxerAction {
             damage: kind.base_damage(),
             heat: kind.heat_cost(),
             guard_power: if matches!(kind, ActionKind::Guard) { 80 } else { 0 },
-            _pad: [0; 6],
+            _pad: [0; 4],
         }
     }
 }
@@ -116,7 +118,7 @@ pub struct BoxerState {
     pub x_offset_px: i16,
     pub combo: u8,
     pub is_counter_opportunity: bool,
-    pub _pad: [u8; 32],
+    pub _pad: [u8; 28],
 }
 
 impl BoxerState {
@@ -130,7 +132,7 @@ impl BoxerState {
             x_offset_px: 0,
             combo: 0,
             is_counter_opportunity: false,
-            _pad: [0; 32],
+            _pad: [0; 28],
         }
     }
 
@@ -161,6 +163,67 @@ pub enum AiPhase {
     Recovery = 3,
 }
 
+/// Distinct Opponent Mecha Boss archetypes.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpponentKind {
+    DummyMk2 = 0,   // Stage 1: Blue training mecha (120 HP, 35 telegraph frames)
+    IronBull = 1,   // Stage 2: Crimson heavy armored mecha (200 HP, 50 telegraph frames)
+    VoltViper = 2,  // Stage 3: Neon lightning mecha (160 HP, 22 telegraph frames)
+}
+
+impl OpponentKind {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::DummyMk2 => "DUMMY-MK2 [TRAINING MECHA]",
+            Self::IronBull => "IRON-BULL [HEAVY MECHA]",
+            Self::VoltViper => "VOLT-VIPER [LIGHTNING MECHA]",
+        }
+    }
+
+    pub const fn max_hp(&self) -> i32 {
+        match self {
+            Self::DummyMk2 => 120,
+            Self::IronBull => 200,
+            Self::VoltViper => 160,
+        }
+    }
+
+    pub const fn telegraph_frames(&self) -> u16 {
+        match self {
+            Self::DummyMk2 => 35,
+            Self::IronBull => 50,
+            Self::VoltViper => 22,
+        }
+    }
+
+    pub const fn idle_frames(&self) -> u16 {
+        match self {
+            Self::DummyMk2 => 60,
+            Self::IronBull => 80,
+            Self::VoltViper => 35,
+        }
+    }
+
+    pub const fn armor_tint(&self) -> u32 {
+        match self {
+            Self::DummyMk2 => 0xFF38BDF8, // Sky Blue
+            Self::IronBull => 0xFFDC2626, // Crimson Red
+            Self::VoltViper => 0xFFFACC15, // Volt Yellow
+        }
+    }
+}
+
+/// Roguelite run fight phase.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FightPhase {
+    Combat = 0,
+    Drafting = 1,
+    Victory = 2,
+    Defeat = 3,
+}
+
 /// Events produced during a simulation tick.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,41 +235,66 @@ pub enum BoxingEvent {
     PlayerStruck { damage: u16 },
     OpponentDowned,
     PlayerDowned,
+    DraftOpened,
+    CardDrafted { kind: CardKind },
+    StageCleared { next_stage: u16 },
 }
 
-/// 64-byte aligned Boxing Ring Simulation Engine.
+/// 64-byte aligned Boxing Ring Simulation Engine (256 bytes total).
 #[repr(C, align(64))]
 #[derive(Clone)]
 pub struct BoxingRingEngine {
     pub tick: u64,
+    pub _pad0: [u8; 8],
+    pub draft_options: [TacticalCard; 3],
     pub player: BoxerState,
     pub opponent: BoxerState,
-    pub ai_phase: AiPhase,
+    pub score: u32,
+    pub stage: u16,
+    pub bonus_power: u16,
+    pub seed: u64,
     pub ai_timer: u16,
+    pub counter_mult: u16,
+    pub opponent_kind: OpponentKind,
+    pub fight_phase: FightPhase,
+    pub cooling_rate: u8,
+    pub guard_absorption: u8,
+    pub ai_phase: AiPhase,
     pub pending_opp_attack: ActionKind,
     pub hit_stop_frames: u8,
     pub camera_shake: u8,
     pub last_event: BoxingEvent,
-    pub score: u32,
-    pub seed: u64,
-    pub _pad: [u8; 16],
+    pub _pad1: [u8; 30],
 }
 
 impl BoxingRingEngine {
     pub fn new(seed: u64) -> Self {
+        let opponent_kind = OpponentKind::DummyMk2;
+        let mut deck = DeckState::<16>::new();
+        let draft_options = deck.roll_draft_choices(seed.wrapping_add(1001));
+
         Self {
             tick: 0,
+            _pad0: [0; 8],
+            draft_options,
             player: BoxerState::new(100),
-            opponent: BoxerState::new(120),
+            opponent: BoxerState::new(opponent_kind.max_hp()),
+            score: 0,
+            stage: 1,
+            bonus_power: 0,
+            seed,
+            ai_timer: opponent_kind.idle_frames(),
+            counter_mult: 150,
+            opponent_kind,
+            fight_phase: FightPhase::Combat,
+            cooling_rate: 0,
+            guard_absorption: 80,
             ai_phase: AiPhase::Idle,
-            ai_timer: 90, // 1.5s initial idle
             pending_opp_attack: ActionKind::Jab,
             hit_stop_frames: 0,
             camera_shake: 0,
             last_event: BoxingEvent::None,
-            score: 0,
-            seed,
-            _pad: [0; 16],
+            _pad1: [0; 30],
         }
     }
 
@@ -226,25 +314,109 @@ impl BoxingRingEngine {
             self.camera_shake -= 1;
         }
 
-        if !self.player.is_alive() || !self.opponent.is_alive() {
-            return BoxingEvent::None;
+        // 1. In Drafting Phase: Player input picks cards!
+        if self.fight_phase == FightPhase::Drafting {
+            match player_input {
+                ActionKind::Jab => { self.draft_card(0); }
+                ActionKind::Cross => { self.draft_card(1); }
+                ActionKind::Hook => { self.draft_card(2); }
+                _ => {}
+            }
+            return self.last_event;
         }
 
-        // 1. Natural Heat Dissipation (1 unit every 10 frames)
+        // 2. In Defeat / Victory Phase: Finisher / Space resets the run
+        if self.fight_phase == FightPhase::Defeat || self.fight_phase == FightPhase::Victory {
+            if player_input == ActionKind::Finisher {
+                *self = BoxingRingEngine::new(self.seed.wrapping_add(self.tick));
+            }
+            return self.last_event;
+        }
+
+        // 3. Check for Down state transitions
+        if !self.opponent.is_alive() {
+            if self.opponent.action.kind == ActionKind::Down && self.opponent.action.frame >= self.opponent.action.max_frame {
+                self.fight_phase = FightPhase::Drafting;
+                let mut deck = DeckState::<16>::new();
+                self.draft_options = deck.roll_draft_choices(self.seed.wrapping_add(self.stage as u64 * 7919 + self.tick));
+                self.last_event = BoxingEvent::DraftOpened;
+                return self.last_event;
+            }
+            self.update_action_frames();
+            return self.last_event;
+        }
+
+        if !self.player.is_alive() {
+            if self.player.action.kind == ActionKind::Down && self.player.action.frame >= self.player.action.max_frame {
+                self.fight_phase = FightPhase::Defeat;
+                return self.last_event;
+            }
+            self.update_action_frames();
+            return self.last_event;
+        }
+
+        // 4. Natural Heat Dissipation (1 + cooling_rate units every 10 frames)
         if self.tick % 10 == 0 && self.player.heat > 0 {
-            self.player.heat -= 1;
+            self.player.heat = self.player.heat.saturating_sub(1 + self.cooling_rate as u16);
         }
 
-        // 2. Process Player Action
+        // 5. Process Player Action
         self.process_player_input(player_input);
 
-        // 3. Process Opponent AI State Machine
+        // 6. Process Opponent AI State Machine
         self.process_opponent_ai();
 
-        // 4. Update Ongoing Actions
+        // 7. Update Ongoing Actions
         self.update_action_frames();
 
         self.last_event
+    }
+
+    /// Picks a card from the 3 draft options, applies perks, repairs player, and advances stage.
+    pub fn draft_card(&mut self, choice_idx: usize) -> bool {
+        if self.fight_phase != FightPhase::Drafting || choice_idx >= 3 {
+            return false;
+        }
+        let chosen_card = self.draft_options[choice_idx];
+        match chosen_card.kind {
+            CardKind::Straight => { self.bonus_power = self.bonus_power.saturating_add(5); }
+            CardKind::Guard => { self.guard_absorption = (self.guard_absorption + 5).min(95); }
+            CardKind::OverheatHook => { self.bonus_power = self.bonus_power.saturating_add(15); }
+            CardKind::CounterSlip => { self.counter_mult = self.counter_mult.saturating_add(40); }
+            CardKind::PlasmaUpper => { self.bonus_power = self.bonus_power.saturating_add(20); }
+            CardKind::IronBastion => { self.guard_absorption = 92; }
+            CardKind::CryoCooler => { self.cooling_rate = self.cooling_rate.saturating_add(1); }
+            CardKind::TitanPlating => {
+                self.player.max_hp += 30;
+                self.guard_absorption = (self.guard_absorption + 5).min(95);
+            }
+            CardKind::OverdriveCore => { self.bonus_power = self.bonus_power.saturating_add(15); }
+        }
+        // Base repair upon victory (+35 HP)
+        self.player.hp = (self.player.hp + 35).min(self.player.max_hp);
+        self.score += 500;
+        self.last_event = BoxingEvent::CardDrafted { kind: chosen_card.kind };
+
+        // Advance stage
+        self.advance_to_next_stage();
+        true
+    }
+
+    /// Advances the stage and spawns the next opponent mecha.
+    pub fn advance_to_next_stage(&mut self) {
+        self.stage += 1;
+        self.opponent_kind = match self.stage % 3 {
+            1 => OpponentKind::DummyMk2,
+            2 => OpponentKind::IronBull,
+            0 => OpponentKind::VoltViper,
+            _ => OpponentKind::DummyMk2,
+        };
+        let extra_hp = ((self.stage as i32 - 1) / 3) * 30;
+        self.opponent = BoxerState::new(self.opponent_kind.max_hp() + extra_hp);
+        self.ai_phase = AiPhase::Idle;
+        self.ai_timer = self.opponent_kind.idle_frames();
+        self.fight_phase = FightPhase::Combat;
+        self.last_event = BoxingEvent::StageCleared { next_stage: self.stage };
     }
 
     fn process_player_input(&mut self, input: ActionKind) {
@@ -288,18 +460,22 @@ impl BoxingRingEngine {
 
         match self.ai_phase {
             AiPhase::Idle => {
-                // Determine next attack using PRNG
+                // Determine next attack using PRNG and boss archetype
                 let roll = self.prng_next() % 100;
-                self.pending_opp_attack = if roll < 40 {
-                    ActionKind::Jab
-                } else if roll < 80 {
-                    ActionKind::Cross
-                } else {
-                    ActionKind::Hook
+                self.pending_opp_attack = match self.opponent_kind {
+                    OpponentKind::DummyMk2 => {
+                        if roll < 60 { ActionKind::Jab } else if roll < 90 { ActionKind::Cross } else { ActionKind::Hook }
+                    }
+                    OpponentKind::IronBull => {
+                        if roll < 20 { ActionKind::Jab } else if roll < 60 { ActionKind::Cross } else { ActionKind::Hook }
+                    }
+                    OpponentKind::VoltViper => {
+                        if roll < 65 { ActionKind::Jab } else if roll < 85 { ActionKind::Cross } else { ActionKind::Hook }
+                    }
                 };
 
                 self.ai_phase = AiPhase::Telegraph;
-                self.ai_timer = 28; // ~460ms telegraph warning
+                self.ai_timer = self.opponent_kind.telegraph_frames();
                 self.opponent.action = BoxerAction::idle();
                 self.opponent.is_counter_opportunity = true;
             }
@@ -314,11 +490,15 @@ impl BoxingRingEngine {
                 // Resolve opponent attack impact on player
                 self.resolve_opponent_hit();
                 self.ai_phase = AiPhase::Recovery;
-                self.ai_timer = 24; // Vulnerable recovery window
+                self.ai_timer = match self.opponent_kind {
+                    OpponentKind::DummyMk2 => 24,
+                    OpponentKind::IronBull => 32, // Heavy recovery window!
+                    OpponentKind::VoltViper => 14, // Brief recovery window!
+                };
             }
             AiPhase::Recovery => {
                 self.ai_phase = AiPhase::Idle;
-                self.ai_timer = 45 + (self.prng_next() % 40) as u16; // Random pause before next combo
+                self.ai_timer = self.opponent_kind.idle_frames() + (self.prng_next() % 25) as u16;
                 self.opponent.action = BoxerAction::idle();
             }
         }
@@ -335,7 +515,13 @@ impl BoxingRingEngine {
         // B. Check if player guarded
         if self.player.action.kind == ActionKind::Guard {
             let full_dmg = self.pending_opp_attack.base_damage();
-            let chip = (full_dmg * 20 / 100).max(2);
+            // IronBull punches penetrate guard with heavier chip damage!
+            let absorb = if self.opponent_kind == OpponentKind::IronBull {
+                self.guard_absorption.saturating_sub(25).max(40)
+            } else {
+                self.guard_absorption
+            };
+            let chip = (full_dmg * (100 - absorb as u16) / 100).max(2);
             self.player.hp = (self.player.hp - chip as i32).max(0);
             self.last_event = BoxingEvent::PlayerBlocked { chip };
             self.hit_stop_frames = 3;
@@ -389,10 +575,10 @@ impl BoxingRingEngine {
     }
 
     fn resolve_player_hit(&mut self) {
-        let base_dmg = self.player.action.damage;
+        let base_dmg = self.player.action.damage.saturating_add(self.bonus_power);
         let is_counter = self.opponent.is_counter_opportunity || self.ai_phase == AiPhase::Recovery;
         let final_dmg = if is_counter {
-            (base_dmg * 150) / 100
+            (base_dmg * self.counter_mult) / 100
         } else {
             base_dmg
         };
@@ -441,5 +627,43 @@ impl BoxingRingEngine {
             }
         }
         hash
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_boxing_engine_size_and_alignment() {
+        assert_eq!(core::mem::align_of::<BoxerState>(), 64);
+        assert_eq!(core::mem::size_of::<BoxerState>(), 64);
+        assert_eq!(core::mem::align_of::<BoxingRingEngine>(), 64);
+        assert_eq!(core::mem::size_of::<BoxingRingEngine>(), 256);
+    }
+
+    #[test]
+    fn test_card_drafting_and_boss_progression() {
+        let mut engine = BoxingRingEngine::new(42);
+        assert_eq!(engine.stage, 1);
+        assert_eq!(engine.opponent_kind, OpponentKind::DummyMk2);
+        assert_eq!(engine.fight_phase, FightPhase::Combat);
+
+        // Simulate opponent KO
+        engine.opponent.hp = 0;
+        engine.opponent.action = BoxerAction::from_kind(ActionKind::Down);
+        engine.opponent.action.frame = engine.opponent.action.max_frame;
+
+        let ev = engine.step(ActionKind::Idle);
+        assert_eq!(ev, BoxingEvent::DraftOpened);
+        assert_eq!(engine.fight_phase, FightPhase::Drafting);
+
+        // Draft card #0
+        let _prev_power = engine.bonus_power;
+        assert!(engine.draft_card(0));
+        assert_eq!(engine.stage, 2);
+        assert_eq!(engine.opponent_kind, OpponentKind::IronBull);
+        assert_eq!(engine.fight_phase, FightPhase::Combat);
+        assert!(engine.opponent.hp >= 200);
     }
 }

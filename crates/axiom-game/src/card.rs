@@ -14,6 +14,9 @@ pub enum CardKind {
     CounterSlip = 3,
     PlasmaUpper = 4,
     IronBastion = 5,
+    CryoCooler = 6,
+    TitanPlating = 7,
+    OverdriveCore = 8,
 }
 
 impl CardKind {
@@ -25,6 +28,23 @@ impl CardKind {
             Self::CounterSlip => "COUNTER SLIP",
             Self::PlasmaUpper => "PLASMA UPPER",
             Self::IronBastion => "IRON BASTION",
+            Self::CryoCooler => "CRYO VALVE",
+            Self::TitanPlating => "NANO ARMOR",
+            Self::OverdriveCore => "OVERDRIVE",
+        }
+    }
+
+    pub const fn description(&self) -> &'static str {
+        match self {
+            Self::Straight => "QUICK 1-2 PUNCH [PWR:15 HEAT:10]",
+            Self::Guard => "TITANIUM SHIELD [ABSORB:80%]",
+            Self::OverheatHook => "MASSIVE HOOK [PWR:38 HEAT:35]",
+            Self::CounterSlip => "COUNTER WEAVE [150% CRIT DMG]",
+            Self::PlasmaUpper => "PLASMA CANNON [PWR:45 HEAT:50]",
+            Self::IronBastion => "HEAVY FORTRESS [ABSORB:90%]",
+            Self::CryoCooler => "COOLING SPEED x2 [HEAT RECOVERY]",
+            Self::TitanPlating => "MAX HP +30 & IMMEDIATE REPAIR",
+            Self::OverdriveCore => "OVERCLOCK [ALL DMG +15]",
         }
     }
 }
@@ -78,6 +98,18 @@ impl TacticalCard {
     pub const fn iron_bastion() -> Self {
         Self::new(6, CardKind::IronBastion, 0, 0, 35, 1)
     }
+
+    pub const fn cryo_cooler() -> Self {
+        Self::new(7, CardKind::CryoCooler, 0, 0, 0, 0)
+    }
+
+    pub const fn titan_plating() -> Self {
+        Self::new(8, CardKind::TitanPlating, 0, 0, 15, 0)
+    }
+
+    pub const fn overdrive_core() -> Self {
+        Self::new(9, CardKind::OverdriveCore, 15, 0, 0, 0)
+    }
 }
 
 /// 64-byte aligned Deck State holding active player cards.
@@ -127,6 +159,65 @@ impl<const CAP: usize> DeckState<CAP> {
     pub fn select_active(&mut self, idx: usize) {
         if idx < self.count {
             self.active_card_idx = idx;
+        }
+    }
+
+    /// Deterministically rolls 3 distinct card choices from a 9-card pool based on RNG seed.
+    pub fn roll_draft_choices(&mut self, seed: u64) -> [TacticalCard; 3] {
+        let pool = [
+            TacticalCard::straight(),
+            TacticalCard::guard_card(),
+            TacticalCard::overheat_hook(),
+            TacticalCard::counter_slip(),
+            TacticalCard::plasma_upper(),
+            TacticalCard::iron_bastion(),
+            TacticalCard::cryo_cooler(),
+            TacticalCard::titan_plating(),
+            TacticalCard::overdrive_core(),
+        ];
+        let n = pool.len() as u64;
+        let c0 = (seed.wrapping_mul(6364136223846793005) >> 32) % n;
+        let c1 = ((seed.wrapping_add(1)).wrapping_mul(1442695040888963407) >> 32) % (n - 1);
+        let c1_idx = if c1 >= c0 { c1 + 1 } else { c1 };
+        let c2 = ((seed.wrapping_add(2)).wrapping_mul(2862933555777941757) >> 32) % (n - 2);
+        let mut idx2 = 0;
+        let mut skipped = 0;
+        for i in 0..n {
+            if i != c0 && i != c1_idx {
+                if skipped == c2 {
+                    idx2 = i;
+                    break;
+                }
+                skipped += 1;
+            }
+        }
+        self.draft_choices = [c0 as u8, c1_idx as u8, idx2 as u8];
+        [pool[c0 as usize], pool[c1_idx as usize], pool[idx2 as usize]]
+    }
+
+    /// Adds the chosen card (index 0, 1, or 2) to the active deck and returns it.
+    pub fn pick_draft_choice(&mut self, choice_idx: usize) -> Option<TacticalCard> {
+        if choice_idx >= 3 {
+            return None;
+        }
+        let pool = [
+            TacticalCard::straight(),
+            TacticalCard::guard_card(),
+            TacticalCard::overheat_hook(),
+            TacticalCard::counter_slip(),
+            TacticalCard::plasma_upper(),
+            TacticalCard::iron_bastion(),
+            TacticalCard::cryo_cooler(),
+            TacticalCard::titan_plating(),
+            TacticalCard::overdrive_core(),
+        ];
+        let card_idx = self.draft_choices[choice_idx] as usize;
+        if card_idx < pool.len() {
+            let card = pool[card_idx];
+            self.add_card(card);
+            Some(card)
+        } else {
+            None
         }
     }
 }

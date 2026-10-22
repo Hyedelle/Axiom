@@ -22,7 +22,7 @@ use axiom_core::schema::{RecipeDefinition, RecipeRegistry};
 use axiom_core::state::TickState;
 pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
-use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine};
+use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::FrameBuffer;
 
@@ -2184,6 +2184,21 @@ pub extern "C" fn axiom_boxing_step(action_code: u32) -> u32 {
             engine.feedback_color = 0xFFDC2626;
             7
         }
+        BoxingEvent::DraftOpened => {
+            engine.feedback_msg = "STAGE CLEARED! SELECT TACTICAL CARD [1, 2, OR 3]";
+            engine.feedback_color = 0xFFFBBF24;
+            8
+        }
+        BoxingEvent::CardDrafted { .. } => {
+            engine.feedback_msg = "UPGRADE EQUIPPED! ADVANCING TO NEXT ARENA...";
+            engine.feedback_color = 0xFF38BDF8;
+            9
+        }
+        BoxingEvent::StageCleared { .. } => {
+            engine.feedback_msg = "NEXT OPPONENT ENGAGING!";
+            engine.feedback_color = 0xFFF97316;
+            10
+        }
     };
 
     if event_code != 0 {
@@ -2252,7 +2267,7 @@ pub extern "C" fn axiom_boxing_render() {
     } else if is_telegraph {
         0xFFEF4444
     } else {
-        0xFF38BDF8
+        engine.engine.opponent_kind.armor_tint()
     };
 
     fb.draw_rect(opp_base_x - 28, opp_y - 48, 56, 48, 0xFF0F172A);
@@ -2318,7 +2333,8 @@ pub extern "C" fn axiom_boxing_render() {
     fb.draw_rect(w / 2 - 176, 16, 352, 18, 0xFF1E293B);
     let opp_ratio = (engine.engine.opponent.hp as usize * 352) / (engine.engine.opponent.max_hp as usize).max(1);
     fb.draw_rect(w / 2 - 176, 16, opp_ratio as i32, 18, 0xFFDC2626);
-    fb.draw_text(w / 2 - 170, 21, "OPPONENT: DUMMY-MK2", 0xFFFFFFFF);
+    let opp_label = alloc::format!("OPPONENT: {} (STAGE {})", engine.engine.opponent_kind.name(), engine.engine.stage);
+    fb.draw_text(w / 2 - 170, 21, &opp_label, 0xFFFFFFFF);
 
     if engine.feedback_timer > 0 {
         let msg_len = (engine.feedback_msg.len() as i32) * 4;
@@ -2341,7 +2357,7 @@ pub extern "C" fn axiom_boxing_render() {
     let heat_bar_col = if engine.engine.player.heat > 80 { 0xFFDC2626 } else { 0xFFF97316 };
     fb.draw_rect(24, bottom_y + 46, heat_ratio as i32, 10, heat_bar_col);
 
-    let score_str = alloc::format!("SCORE: {}", engine.engine.score);
+    let score_str = alloc::format!("SCORE: {} | STAGE: {} | PWR: +{}", engine.engine.score, engine.engine.stage, engine.engine.bonus_power);
     fb.draw_text(24, bottom_y + 62, &score_str, 0xFFFBBF24);
 
     // Bottom Right Controls Hint
@@ -2357,6 +2373,98 @@ pub extern "C" fn axiom_boxing_render() {
         let permille = (40 - engine.cutin_frames) as u32 * 1000 / 40;
         render_cutin_overlay(fb, engine.cutin_kind, permille, ring_cx, ring_cy);
     }
+
+    // Tactical Overlays (Card Draft / Run Defeat)
+    if engine.engine.fight_phase == FightPhase::Drafting {
+        fb.draw_rect_blend(0, 0, w, h, 0xDD050811);
+        fb.draw_rect_blend(w / 2 - 240, 45, 480, 44, 0xEE0F172A);
+        fb.draw_rect(w / 2 - 238, 47, 476, 40, 0xFF334155);
+        fb.draw_text_2x(w / 2 - 210, 52, "★ STAGE CLEARED! ★", 0xFFFBBF24);
+        fb.draw_text(w / 2 - 160, 74, "SELECT 1 OF 3 TACTICAL REPAIR UPGRADES", 0xFFE2E8F0);
+
+        let card_w = 190;
+        let card_h = 240;
+        let gap = 20;
+        let start_x = (w - (card_w * 3 + gap * 2)) / 2;
+        let start_y = 115;
+
+        for i in 0..3 {
+            let cx = start_x + (i as i32) * (card_w + gap);
+            let cy = start_y;
+            let card = engine.engine.draft_options[i];
+
+            fb.draw_rect(cx, cy, card_w, card_h, 0xFF020617);
+            fb.draw_rect(cx + 2, cy + 2, card_w - 4, card_h - 4, 0xFF1E293B);
+
+            let (bar_col, text_col) = match i {
+                0 => (0xFF0284C7, 0xFF38BDF8),
+                1 => (0xFFD97706, 0xFFFBBF24),
+                _ => (0xFF7C3AED, 0xFFC084FC),
+            };
+            fb.draw_rect(cx + 4, cy + 4, card_w - 8, 30, bar_col);
+            let key_char = match i { 0 => 'J', 1 => 'K', _ => 'L' };
+            let key_str = alloc::format!("[KEY {} / {}]", i + 1, key_char);
+            fb.draw_text(cx + 10, cy + 12, &key_str, 0xFFFFFFFF);
+
+            fb.draw_text(cx + 10, cy + 45, card.kind.name(), text_col);
+
+            fb.draw_rect(cx + 8, cy + 65, card_w - 16, 50, 0xFF0F172A);
+            let p_str = alloc::format!("POWER: +{}", card.power);
+            let h_str = alloc::format!("HEAT:  +{}", card.heat);
+            let g_str = alloc::format!("GUARD: +{}", card.guard);
+            fb.draw_text(cx + 14, cy + 72, &p_str, 0xFFF87171);
+            fb.draw_text(cx + 14, cy + 86, &h_str, 0xFFFB923C);
+            fb.draw_text(cx + 14, cy + 100, &g_str, 0xFF34D399);
+
+            fb.draw_rect(cx + 8, cy + 125, card_w - 16, 75, 0xFF0B0F19);
+            fb.draw_text(cx + 12, cy + 135, card.kind.description(), 0xFFE2E8F0);
+
+            fb.draw_rect(cx + 12, cy + 208, card_w - 24, 22, bar_col);
+            let eq_str = alloc::format!("EQUIP CARD [{}]", i + 1);
+            fb.draw_text(cx + 35, cy + 214, &eq_str, 0xFFFFFFFF);
+        }
+
+        fb.draw_rect_blend(w / 2 - 200, h - 55, 400, 28, 0xEE0F172A);
+        fb.draw_text(w / 2 - 180, h - 46, "PRESS [1, 2, 3] OR [J, K, L] TO EQUIP & ENTER NEXT STAGE", 0xFF94A3B8);
+    } else if engine.engine.fight_phase == FightPhase::Defeat {
+        fb.draw_rect_blend(0, 0, w, h, 0xEE1E0505);
+        fb.draw_rect_blend(w / 2 - 200, h / 2 - 50, 400, 100, 0xEE0B0F19);
+        fb.draw_text_2x(w / 2 - 130, h / 2 - 35, "MECHA DOWN!", 0xFFEF4444);
+        let final_str = alloc::format!("FINAL SCORE: {}", engine.engine.score);
+        fb.draw_text(w / 2 - 100, h / 2 + 5, &final_str, 0xFFFBBF24);
+        fb.draw_text(w / 2 - 140, h / 2 + 25, "PRESS SPACE TO REBOOT MECHA RUN", 0xFFE2E8F0);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_draft_card(choice_idx: u32) -> u32 {
+    let engine = match boxing_engine() {
+        Some(e) => e,
+        None => return 0,
+    };
+    if engine.engine.draft_card(choice_idx as usize) {
+        engine.feedback_msg = "UPGRADE EQUIPPED! ADVANCING TO NEXT ARENA...";
+        engine.feedback_color = 0xFF38BDF8;
+        engine.feedback_timer = 60;
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_phase() -> u32 {
+    boxing_engine().map(|e| e.engine.fight_phase as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_stage() -> u32 {
+    boxing_engine().map(|e| e.engine.stage as u32).unwrap_or(1)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_boxing_get_bonus_power() -> u32 {
+    boxing_engine().map(|e| e.engine.bonus_power as u32).unwrap_or(0)
 }
 
 #[no_mangle]
@@ -2419,6 +2527,8 @@ mod tests {
         assert_eq!(axiom_boxing_get_tick(), 0);
         assert_eq!(axiom_boxing_get_player_hp(), 100);
         assert_eq!(axiom_boxing_get_opponent_hp(), 120);
+        assert_eq!(axiom_boxing_get_stage(), 1);
+        assert_eq!(axiom_boxing_get_phase(), 0);
         assert_eq!(axiom_boxing_get_framebuffer_len(), 640 * 480);
 
         // Step jab and render
@@ -2428,6 +2538,15 @@ mod tests {
         let ptr = axiom_boxing_get_framebuffer_ptr();
         assert!(!ptr.is_null());
         assert_eq!(axiom_boxing_is_ko(), 0);
+
+        // Test draft card export
+        if let Some(engine) = boxing_engine() {
+            engine.engine.fight_phase = FightPhase::Drafting;
+        }
+        assert_eq!(axiom_boxing_get_phase(), 1);
+        assert_eq!(axiom_boxing_draft_card(0), 1);
+        assert_eq!(axiom_boxing_get_stage(), 2);
+        assert_eq!(axiom_boxing_get_phase(), 0);
     }
 
     #[test]

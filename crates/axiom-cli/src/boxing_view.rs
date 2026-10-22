@@ -6,7 +6,7 @@
 
 use minifb::{Key, Window};
 
-use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine};
+use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_game::card::DeckState;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::FrameBuffer;
@@ -43,40 +43,68 @@ impl BoxingView {
     pub fn step(&mut self, window: &Window) {
         let mut input = ActionKind::Idle;
 
-        if window.is_key_down(Key::Space) {
-            input = ActionKind::Finisher;
-            if self.cutin_frames == 0 && self.engine.player.heat <= self.engine.player.max_heat {
-                self.cutin_frames = 40; // ~666ms anime cutin
-                self.cutin_kind = CutinKind::OverheatMeltdown;
-                sound::play_sound(SoundKind::Hit);
+        if self.engine.fight_phase == FightPhase::Drafting {
+            if window.is_key_pressed(Key::Key1, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::NumPad1, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::J, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::Jab; // Picks card 0
+                sound::play_sound(SoundKind::Build);
+            } else if window.is_key_pressed(Key::Key2, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::NumPad2, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::K, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::Cross; // Picks card 1
+                sound::play_sound(SoundKind::Build);
+            } else if window.is_key_pressed(Key::Key3, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::NumPad3, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::L, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::Hook; // Picks card 2
+                sound::play_sound(SoundKind::Build);
             }
-        } else if window.is_key_down(Key::S) || window.is_key_down(Key::Down) {
-            input = ActionKind::Guard;
-        } else if window.is_key_pressed(Key::A, minifb::KeyRepeat::No)
-            || window.is_key_pressed(Key::Left, minifb::KeyRepeat::No)
-        {
-            input = ActionKind::SlipLeft;
-            sound::play_sound(SoundKind::Shoot);
-        } else if window.is_key_pressed(Key::D, minifb::KeyRepeat::No)
-            || window.is_key_pressed(Key::Right, minifb::KeyRepeat::No)
-        {
-            input = ActionKind::SlipRight;
-            sound::play_sound(SoundKind::Shoot);
-        } else if window.is_key_pressed(Key::J, minifb::KeyRepeat::No)
-            || window.is_key_pressed(Key::Z, minifb::KeyRepeat::No)
-        {
-            input = ActionKind::Jab;
-            sound::play_sound(SoundKind::Shoot);
-        } else if window.is_key_pressed(Key::K, minifb::KeyRepeat::No)
-            || window.is_key_pressed(Key::X, minifb::KeyRepeat::No)
-        {
-            input = ActionKind::Cross;
-            sound::play_sound(SoundKind::Shoot);
-        } else if window.is_key_pressed(Key::L, minifb::KeyRepeat::No)
-            || window.is_key_pressed(Key::C, minifb::KeyRepeat::No)
-        {
-            input = ActionKind::Hook;
-            sound::play_sound(SoundKind::Shoot);
+        } else if self.engine.fight_phase == FightPhase::Defeat || self.engine.fight_phase == FightPhase::Victory {
+            if window.is_key_pressed(Key::Space, minifb::KeyRepeat::No) || window.is_key_pressed(Key::Enter, minifb::KeyRepeat::No) {
+                input = ActionKind::Finisher; // Resets run
+                sound::play_sound(SoundKind::SaveChime);
+            }
+        } else {
+            // Normal combat controls
+            if window.is_key_down(Key::Space) {
+                input = ActionKind::Finisher;
+                if self.cutin_frames == 0 && self.engine.player.heat <= self.engine.player.max_heat {
+                    self.cutin_frames = 40; // ~666ms anime cutin
+                    self.cutin_kind = CutinKind::OverheatMeltdown;
+                    sound::play_sound(SoundKind::Hit);
+                }
+            } else if window.is_key_down(Key::S) || window.is_key_down(Key::Down) {
+                input = ActionKind::Guard;
+            } else if window.is_key_pressed(Key::A, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::Left, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::SlipLeft;
+                sound::play_sound(SoundKind::Shoot);
+            } else if window.is_key_pressed(Key::D, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::Right, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::SlipRight;
+                sound::play_sound(SoundKind::Shoot);
+            } else if window.is_key_pressed(Key::J, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::Z, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::Jab;
+                sound::play_sound(SoundKind::Shoot);
+            } else if window.is_key_pressed(Key::K, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::X, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::Cross;
+                sound::play_sound(SoundKind::Shoot);
+            } else if window.is_key_pressed(Key::L, minifb::KeyRepeat::No)
+                || window.is_key_pressed(Key::C, minifb::KeyRepeat::No)
+            {
+                input = ActionKind::Hook;
+                sound::play_sound(SoundKind::Shoot);
+            }
         }
 
         // Advance simulation
@@ -113,6 +141,18 @@ impl BoxingView {
             BoxingEvent::PlayerDowned => {
                 sound::play_sound(SoundKind::Demolish);
                 self.set_feedback("PLAYER DOWNED! MATCH OVER", 0xFFDC2626);
+            }
+            BoxingEvent::DraftOpened => {
+                sound::play_sound(SoundKind::SaveChime);
+                self.set_feedback("STAGE CLEARED! SELECT TACTICAL CARD [1, 2, OR 3]", 0xFFFBBF24);
+            }
+            BoxingEvent::CardDrafted { kind: _ } => {
+                sound::play_sound(SoundKind::Build);
+                self.set_feedback("CARD EQUIPPED! ADVANCING TO NEXT ARENA...", 0xFF38BDF8);
+            }
+            BoxingEvent::StageCleared { next_stage: _ } => {
+                sound::play_sound(SoundKind::SaveChime);
+                self.set_feedback("NEXT OPPONENT ENGAGING!", 0xFFF97316);
             }
             BoxingEvent::None => {}
         }
@@ -186,6 +226,13 @@ impl BoxingView {
             let permille = (40 - self.cutin_frames) as u32 * 1000 / 40;
             render_cutin_overlay(fb, self.cutin_kind, permille, ring_cx, ring_cy);
         }
+
+        // 7. Tactical Overlays (Card Draft / Run Defeat)
+        if self.engine.fight_phase == FightPhase::Drafting {
+            self.render_draft_overlay(fb, w, h);
+        } else if self.engine.fight_phase == FightPhase::Defeat {
+            self.render_defeat_overlay(fb, w, h);
+        }
     }
 
     fn render_opponent_boxer(&self, fb: &mut FrameBuffer, cx: i32, cy: i32) {
@@ -199,7 +246,7 @@ impl BoxingView {
         } else if is_telegraph {
             0xFFEF4444 // Red warning tint
         } else {
-            0xFF38BDF8 // Sky blue armor
+            self.engine.opponent_kind.armor_tint()
         };
 
         // Opponent Torso (Cel shaded with dark outline)
@@ -278,7 +325,8 @@ impl BoxingView {
 
         let opp_ratio = (self.engine.opponent.hp as usize * 352) / (self.engine.opponent.max_hp as usize).max(1);
         fb.draw_rect(w / 2 - 176, 20, opp_ratio as i32, 18, 0xFFDC2626);
-        fb.draw_text(w / 2 - 170, 25, "OPPONENT: DUMMY-MK2", 0xFFFFFFFF);
+        let opp_label = format!("OPPONENT: {} (STAGE {})", self.engine.opponent_kind.name(), self.engine.stage);
+        fb.draw_text(w / 2 - 170, 25, &opp_label, 0xFFFFFFFF);
 
         // Feedback Banner
         if self.feedback_timer > 0 {
@@ -289,7 +337,7 @@ impl BoxingView {
         }
 
         // Bottom Left Player HP & Heat Gauges
-        fb.draw_rect_blend(20, 430, 220, 95, 0xEE0B0F19);
+        fb.draw_rect_blend(20, 430, 230, 95, 0xEE0B0F19);
         fb.draw_text(30, 440, "PLAYER INTEGRITY (HP)", 0xFFE2E8F0);
         fb.draw_rect(30, 452, 200, 14, 0xFF1E293B);
         let hp_ratio = (self.engine.player.hp as usize * 200) / (self.engine.player.max_hp as usize).max(1);
@@ -301,7 +349,8 @@ impl BoxingView {
         let heat_col = if self.engine.player.heat > 80 { 0xFFDC2626 } else { 0xFFF97316 };
         fb.draw_rect(30, 486, heat_ratio as i32, 12, heat_col);
 
-        fb.draw_text(30, 508, &format!("SCORE: {}", self.engine.score), 0xFFFBBF24);
+        let stat_str = format!("SCORE: {} | STAGE: {} | PWR: +{}", self.engine.score, self.engine.stage, self.engine.bonus_power);
+        fb.draw_text(30, 508, &stat_str, 0xFFFBBF24);
 
         // Bottom Right Tactical Cards & Controls
         fb.draw_rect_blend(w - 280, 430, 260, 95, 0xEE0B0F19);
@@ -310,5 +359,63 @@ impl BoxingView {
         fb.draw_text(w - 270, 470, "S     : TITAN GUARD BLOCK", 0xFFE2E8F0);
         fb.draw_text(w - 270, 484, "J/K/L : JAB / CROSS / HOOK", 0xFF38BDF8);
         fb.draw_text(w - 270, 498, "SPACE : 2D ANIME CUTIN FINISHER", 0xFFF43F5E);
+    }
+
+    fn render_draft_overlay(&self, fb: &mut FrameBuffer, w: i32, h: i32) {
+        fb.draw_rect_blend(0, 0, w, h, 0xDD050811);
+
+        // Header Title Banner
+        fb.draw_rect_blend(w / 2 - 240, 45, 480, 44, 0xEE0F172A);
+        fb.draw_rect(w / 2 - 238, 47, 476, 40, 0xFF334155);
+        fb.draw_text_2x(w / 2 - 210, 52, "★ STAGE CLEARED! ★", 0xFFFBBF24);
+        fb.draw_text(w / 2 - 160, 74, "SELECT 1 OF 3 TACTICAL REPAIR UPGRADES", 0xFFE2E8F0);
+
+        let card_w = 190;
+        let card_h = 240;
+        let gap = 20;
+        let start_x = (w - (card_w * 3 + gap * 2)) / 2;
+        let start_y = 115;
+
+        for i in 0..3 {
+            let cx = start_x + (i as i32) * (card_w + gap);
+            let cy = start_y;
+            let card = self.engine.draft_options[i];
+
+            fb.draw_rect(cx, cy, card_w, card_h, 0xFF020617);
+            fb.draw_rect(cx + 2, cy + 2, card_w - 4, card_h - 4, 0xFF1E293B);
+
+            let (bar_col, text_col) = match i {
+                0 => (0xFF0284C7, 0xFF38BDF8),
+                1 => (0xFFD97706, 0xFFFBBF24),
+                _ => (0xFF7C3AED, 0xFFC084FC),
+            };
+            fb.draw_rect(cx + 4, cy + 4, card_w - 8, 30, bar_col);
+            let key_char = match i { 0 => 'J', 1 => 'K', _ => 'L' };
+            fb.draw_text(cx + 10, cy + 12, &format!("[KEY {} / {}]", i + 1, key_char), 0xFFFFFFFF);
+
+            fb.draw_text(cx + 10, cy + 45, card.kind.name(), text_col);
+
+            fb.draw_rect(cx + 8, cy + 65, card_w - 16, 50, 0xFF0F172A);
+            fb.draw_text(cx + 14, cy + 72, &format!("POWER: +{}", card.power), 0xFFF87171);
+            fb.draw_text(cx + 14, cy + 86, &format!("HEAT:  +{}", card.heat), 0xFFFB923C);
+            fb.draw_text(cx + 14, cy + 100, &format!("GUARD: +{}", card.guard), 0xFF34D399);
+
+            fb.draw_rect(cx + 8, cy + 125, card_w - 16, 75, 0xFF0B0F19);
+            fb.draw_text(cx + 12, cy + 135, card.kind.description(), 0xFFE2E8F0);
+
+            fb.draw_rect(cx + 12, cy + 208, card_w - 24, 22, bar_col);
+            fb.draw_text(cx + 35, cy + 214, &format!("EQUIP CARD [{}]", i + 1), 0xFFFFFFFF);
+        }
+
+        fb.draw_rect_blend(w / 2 - 200, h - 55, 400, 28, 0xEE0F172A);
+        fb.draw_text(w / 2 - 180, h - 46, "PRESS [1, 2, 3] OR [J, K, L] TO EQUIP & ENTER NEXT STAGE", 0xFF94A3B8);
+    }
+
+    fn render_defeat_overlay(&self, fb: &mut FrameBuffer, w: i32, h: i32) {
+        fb.draw_rect_blend(0, 0, w, h, 0xEE1E0505);
+        fb.draw_rect_blend(w / 2 - 200, h / 2 - 50, 400, 100, 0xEE0B0F19);
+        fb.draw_text_2x(w / 2 - 130, h / 2 - 35, "MECHA DOWN!", 0xFFEF4444);
+        fb.draw_text(w / 2 - 100, h / 2 + 5, &format!("FINAL SCORE: {}", self.engine.score), 0xFFFBBF24);
+        fb.draw_text(w / 2 - 140, h / 2 + 25, "PRESS SPACE TO REBOOT MECHA RUN", 0xFFE2E8F0);
     }
 }

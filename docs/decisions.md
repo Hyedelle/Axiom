@@ -550,3 +550,29 @@
 - **이유:** `steel-the-show`의 5대 기둥(카드 선택, 로그라이크, 3D 복싱 액션, 카툰 셰이딩, 2D 컷인)의 재미 공식과 메커니즘을 외부 엔진에 의존하지 않고, Axiom의 가볍고 결정론적인 순수 Rust 기술로 직접 네이티브 구현하여 초경량 독립 배포와 즉각적인 손맛을 완성함.
 - **영향:** `crates/axiom-game/src/boxing.rs`, `crates/axiom-game/src/card.rs`, `crates/axiom-render/src/cutin.rs`, `crates/axiom-cli/src/boxing_view.rs` 신설, `desktop.rs` `ViewMode::Boxing` 및 CLI `--boxing` 플래그 추가.
 
+---
+
+### [D-038] 3택 전술 카드 드래프트 & 보스 메카 스테이지 진행 엔진 (T-077)
+- **날짜:** 2026-10-22
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **전술 카드 9종 풀 및 무할당 3택 드래프트 (`crates/axiom-game/src/card.rs`)**:
+     - 16B POD `TacticalCard` 9종 풀 구축: 스트레이트, 티타늄 가드, 오버히트 훅, 카운터 슬립, 플라즈마 어퍼, 아이언 배스천, 극저온 방열 밸브(자연 냉각 2배), 나노 아머(최대 HP +30 및 수리), 오버드라이브 코어(모든 공격력 +15).
+     - `DeckState::roll_draft_choices`: RNG 시드 기반 중복 없는 3장의 카드 결정론 추첨.
+     - `DeckState::pick_draft_choice`: 선택된 카드를 16슬롯 덱에 즉시 등록.
+  2. **3대 보스 메카 아키텍처 (`crates/axiom-game/src/boxing.rs`)**:
+     - `OpponentKind` 3종 다형성:
+       - `DummyMk2`: 120 HP, 스카이블루 아머, 35프레임 텔레그래프 표준 연습 메카.
+       - `IronBull`: 200 HP, 크림슨 아머, 50프레임 헤비 텔레그래프, 가드 관통 칩 데미지(25% 관통 보정) 구사로 회피(Slip) 유도.
+       - `VoltViper`: 160 HP, 네온 옐로우 아머, 22프레임 극속 텔레그래프 및 14프레임 짧은 후딜레이의 초고속 연타 메카.
+  3. **로그라이크 런 상태 머신 (`FightPhase`, 256B L1 캐시 정렬)**:
+     - `Combat` ➔ 적 격파 시 `Drafting` ➔ 카드 선택 시 수리(+35 HP) 및 영구 버프 장착 후 `advance_to_next_stage()`로 다음 보스 링 진입.
+     - 플레이어 다운 시 `Defeat` 전환 및 Space 키로 즉시 리부트.
+     - `BoxingRingEngine` 전체 구조체를 정확히 256바이트(4 캐시 라인), 64바이트 L1 캐시 정렬로 고정.
+  4. **데스크톱 & WASM 듀얼 비주얼/오디오 연동**:
+     - 데스크톱(`minifb`): 3장 대형 카드 프레임, 키보드 `1`, `2`, `3` 및 `J`, `K`, `L` 원터치 장착, 보스별 전용 컬러 아머 렌더링.
+     - 브라우저 WASM: 캔버스 터치/클릭 3분할 드래프트 선택, Web Audio API 팡파르/장착 효과음 연동.
+  5. **검증 체계**: `test_boxing_engine_size_and_alignment`(정확히 256B/64B 정렬 확인), `test_card_drafting_and_boss_progression`(KO ➔ 드래프트 ➔ 보스 전환 100% 검증), `test_boxing_wasm_lifecycle_and_exports`.
+- **이유:** 5대 기둥 중 핵심인 "카드 선택 덱빌딩"과 "로그라이크 보스 진행"을 복싱 액션과 완벽히 융합하여, 런이 거듭될수록 내 로봇이 강력해지는 진정한 로그라이트 루프를 완성하기 위함.
+- **영향:** `crates/axiom-game/src/card.rs`, `crates/axiom-game/src/boxing.rs`, `crates/axiom-cli/src/boxing_view.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`.
+
