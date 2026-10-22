@@ -12,8 +12,8 @@ pub mod world_factory;
 pub mod worker;
 
 pub use factory::{
-    Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, Inserter, ItemType,
-    MiningDrill, OreDeposit, Smelter, StructureKind, CYCLE, DEFAULT_FACTORY_H,
+    Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, FilterInserter,
+    Inserter, ItemType, MiningDrill, OreDeposit, Smelter, StructureKind, CYCLE, DEFAULT_FACTORY_H,
     DEFAULT_FACTORY_W, MAX_BELT_TRANSFERS, SMELTER_INPUT_CAP, SMELTER_OUTPUT_CAP,
 };
 
@@ -32,12 +32,13 @@ pub use worker::{
 };
 
 pub use defense::{
-    BaseHeart, DefenseReport, Turret, Wall, WaveDirector, BASE_HEART_HP, DEFAULT_BASE_WAVE_SIZE,
-    DEFAULT_FIRST_WAVE_TICK, DEFAULT_MAX_MONSTERS, DEFAULT_WAVE_GROWTH, DEFAULT_WAVE_INTERVAL,
-    MAX_DEFENSE_TILES, MONSTER_ATTACK_GROWTH, MONSTER_BASE_ATTACK, MONSTER_BASE_HP,
-    MONSTER_COOLDOWN, MONSTER_HP_GROWTH, MONSTER_MOVE_INTERVAL, MONSTER_RANGE, MONSTER_TEAM,
-    TURRET_AMMO_CAP, TURRET_COOLDOWN, TURRET_DAMAGE, TURRET_HP, TURRET_RANGE, TURRET_SALVAGE,
-    WALL_HP, WALL_SALVAGE,
+    BaseHeart, DefenseReport, LaserTurret, MonsterKind, Turret, Wall, WaveDirector, BASE_HEART_HP,
+    DEFAULT_BASE_WAVE_SIZE, DEFAULT_FIRST_WAVE_TICK, DEFAULT_MAX_MONSTERS, DEFAULT_WAVE_GROWTH,
+    DEFAULT_WAVE_INTERVAL, LASER_TURRET_DAMAGE, LASER_TURRET_ENERGY_CAP, LASER_TURRET_HP,
+    LASER_TURRET_RANGE, MAX_DEFENSE_TILES, MONSTER_ATTACK_GROWTH, MONSTER_BASE_ATTACK,
+    MONSTER_BASE_HP, MONSTER_COOLDOWN, MONSTER_HP_GROWTH, MONSTER_MOVE_INTERVAL, MONSTER_RANGE,
+    MONSTER_TEAM, TURRET_AMMO_CAP, TURRET_COOLDOWN, TURRET_DAMAGE, TURRET_HP, TURRET_RANGE,
+    TURRET_SALVAGE, WALL_HP, WALL_SALVAGE,
 };
 
 pub use schema_catalog::{factory_types, register_factory_recipes, register_factory_types};

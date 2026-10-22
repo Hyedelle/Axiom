@@ -16,8 +16,10 @@ use axiom_game::{
 };
 use axiom_render::{
     get_belt_sprite, get_chest_sprite, get_deposit_sprite, get_drill_sprite,
-    get_heart_sprite, get_inserter_sprite, get_monster_sprite, get_smelter_sprite,
-    get_turret_sprite, get_wall_sprite, FrameBuffer, DIR_EAST,
+    get_fast_belt_sprite, get_filter_inserter_sprite, get_heart_sprite,
+    get_inserter_sprite, get_laser_turret_sprite,
+    get_monster_sprite_by_kind, get_smelter_sprite, get_turret_sprite,
+    get_wall_sprite, FrameBuffer, DIR_EAST,
 };
 use crate::sound::{self, SoundKind};
 
@@ -352,7 +354,7 @@ impl DesktopEngine {
     }
 }
 
-/// User selectable build tools (keys 1~8).
+/// User selectable build tools (keys 1~0, L).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedTool {
     Belt = 1,
@@ -362,6 +364,9 @@ pub enum SelectedTool {
     Wall = 5,
     Turret = 6,
     Inserter = 7,
+    FastBelt = 9,
+    FilterInserter = 10,
+    LaserTurret = 11,
     Clear = 8,
 }
 
@@ -375,6 +380,9 @@ impl SelectedTool {
             SelectedTool::Wall => "5:WALL",
             SelectedTool::Turret => "6:TURRET",
             SelectedTool::Inserter => "7:INSRT",
+            SelectedTool::FastBelt => "9:FBELT",
+            SelectedTool::FilterInserter => "0:FLTIN",
+            SelectedTool::LaserTurret => "L:LASER",
             SelectedTool::Clear => "8:CLEAR",
         }
     }
@@ -533,6 +541,15 @@ fn place_structure(
         }
         SelectedTool::Inserter => {
             grid.place_inserter(x, y, dir, 50);
+        }
+        SelectedTool::FastBelt => {
+            grid.place_fast_belt(x, y, dir);
+        }
+        SelectedTool::FilterInserter => {
+            grid.place_filter_inserter(x, y, dir, ItemType::IronOre);
+        }
+        SelectedTool::LaserTurret => {
+            grid.place_laser_turret(x, y);
         }
         SelectedTool::Clear => unreachable!(),
     }
@@ -718,6 +735,44 @@ fn draw_cell(
             fb.draw_sprite_16x16(sx, sy, sprite);
             draw_hp_bar(fb, sx, sy, ts, h.hp, h.max_hp);
         }
+        StructureKind::FastBelt(b) => {
+            let sprite = get_fast_belt_sprite(b.direction as u32, phase as u64);
+            fb.draw_sprite_16x16(sx, sy, sprite);
+            if !b.item.is_none() {
+                let is = 6;
+                let travel = 10;
+                let off = (travel as i64 * b.progress.min(axiom_game::CYCLE) as i64
+                    / axiom_game::CYCLE as i64) as i32;
+                let mid = 5;
+                let (ix, iy) = match b.direction {
+                    Direction::North => (sx + mid, sy + travel - off),
+                    Direction::East => (sx + off, sy + mid),
+                    Direction::South => (sx + mid, sy + off),
+                    Direction::West => (sx + travel - off, sy + mid),
+                };
+                fb.draw_rect(ix, iy, is, is, item_color(b.item));
+                fb.draw_rect(ix + 1, iy + 1, is - 2, is - 2, 0xFFFFFFFF);
+            }
+        }
+        StructureKind::FilterInserter(fi) => {
+            let sprite = get_filter_inserter_sprite(fi.direction as u32, phase as u64);
+            fb.draw_sprite_16x16(sx, sy, sprite);
+            if !fi.held.is_none() {
+                fb.draw_rect(sx + 6, sy + 6, 4, 4, item_color(fi.held));
+            }
+            // Small 2x2 indicator of configured filter item
+            if !fi.filter.is_none() {
+                fb.draw_rect(sx + 1, sy + 1, 3, 3, item_color(fi.filter));
+            }
+        }
+        StructureKind::LaserTurret(lt) => {
+            let sprite = get_laser_turret_sprite(DIR_EAST);
+            fb.draw_sprite_16x16(sx, sy, sprite);
+            // Energy bar (cyan/blue)
+            let e_bar = (12 * lt.energy as i32 / lt.max_energy.max(1) as i32).min(12);
+            fb.draw_rect(sx + 2, sy + ts - 3, e_bar, 2, 0xFF38BDF8);
+            draw_hp_bar(fb, sx, sy, ts, lt.hp, lt.max_hp);
+        }
     }
 }
 
@@ -852,36 +907,46 @@ impl DesktopEngine {
         }
 
         // 2. Monsters from WaveDirector Arena
-        let monster_sprite = get_monster_sprite(phase as u64);
         for u in self.director.arena.units.iter() {
             if !u.is_alive() || u.team != MONSTER_TEAM {
                 continue;
             }
+            let monster_sprite = get_monster_sprite_by_kind(u._pad1[0], phase as u64);
             let sx = GRID_OFFSET_X + u.pos.x.to_int() as i32 * TILE_SIZE;
             let sy = GRID_OFFSET_Y + u.pos.y.to_int() as i32 * TILE_SIZE;
             fb.draw_sprite_16x16(sx, sy, monster_sprite);
             draw_hp_bar(fb, sx, sy, TILE_SIZE, u.current_hp, u.max_hp);
         }
 
-        // 3. Turret Tracer Rounds
+        // 3. Turret & Laser Tracer Rounds
         if now > 0 {
             for y in 0..GRID_H {
                 for x in 0..GRID_W {
                     let cell = &self.grid.cells[y][x];
-                    let t = match cell.kind {
-                        StructureKind::Turret(t) => t,
+                    let (range, color, fired) = match cell.kind {
+                        StructureKind::Turret(t) => {
+                            let f = cell.last_action_tick == now
+                                && t.cooldown > 0
+                                && t.cooldown_timer == t.cooldown;
+                            (t.range, 0xFFFDE047, f)
+                        }
+                        StructureKind::LaserTurret(lt) => {
+                            let f = cell.last_action_tick == now
+                                && lt.cooldown > 0
+                                && lt.cooldown_timer == lt.cooldown;
+                            (axiom_game::LASER_TURRET_RANGE, 0xFF38BDF8, f)
+                        }
                         _ => continue,
                     };
-                    let fired = cell.last_action_tick == now && t.cooldown > 0 && t.cooldown_timer == t.cooldown;
                     if !fired {
                         continue;
                     }
                     let cx = GRID_OFFSET_X + x as i32 * TILE_SIZE + TILE_SIZE / 2;
                     let cy = GRID_OFFSET_Y + y as i32 * TILE_SIZE + TILE_SIZE / 2;
                     let flash = (TILE_SIZE / 2).max(2);
-                    fb.draw_rect(cx - flash / 2, cy - flash / 2, flash, flash, 0xFFFDE047);
+                    fb.draw_rect(cx - flash / 2, cy - flash / 2, flash, flash, color);
 
-                    let range_sq = t.range as i64 * t.range as i64;
+                    let range_sq = range as i64 * range as i64;
                     let mut best: Option<(i32, i32)> = None;
                     let mut best_d = i64::MAX;
                     for u in self.director.arena.units.iter() {
@@ -899,7 +964,7 @@ impl DesktopEngine {
                     if let Some((ux, uy)) = best {
                         let tx = GRID_OFFSET_X + ux * TILE_SIZE + TILE_SIZE / 2;
                         let ty = GRID_OFFSET_Y + uy * TILE_SIZE + TILE_SIZE / 2;
-                        draw_line(fb, cx, cy, tx, ty, 0xFFFDE047);
+                        draw_line(fb, cx, cy, tx, ty, color);
                     }
                 }
             }
@@ -930,21 +995,24 @@ impl DesktopEngine {
             SelectedTool::Wall,
             SelectedTool::Turret,
             SelectedTool::Inserter,
+            SelectedTool::FastBelt,
+            SelectedTool::FilterInserter,
+            SelectedTool::LaserTurret,
             SelectedTool::Clear,
         ];
         for (i, t) in tools.iter().enumerate() {
-            let ty = 54 + i as i32 * 18;
+            let ty = 52 + i as i32 * 16;
             let is_sel = *t == self.selected_tool;
             if is_sel {
-                fb.draw_rect(8, ty - 2, 80, 14, 0xFF1E3A8A);
+                fb.draw_rect(8, ty - 2, 80, 13, 0xFF1E3A8A);
                 fb.draw_rect(8, ty - 2, 80, 1, 0xFF60A5FA);
-                fb.draw_rect(8, ty + 11, 80, 1, 0xFF60A5FA);
+                fb.draw_rect(8, ty + 10, 80, 1, 0xFF60A5FA);
             }
             let color = if is_sel { 0xFFFFFFFF } else { 0xFF94A3B8 };
-            draw_text(fb, t.label(), 12, ty + 2, color);
+            draw_text(fb, t.label(), 12, ty + 1, color);
         }
 
-        let dir_y = 210;
+        let dir_y = 236;
         fb.draw_rect(10, dir_y, 76, 1, 0xFF1E293B);
         draw_text(fb, "DIR [R]:", 10, dir_y + 8, 0xFFFBBF24);
         draw_text(fb, direction_label(self.current_direction), 10, dir_y + 20, 0xFF34D399);
@@ -1225,6 +1293,15 @@ pub fn run_desktop_window() -> Result<(), Box<dyn std::error::Error>> {
         }
         if window.is_key_pressed(Key::Key8, KeyRepeat::No) || window.is_key_pressed(Key::NumPad8, KeyRepeat::No) {
             engine.selected_tool = SelectedTool::Clear;
+        }
+        if window.is_key_pressed(Key::Key9, KeyRepeat::No) || window.is_key_pressed(Key::NumPad9, KeyRepeat::No) {
+            engine.selected_tool = SelectedTool::FastBelt;
+        }
+        if window.is_key_pressed(Key::Key0, KeyRepeat::No) || window.is_key_pressed(Key::NumPad0, KeyRepeat::No) {
+            engine.selected_tool = SelectedTool::FilterInserter;
+        }
+        if window.is_key_pressed(Key::L, KeyRepeat::No) {
+            engine.selected_tool = SelectedTool::LaserTurret;
         }
 
         // R: Rotate Direction

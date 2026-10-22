@@ -17,7 +17,7 @@
 
 use axiom_core::deterministic_hash;
 
-use crate::defense::{BaseHeart, Turret, Wall, TURRET_AMMO_CAP};
+use crate::defense::{BaseHeart, LaserTurret, Turret, Wall, TURRET_AMMO_CAP};
 
 // ---------------------------------------------------------------------------
 // Items
@@ -185,6 +185,32 @@ pub struct Chest {
     pub quantity: u32,
 }
 
+/// Smart mechanical arm: only picks up items matching its designated `filter`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct FilterInserter {
+    pub direction: Direction,
+    pub held: ItemType,
+    pub filter: ItemType,
+    pub _pad: u8,
+    pub speed: u16,
+    pub progress: u16,
+    pub moved: u32,
+}
+
+impl FilterInserter {
+    pub const fn new(direction: Direction, filter: ItemType) -> Self {
+        Self {
+            direction,
+            held: ItemType::None,
+            filter,
+            _pad: 0,
+            speed: 50,
+            progress: 0,
+            moved: 0,
+        }
+    }
+}
+
 /// Tagged structure payload. All variants are plain `Copy` data (no pointers).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum StructureKind {
@@ -202,6 +228,12 @@ pub enum StructureKind {
     Turret(Turret),
     /// Defence objective (T-043).
     BaseHeart(BaseHeart),
+    /// 2x Speed Conveyor Belt (T-064).
+    FastBelt(Belt),
+    /// Item-filtering Smart Inserter (T-064).
+    FilterInserter(FilterInserter),
+    /// High-tech Energy Beam Projector (T-064).
+    LaserTurret(LaserTurret),
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +289,7 @@ impl FactoryStructure {
     #[inline]
     pub(crate) fn try_accept(&mut self, item: ItemType) -> bool {
         match &mut self.kind {
-            StructureKind::Belt(b) => {
+            StructureKind::Belt(b) | StructureKind::FastBelt(b) => {
                 if b.item.is_none() {
                     b.item = item;
                     b.progress = 0;
@@ -305,7 +337,7 @@ impl FactoryStructure {
     #[inline]
     pub(crate) fn try_take(&mut self) -> ItemType {
         match &mut self.kind {
-            StructureKind::Belt(b) => {
+            StructureKind::Belt(b) | StructureKind::FastBelt(b) => {
                 let item = b.item;
                 if !item.is_none() {
                     b.item = ItemType::None;
@@ -333,6 +365,29 @@ impl FactoryStructure {
                         c.item = ItemType::None;
                     }
                     item
+                } else {
+                    ItemType::None
+                }
+            }
+            _ => ItemType::None,
+        }
+    }
+
+    /// Peeks at the item available to take without removing it.
+    #[inline]
+    pub(crate) fn peek_item(&self) -> ItemType {
+        match &self.kind {
+            StructureKind::Belt(b) | StructureKind::FastBelt(b) => b.item,
+            StructureKind::Smelter(s) => {
+                if s.output_count > 0 {
+                    s.output
+                } else {
+                    ItemType::None
+                }
+            }
+            StructureKind::Chest(c) => {
+                if c.quantity > 0 {
+                    c.item
                 } else {
                     ItemType::None
                 }
@@ -443,6 +498,20 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
         );
     }
 
+    /// Places a 2x-speed fast conveyor belt (speed: 100, moves 1 item per tick).
+    pub fn place_fast_belt(&mut self, x: usize, y: usize, direction: Direction) {
+        self.set(
+            x,
+            y,
+            StructureKind::FastBelt(Belt {
+                direction,
+                item: ItemType::None,
+                speed: 100,
+                progress: 0,
+            }),
+        );
+    }
+
     pub fn place_inserter(&mut self, x: usize, y: usize, direction: Direction, speed: u16) {
         self.set(
             x,
@@ -454,6 +523,21 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
                 progress: 0,
                 moved: 0,
             }),
+        );
+    }
+
+    /// Places an item-selective filter inserter.
+    pub fn place_filter_inserter(
+        &mut self,
+        x: usize,
+        y: usize,
+        direction: Direction,
+        filter: ItemType,
+    ) {
+        self.set(
+            x,
+            y,
+            StructureKind::FilterInserter(FilterInserter::new(direction, filter)),
         );
     }
 
@@ -528,8 +612,15 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
         for row in &self.cells {
             for cell in row {
                 match cell.kind {
-                    StructureKind::Belt(b) if !b.item.is_none() => r.items_on_belts += 1,
+                    StructureKind::Belt(b) | StructureKind::FastBelt(b)
+                        if !b.item.is_none() =>
+                    {
+                        r.items_on_belts += 1
+                    }
                     StructureKind::Inserter(i) if !i.held.is_none() => {
+                        r.items_held_by_inserters += 1
+                    }
+                    StructureKind::FilterInserter(fi) if !fi.held.is_none() => {
                         r.items_held_by_inserters += 1
                     }
                     StructureKind::Smelter(s) => {
@@ -592,7 +683,9 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
 
         for y in 0..H {
             for x in 0..W {
-                if let StructureKind::Belt(b) = &mut self.cells[y][x].kind {
+                if let StructureKind::Belt(b) | StructureKind::FastBelt(b) =
+                    &mut self.cells[y][x].kind
+                {
                     if b.item.is_none() {
                         continue;
                     }
@@ -610,7 +703,7 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
         for &(sx, sy, tx, ty) in transfers[..count].iter() {
             let (sx, sy, tx, ty) = (sx as usize, sy as usize, tx as usize, ty as usize);
             let item = match self.cells[sy][sx].kind {
-                StructureKind::Belt(b) => b.item,
+                StructureKind::Belt(b) | StructureKind::FastBelt(b) => b.item,
                 _ => continue,
             };
             if item.is_none() {
@@ -620,7 +713,10 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
             // (inserters feed machines).
             let target_ok = matches!(
                 self.cells[ty][tx].kind,
-                StructureKind::Belt(_) | StructureKind::Chest(_) | StructureKind::Turret(_)
+                StructureKind::Belt(_)
+                    | StructureKind::FastBelt(_)
+                    | StructureKind::Chest(_)
+                    | StructureKind::Turret(_)
             );
             if !target_ok {
                 continue;
@@ -640,39 +736,82 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
     fn step_inserters(&mut self, tick: u32) {
         for y in 0..H {
             for x in 0..W {
-                let mut ins = match self.cells[y][x].kind {
-                    StructureKind::Inserter(i) => i,
-                    _ => continue,
-                };
-                ins.progress = ins.progress.saturating_add(ins.speed).min(CYCLE);
-                if ins.progress >= CYCLE {
-                    if ins.held.is_none() {
-                        // Pick up from the tile behind.
-                        if let Some((bx, by)) = Self::neighbor(x, y, ins.direction.opposite()) {
-                            let item = self.cells[by][bx].try_take();
-                            if !item.is_none() {
-                                ins.held = item;
-                                ins.progress = 0;
-                                self.cells[by][bx].last_action_tick = tick;
-                                self.cells[y][x].last_action_tick = tick;
+                match self.cells[y][x].kind {
+                    StructureKind::Inserter(mut ins) => {
+                        ins.progress = ins.progress.saturating_add(ins.speed).min(CYCLE);
+                        if ins.progress >= CYCLE {
+                            if ins.held.is_none() {
+                                // Pick up from the tile behind.
+                                if let Some((bx, by)) =
+                                    Self::neighbor(x, y, ins.direction.opposite())
+                                {
+                                    let item = self.cells[by][bx].try_take();
+                                    if !item.is_none() {
+                                        ins.held = item;
+                                        ins.progress = 0;
+                                        self.cells[by][bx].last_action_tick = tick;
+                                        self.cells[y][x].last_action_tick = tick;
+                                    }
+                                }
+                            } else if let Some((fx, fy)) = Self::neighbor(x, y, ins.direction) {
+                                // Drop onto the tile in front.
+                                let was_chest =
+                                    matches!(self.cells[fy][fx].kind, StructureKind::Chest(_));
+                                if self.cells[fy][fx].try_accept(ins.held) {
+                                    ins.held = ItemType::None;
+                                    ins.progress = 0;
+                                    ins.moved = ins.moved.saturating_add(1);
+                                    self.cells[fy][fx].last_action_tick = tick;
+                                    self.cells[y][x].last_action_tick = tick;
+                                    if was_chest {
+                                        self.total_stored += 1;
+                                    }
+                                }
                             }
                         }
-                    } else if let Some((fx, fy)) = Self::neighbor(x, y, ins.direction) {
-                        // Drop onto the tile in front.
-                        let was_chest = matches!(self.cells[fy][fx].kind, StructureKind::Chest(_));
-                        if self.cells[fy][fx].try_accept(ins.held) {
-                            ins.held = ItemType::None;
-                            ins.progress = 0;
-                            ins.moved = ins.moved.saturating_add(1);
-                            self.cells[fy][fx].last_action_tick = tick;
-                            self.cells[y][x].last_action_tick = tick;
-                            if was_chest {
-                                self.total_stored += 1;
-                            }
-                        }
+                        self.cells[y][x].kind = StructureKind::Inserter(ins);
                     }
+                    StructureKind::FilterInserter(mut fi) => {
+                        fi.progress = fi.progress.saturating_add(fi.speed).min(CYCLE);
+                        if fi.progress >= CYCLE {
+                            if fi.held.is_none() {
+                                // Pick up only matching filter from behind
+                                if let Some((bx, by)) =
+                                    Self::neighbor(x, y, fi.direction.opposite())
+                                {
+                                    let cand = self.cells[by][bx].peek_item();
+                                    if !cand.is_none()
+                                        && (fi.filter == ItemType::None || fi.filter == cand)
+                                    {
+                                        let item = self.cells[by][bx].try_take();
+                                        if !item.is_none() {
+                                            fi.held = item;
+                                            fi.progress = 0;
+                                            self.cells[by][bx].last_action_tick = tick;
+                                            self.cells[y][x].last_action_tick = tick;
+                                        }
+                                    }
+                                }
+                            } else if let Some((fx, fy)) = Self::neighbor(x, y, fi.direction) {
+                                // Drop onto the tile in front
+                                let was_chest =
+                                    matches!(self.cells[fy][fx].kind, StructureKind::Chest(_));
+                                if self.cells[fy][fx].try_accept(fi.held) {
+                                    fi.held = ItemType::None;
+                                    fi.progress = 0;
+                                    fi.moved = fi.moved.saturating_add(1);
+                                    self.cells[fy][fx].last_action_tick = tick;
+                                    self.cells[y][x].last_action_tick = tick;
+                                    if was_chest {
+                                        self.total_stored += 1;
+                                    }
+                                }
+                            }
+                        }
+                        self.cells[y][x].kind = StructureKind::FilterInserter(fi);
+                    }
+                    _ => {}
                 }
-                self.cells[y][x].kind = StructureKind::Inserter(ins);
             }
         }
     }
@@ -913,5 +1052,47 @@ mod tests {
             SMELTER_OUTPUT_CAP as u64,
             "smelter must stall once its output buffer is full"
         );
+    }
+
+    #[test]
+    fn test_fast_belt_double_throughput() {
+        // Normal belt (speed 50) takes 2 ticks per tile.
+        // Fast belt (speed 100) takes 1 tick per tile.
+        let mut grid = FactoryGrid::<3, 1>::new();
+        grid.place_fast_belt(0, 0, Direction::East);
+        grid.place_fast_belt(1, 0, Direction::East);
+        grid.place_chest(2, 0);
+
+        assert!(grid.cells[0][0].try_accept(ItemType::IronOre));
+        assert_eq!(grid.chest_contents(2, 0).1, 0);
+
+        // Tick 1: moves from (0,0) to (1,0)
+        grid.step();
+        assert_eq!(grid.chest_contents(2, 0).1, 0);
+
+        // Tick 2: moves from (1,0) to (2,0) chest
+        grid.step();
+        assert_eq!(grid.chest_contents(2, 0), (ItemType::IronOre, 1));
+    }
+
+    #[test]
+    fn test_filter_inserter_selectivity() {
+        let mut grid = FactoryGrid::<3, 1>::new();
+        // Chest 0 with CopperOre, FilterInserter at (1,0) configured only for IronOre, Chest at (2,0)
+        grid.place_chest(0, 0);
+        grid.cells[0][0].try_accept(ItemType::CopperOre);
+        grid.place_filter_inserter(1, 0, Direction::East, ItemType::IronOre);
+        grid.place_chest(2, 0);
+
+        // Filter inserter must NOT pick up CopperOre!
+        grid.run(10);
+        assert_eq!(grid.chest_contents(2, 0).1, 0, "filter inserter must ignore copper");
+        assert_eq!(grid.chest_contents(0, 0).1, 1, "copper must remain in source chest");
+
+        // Empty chest 0 and replace with IronOre
+        assert_eq!(grid.cells[0][0].try_take(), ItemType::CopperOre);
+        assert!(grid.cells[0][0].try_accept(ItemType::IronOre));
+        grid.run(4);
+        assert_eq!(grid.chest_contents(2, 0), (ItemType::IronOre, 1), "iron ore must be transferred");
     }
 }

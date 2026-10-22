@@ -48,6 +48,46 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T064] 3대 신규 기물 (레이저 터렛, 고속 벨트, 필터 투입기) 및 웨이브 몬스터 다양화
+- **목표:** 물류 처리량과 기지 방어 전략의 깊이를 확장하기 위해 3대 고급 기물(2x 고속 벨트, 아이템 선별 투입기, 무탄약 에너지 레이저 터렛)과 2종 신규 웨이브 몬스터(방어 골렘 `Golem`, 고속 러너 `Runner`)를 64B L1 캐시 무할당 결정론 아키텍처로 구현.
+- **대상 파일:**
+  1. `crates/axiom-game/src/factory.rs`:
+     - `FilterInserter` 구조체 (12바이트: `direction`, `held`, `filter: ItemType`, `speed`, `progress`, `moved`)
+     - `StructureKind` 신규 배리언트: `FastBelt(Belt)`, `FilterInserter(FilterInserter)`, `LaserTurret(LaserTurret)`
+     - `size_of::<FactoryStructure>() == 64` 불변식 엄수 (모든 페이로드 <= 16바이트 유지)
+     - `place_fast_belt`, `place_filter_inserter`, `place_laser_turret` API 추가
+     - `step_belts`, `step_inserters`에서 2x 속도 및 필터링 로직 분기
+  2. `crates/axiom-game/src/defense.rs`:
+     - `LaserTurret` 구조체 (16바이트: `hp`, `max_hp`, `damage`, `cooldown`, `cooldown_timer`, `kills`, `energy`, `max_energy`)
+     - `MonsterKind` 열거형 (`Goblin = 0`, `Golem = 1`, `Runner = 2`)
+     - `LaserTurret` 에너지 자동 충전 및 원거리(사거리 7) 고위력 빔 사격 로직 (`step_turrets`)
+     - `WaveDirector::spawn_wave`: 웨이브 단계별 몬스터 다양성 분배 (골렘 탱커 + 고속 러너 기습)
+  3. `crates/axiom-render/build.rs`:
+     - 신규 스프라이트 32개 추가 (총 88개 스프라이트 슬랩 = 90,176 바이트)
+     - `FastBelt` (4방향 x 4프레임 = 16)
+     - `FilterInserter` (4방향 = 4)
+     - `LaserTurret` (4방향 = 4)
+     - `Golem` (4프레임 = 4)
+     - `Runner` (4프레임 = 4)
+  4. `crates/axiom-render/src/sprites.rs`:
+     - `SPRITE_COUNT = 88`, `TOTAL_ATLAS_BYTES = 64 + 88 * 1024 = 90176`
+     - `get_fast_belt_sprite`, `get_filter_inserter_sprite`, `get_laser_turret_sprite`, `get_monster_sprite_by_kind` 추가
+  5. `crates/axiom-cli/src/desktop.rs`:
+     - 키보드 핫키 `9` (고속 벨트), `0` (필터 투입기), `L` (레이저 터렛) 바인딩 및 사이드바 툴바 UI 갱신
+     - 레이저 터렛 사격 광선(시안/마젠타) 및 신규 기물/몬스터 렌더링
+  6. 신규 단위 테스트:
+     - `test_filter_inserter_selectivity`: 지정된 아이템만 선별 투입 검증
+     - `test_fast_belt_double_throughput`: 1틱당 1칸 2배속 물류 검증
+     - `test_laser_turret_energy_cycling`: 에너지 소모 및 충전 사이클 검증
+     - `test_monster_archetypes_stats`: 3종 몬스터 체력/속도/공격력 차별화 검증
+- **불변식 및 헌법 규정:**
+  - `size_of::<FactoryStructure>() == 64` 64바이트 L1 캐시 라인 상주성 100% 사수
+  - 부동소수점(`f32/f64`) 원천 배제, 순수 정수 연산
+  - `tools/guard.ps1` 무결성 검증 100% 통과
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
 ### [RECIPE-20261022-T063] 빌드 타임 바이너리 에셋 파이프라인 (`build.rs` & `.atlas` 슬랩) [완료]
 - **목표:** Rust 소스 코드(`sprites.rs`) 안에 1,470줄로 하드코딩된 비트맵 데이터를 외부 에셋 정의로 분리하고, `build.rs`를 통해 컴파일 타임에 64B 정렬 고정 슬랩 바이너리(`sprites.atlas`)로 패킹하여 `include_bytes!`로 제로-카피 로드하는 상용 에셋 파이프라인 구축.
 - **대상 파일:**

@@ -1614,6 +1614,48 @@ fn factory_draw_cell(
             fb.draw_rect(sx + po, sy + po, pulse, pulse, 0xFFFFE4E6);
             factory_draw_hp_bar(fb, sx, sy, ts, h.hp, h.max_hp);
         }
+        StructureKind::FastBelt(b) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF1E293B);
+            factory_draw_facing(fb, sx, sy, ts, b.direction, 0xFF38BDF8);
+            if !b.item.is_none() {
+                let is = (ts * 2 / 5).max(3);
+                let travel = (ts - is).max(0);
+                let off = (travel as i64 * b.progress.min(CYCLE) as i64 / CYCLE as i64) as i32;
+                let mid = (ts - is) / 2;
+                let (ix, iy) = match b.direction {
+                    Direction::North => (sx + mid, sy + travel - off),
+                    Direction::East => (sx + off, sy + mid),
+                    Direction::South => (sx + mid, sy + off),
+                    Direction::West => (sx + travel - off, sy + mid),
+                };
+                fb.draw_rect(ix, iy, is, is, factory_item_color(b.item));
+            }
+        }
+        StructureKind::FilterInserter(i) => {
+            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), 0xFF8B5CF6);
+            let t = (ts / 5).max(2);
+            let c = ts / 2;
+            match i.direction {
+                Direction::North => fb.draw_rect(sx + c - t / 2, sy, t, c, 0xFFDDD6FE),
+                Direction::East => fb.draw_rect(sx + c, sy + c - t / 2, ts - c, t, 0xFFDDD6FE),
+                Direction::South => fb.draw_rect(sx + c - t / 2, sy + c, t, ts - c, 0xFFDDD6FE),
+                Direction::West => fb.draw_rect(sx, sy + c - t / 2, c, t, 0xFFDDD6FE),
+            }
+            if !i.held.is_none() {
+                fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, factory_item_color(i.held));
+            }
+            if !i.filter.is_none() {
+                fb.draw_rect(sx + 1, sy + 1, 2, 2, factory_item_color(i.filter));
+            }
+        }
+        StructureKind::LaserTurret(t) => {
+            fb.draw_rect(sx + 1, sy + 1, inner, inner, 0xFF0C4A6E);
+            fb.draw_rect(sx + 2, sy + 2, (ts - 4).max(1), (ts - 4).max(1), 0xFF0284C7);
+            fb.draw_rect(sx + pip_off, sy + pip_off, pip, pip, 0xFF38BDF8);
+            let bar = (inner as i32 * t.energy as i32 / t.max_energy.max(1) as i32).min(inner);
+            fb.draw_rect(sx + 1, sy + ts - 3, bar, 2, 0xFF38BDF8);
+            factory_draw_hp_bar(fb, sx, sy, ts, t.hp, t.max_hp);
+        }
     }
 }
 

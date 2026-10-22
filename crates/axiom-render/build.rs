@@ -5,7 +5,7 @@
 //!
 //! Format:
 //! - 64B AtlasHeader (magic 0x41544C415358414D, version, sprite_count, checksum)
-//! - 56 x 1024-byte sprite slices ([u32; 256] little-endian ARGB pixels)
+//! - 88 x 1024-byte sprite slices ([u32; 256] little-endian ARGB pixels)
 
 use std::env;
 use std::fs::File;
@@ -58,6 +58,17 @@ const BELT_PAL: &[(u8, u32)] = &[
     (b'o', 0xFFD97706), // Chevron Shadow
     (b'y', 0xFFF59E0B), // Chevron Amber
     (b'Y', 0xFFFBBF24), // Chevron Bright Tip
+];
+
+const FAST_BELT_PAL: &[(u8, u32)] = &[
+    (b'.', 0x00000000), // Transparent
+    (b'R', 0xFF7F1D1D), // Dark Crimson Rail
+    (b'g', 0xFFEF4444), // Bright Red Rail Highlight
+    (b'b', 0xFFB91C1C), // Fast Belt Surface
+    (b'r', 0xFF450A0A), // Roller groove
+    (b'o', 0xFFF59E0B), // Chevron Gold
+    (b'y', 0xFFFBBF24), // Chevron Bright Yellow
+    (b'Y', 0xFFFEF08A), // Chevron White Tip
 ];
 
 const DRILL_PAL: &[(u8, u32)] = &[
@@ -118,6 +129,18 @@ const TURRET_PAL: &[(u8, u32)] = &[
     (b'y', 0xFFFDE047), // Ammo Status Indicator
 ];
 
+const LASER_TURRET_PAL: &[(u8, u32)] = &[
+    (b'.', 0x00000000), // Transparent
+    (b'b', 0xFF1E1B4B), // Deep Indigo Base
+    (b'B', 0xFF312E81), // Base Highlight
+    (b'r', 0xFF4338CA), // Capacitor Ring
+    (b'd', 0xFF0F172A), // Chamber Interior
+    (b'c', 0xFF0284C7), // Laser Barrel Cyan
+    (b'C', 0xFF38BDF8), // Laser Core Flare
+    (b'k', 0xFF38BDF8), // Muzzle Aperture
+    (b'y', 0xFFC084FC), // Plasma Charge Ring
+];
+
 const HEART_PAL: &[(u8, u32)] = &[
     (b'.', 0x00000000), // Transparent
     (b'k', 0xFF0F172A), // Void Socket Border
@@ -154,6 +177,27 @@ const GOBLIN_PAL: &[(u8, u32)] = &[
     (b'k', 0xFF1C1917), // Claw / Talon Dark
 ];
 
+const GOLEM_PAL: &[(u8, u32)] = &[
+    (b'.', 0x00000000), // Transparent
+    (b'k', 0xFF0F172A), // Shadow Seam
+    (b'd', 0xFF334155), // Dark Granite
+    (b'm', 0xFF475569), // Mid Granite
+    (b's', 0xFF64748B), // Stone Highlight
+    (b'S', 0xFF94A3B8), // Armor Plate Edge
+    (b'r', 0xFFDC2626), // Glowing Rune Core
+    (b'y', 0xFFF87171), // Molten Eye
+];
+
+const RUNNER_PAL: &[(u8, u32)] = &[
+    (b'.', 0x00000000), // Transparent
+    (b'k', 0xFF14532D), // Deep Shadow
+    (b'd', 0xFF15803D), // Dark Exoskeleton
+    (b'b', 0xFF16A34A), // Chitin Body
+    (b'B', 0xFF22C55E), // Mid Green
+    (b'r', 0xFF4ADE80), // Limb Highlight
+    (b'y', 0xFFFACC15), // Vicious Yellow Eyes
+];
+
 const INSERTER_PAL: &[(u8, u32)] = &[
     (b'.', 0x00000000), // Transparent
     (b'v', 0xFF4C1D95), // Deep Violet Mount
@@ -162,6 +206,16 @@ const INSERTER_PAL: &[(u8, u32)] = &[
     (b'a', 0xFFA78BFA), // Robotic Arm
     (b'c', 0xFFC4B5FD), // Claw Gripper
     (b'C', 0xFFDDD6FE), // Claw Tip
+];
+
+const FILTER_INSERTER_PAL: &[(u8, u32)] = &[
+    (b'.', 0x00000000), // Transparent
+    (b'v', 0xFF064E3B), // Deep Emerald Mount
+    (b'V', 0xFF059669), // Emerald Body
+    (b'p', 0xFF10B981), // Pivot Joint
+    (b'a', 0xFF34D399), // Robotic Arm
+    (b'c', 0xFF6EE7B7), // Claw Gripper
+    (b'C', 0xFFA7F3D0), // Filter Sensor Tip
 ];
 
 fn main() {
@@ -533,7 +587,212 @@ fn main() {
         "........vvvv....", "................", "................", "................",
     ], INSERTER_PAL);
 
-    let all_sprites: [[u32; 256]; 56] = [
+    // 56..71: Fast Belt (N, E, S, W x 4 frames)
+    let fast_belt_n_f0 = parse_sprite([
+        "RgbbbbYYYYbbbbgR", "RgbbbyyyyyybbbgR", "RgbyyyoooooyybgR", "RgyyoobbbbooyygR",
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgbbbbYYYYbbbbgR",
+        "RgbbbyyyyyybbbgR", "RgbyyyoooooyybgR", "RgyyoobbbbooyygR", "RgbbbbbbbbbbbbgR",
+        "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR",
+    ], FAST_BELT_PAL);
+    let fast_belt_n_f1 = parse_sprite([
+        "RgbyyyoooooyybgR", "RgyyoobbbbooyygR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR",
+        "RgbbbbbbbbbbbbgR", "RgbbbbYYYYbbbbgR", "RgbbbyyyyyybbbgR", "RgbyyyoooooyybgR",
+        "RgyyoobbbbooyygR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR",
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbYYYYbbbbgR", "RgbbbyyyyyybbbgR",
+    ], FAST_BELT_PAL);
+    let fast_belt_n_f2 = parse_sprite([
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgbbbbYYYYbbbbgR",
+        "RgbbbyyyyyybbbgR", "RgbyyyoooooyybgR", "RgyyoobbbbooyygR", "RgbbbbbbbbbbbbgR",
+        "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR",
+        "RgbbbbYYYYbbbbgR", "RgbbbyyyyyybbbgR", "RgbyyyoooooyybgR", "RgyyoobbbbooyygR",
+    ], FAST_BELT_PAL);
+    let fast_belt_n_f3 = parse_sprite([
+        "RgbbbbbbbbbbbbgR", "RgbbbbYYYYbbbbgR", "RgbbbyyyyyybbbgR", "RgbyyyoooooyybgR",
+        "RgyyoobbbbooyygR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR",
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbYYYYbbbbgR", "RgbbbyyyyyybbbgR",
+        "RgbyyyoooooyybgR", "RgyyoobbbbooyygR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR",
+    ], FAST_BELT_PAL);
+
+    let fast_belt_e_f0 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "bbyybbbbbbbyybbb", "bbyyybbbbbbyyybb",
+        "bbooyybbbbbooyyb", "bbbbooybbbbbbooy", "bbbbboYYbbbbbboY", "rrrrroYYrrrrrroY",
+        "bbbbboYYbbbbbboY", "bbbbooybbbbbbooy", "bbooyybbbbbooyyb", "bbyyybbbbbbyyybb",
+        "bbyybbbbbbbyybbb", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+    let fast_belt_e_f1 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "bbbbyybbbbbbbyyb", "bbbbyyybbbbbbyyy",
+        "bbbooyybbbbbooyy", "bbbbbooybbbbbboo", "YbbbbboYYbbbbbbo", "YrbbbboYYrrrrrro",
+        "YbbbbboYYbbbbbbo", "bbbbbooybbbbbboo", "bbbooyybbbbbooyy", "bbbbyyybbbbbbyyy",
+        "bbbbyybbbbbbbyyb", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+    let fast_belt_e_f2 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "bbbbbbyybbbbbbby", "bbbbbbyyybbbbbby",
+        "ybbbbbooyybbbbbo", "yybbbbbbooybbbbb", "oYYbbbbbboYYbbbb", "oYYrrrrrroYYrrrr",
+        "oYYbbbbbboYYbbbb", "yybbbbbbooybbbbb", "ybbbbbooyybbbbbo", "bbbbbbyyybbbbbby",
+        "bbbbbbyybbbbbbby", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+    let fast_belt_e_f3 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "ybbbbbbbyybbbbbb", "yybbbbbbyyybbbbb",
+        "oyybbbbbooyybbbb", "booybbbbbbooybbb", "bboYYbbbbbboYYbb", "rroYYrrrrrroYYrr",
+        "bboYYbbbbbboYYbb", "booybbbbbbooybbb", "oyybbbbbooyybbbb", "yybbbbbbyyybbbbb",
+        "ybbbbbbbyybbbbbb", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+
+    let fast_belt_s_f0 = parse_sprite([
+        "RgyyoobbbbooyygR", "RgbyyyoooooyybgR", "RgbbbyyyyyybbbgR", "RgbbbbYYYYbbbbgR",
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgyyoobbbbooyygR",
+        "RgbyyyoooooyybgR", "RgbbbyyyyyybbbgR", "RgbbbbYYYYbbbbgR", "RgbbbbbbbbbbbbgR",
+        "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR",
+    ], FAST_BELT_PAL);
+    let fast_belt_s_f1 = parse_sprite([
+        "RgbbbbYYYYbbbbgR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR",
+        "RgyyoobbbbooyygR", "RgbyyyoooooyybgR", "RgbbbyyyyyybbbgR", "RgbbbbYYYYbbbbgR",
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgbbbbbbbbbbbbgR",
+        "RgbrrrrrrrrrrbgR", "RgyyoobbbbooyygR", "RgbyyyoooooyybgR", "RgbbbyyyyyybbbgR",
+    ], FAST_BELT_PAL);
+    let fast_belt_s_f2 = parse_sprite([
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgyyoobbbbooyygR",
+        "RgbyyyoooooyybgR", "RgbbbyyyyyybbbgR", "RgbbbbYYYYbbbbgR", "RgbbbbbbbbbbbbgR",
+        "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR",
+        "RgyyoobbbbooyygR", "RgbyyyoooooyybgR", "RgbbbyyyyyybbbgR", "RgbbbbYYYYbbbbgR",
+    ], FAST_BELT_PAL);
+    let fast_belt_s_f3 = parse_sprite([
+        "RgbbbbbbbbbbbbgR", "RgyyoobbbbooyygR", "RgbyyyoooooyybgR", "RgbbbyyyyyybbbgR",
+        "RgbbbbYYYYbbbbgR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgbbbbbbbbbbbbgR",
+        "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR", "RgyyoobbbbooyygR", "RgbyyyoooooyybgR",
+        "RgbbbyyyyyybbbgR", "RgbbbbYYYYbbbbgR", "RgbbbbbbbbbbbbgR", "RgbrrrrrrrrrrbgR",
+    ], FAST_BELT_PAL);
+
+    let fast_belt_w_f0 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "bbbyybbbbbbbyybb", "bbyyybbbbbbyyybb",
+        "byyoobbbbbyyoobb", "yooabbbbbbyooabb", "YoobbbbbbYoobbbb", "YoorrrrrrYoorrrr",
+        "YoobbbbbbYoobbbb", "yooabbbbbbyooabb", "byyoobbbbbyyoobb", "bbyyybbbbbbyyybb",
+        "bbbyybbbbbbbyybb", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+    let fast_belt_w_f1 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "bbyybbbbbbbyybbb", "byyybbbbbbyyybbb",
+        "yyoobbbbbyyoobbb", "ooabbbbbbyooabbb", "oobbbbbbYoobbbbb", "oorrrrrrYoorrrrr",
+        "oobbbbbbYoobbbbb", "ooabbbbbbyooabbb", "yyoobbbbbyyoobbb", "byyybbbbbbyyybbb",
+        "bbyybbbbbbbyybbb", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+    let fast_belt_w_f2 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "byybbbbbbbyybbbb", "yyybbbbbbyyybbbb",
+        "yoobbbbbyyoobbbb", "oabbbbbbyooabbbb", "obbbbbbYoobbbbbb", "orrrrrrYoorrrrrr",
+        "obbbbbbYoobbbbbb", "oabbbbbbyooabbbb", "yoobbbbbyyoobbbb", "yyybbbbbbyyybbbb",
+        "byybbbbbbbyybbbb", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+    let fast_belt_w_f3 = parse_sprite([
+        "RRRRRRRRRRRRRRRR", "gggggggggggggggg", "yybbbbbbbyybbbbb", "yybbbbbbyyybbbbb",
+        "oobbbbbyyoobbbbb", "abbbbbbyooabbbbb", "bbbbbbYoobbbbbbb", "rrrrrrYoorrrrrrr",
+        "bbbbbbYoobbbbbbb", "abbbbbbyooabbbbb", "oobbbbbyyoobbbbb", "yybbbbbbyyybbbbb",
+        "yybbbbbbbyybbbbb", "bbbbbbbbbbbbbbbb", "gggggggggggggggg", "RRRRRRRRRRRRRRRR",
+    ], FAST_BELT_PAL);
+
+    // 72..75: Filter Inserter (N, E, S, W)
+    let filter_inserter_n = parse_sprite([
+        "......C..C......", "......c..c......", ".......cc.......", ".......aa.......",
+        ".......aa.......", ".......aa.......", ".......aa.......", "......pppp......",
+        ".....pVVVVp.....", "....vVVVVVVv....", "...vvVVVVVVvv...", "...vvvVVVVvvv...",
+        "....vvvvvvvv....", "................", "................", "................",
+    ], FILTER_INSERTER_PAL);
+    let filter_inserter_e = parse_sprite([
+        "................", "....vvvv........", "...vvVVvv.......", "..vvVVVVvv......",
+        ".vVVVVVVVVp.....", ".vVVVVpppppaaaaa", ".vVVVVpppppaacCC", ".vVVVVpppppaacCC",
+        ".vVVVVpppppaaaaa", ".vVVVVVVVVp.....", "..vvVVVVvv......", "...vvVVvv.......",
+        "....vvvv........", "................", "................", "................",
+    ], FILTER_INSERTER_PAL);
+    let filter_inserter_s = parse_sprite([
+        "................", "................", "................", "....vvvvvvvv....",
+        "...vvvVVVVvvv...", "...vvVVVVVVvv...", "....vVVVVVVv....", ".....pVVVVp.....",
+        "......pppp......", ".......aa.......", ".......aa.......", ".......aa.......",
+        ".......aa.......", ".......cc.......", "......c..c......", "......C..C......",
+    ], FILTER_INSERTER_PAL);
+    let filter_inserter_w = parse_sprite([
+        "................", "........vvvv....", ".......vvVVvv...", "......vvVVVVvv..",
+        ".....pVVVVVVVVv.", "aaaaapppppVVVVv.", "CCcaapppppVVVVv.", "CCcaapppppVVVVv.",
+        "aaaaapppppVVVVv.", ".....pVVVVVVVVv.", "......vvVVVVvv..", ".......vvVVvv...",
+        "........vvvv....", "................", "................", "................",
+    ], FILTER_INSERTER_PAL);
+
+    // 76..79: Laser Turret (N, E, S, W)
+    let laser_turret_n = parse_sprite([
+        "......k..k......", "......c..c......", "....rcC..Cc.....", "...bBcCc.cCcB...",
+        "..bB..c..c..Bb..", ".bB...c..c...Bb.", ".Br...cCCyCc..rB", "bB..cCCyyCCc..Bb",
+        "bB.dcCCyyCCcd.Bb", "bB..dddddddd..Bb", ".Br.dddddddd.rB.", ".bB.dddddddd.Bb.",
+        "..bB.dyyyyd.Bb..", "...bBddddddBb...", "....rbbbbbr.....", "................",
+    ], LASER_TURRET_PAL);
+    let laser_turret_e = parse_sprite([
+        "....rbbbbbr.....", "...bBddddddBb...", "..bB.dddddd.Bb..", ".bB..dddddd..Bb.",
+        ".Br..ddcCCd...rB", "bB..ddcCCCccCCck", "bB..ddcCCCyyCC..", "bB.dyycCCCyyCC..",
+        "bB.dyycCCCyyCC..", "bB..ddcCCCyyCC..", "bB..ddcCCCccCCck", ".Br..ddcCCd...rB",
+        ".bB..dddddd..Bb.", "..bB.dddddd.Bb..", "...bBddddddBb...", "....rbbbbbr.....",
+    ], LASER_TURRET_PAL);
+    let laser_turret_s = parse_sprite([
+        "....rbbbbbr.....", "...bBddddddBb...", "..bB.dyyyyd.Bb..", ".bB.dddddddd.Bb.",
+        ".Br.dddddddd.rB.", "bB..dddddddd..Bb", "bB.dcCCyyCCcd.Bb", "bB..cCCyyCCc..Bb",
+        ".Br...cCCyCc..rB", ".bB...c..c...Bb.", "..bB..c..c..Bb..", "...bBcCc.cCcB...",
+        "....rcC..Cc.....", "......c..c......", "......k..k......", "................",
+    ], LASER_TURRET_PAL);
+    let laser_turret_w = parse_sprite([
+        "....rbbbbbr.....", "...bBddddddBb...", "..bB.dddddd.Bb..", ".bB..dddddd..Bb.",
+        ".Br...dCCcd..rB.", "kcCCccCCCcd..bB.", "..CCyyCCCcd..bB.", "..CCyyCCCcyydbB.",
+        "..CCyyCCCcyydbB.", "..CCyyCCCcd..bB.", "kcCCccCCCcd..bB.", ".Br...dCCcd..rB.",
+        ".bB..dddddd..Bb.", "..bB.dddddd.Bb..", "...bBddddddBb...", "....rbbbbbr.....",
+    ], LASER_TURRET_PAL);
+
+    // 80..83: Golem Tank (F0..F3)
+    let golem_f0 = parse_sprite([
+        "...kkdSSSSdkk...", "..kdSSymmySSdk..", "..kdSmmrrmmSdk..", "...kddk..kddk...",
+        "..mSSSddddSSSm..", ".mSSddrrrrddSSm.", ".mSddkk..kkddSm.", "mSSddk....kddSSm",
+        "mSSddk.rr.kddSSm", ".mSddkk..kkddSm.", "..mddddddddddm..", "...mdd....ddm...",
+        "..kdd......ddk..", ".kdd........ddk.", ".kk..........kk.", "................",
+    ], GOLEM_PAL);
+    let golem_f1 = parse_sprite([
+        "...kkdSSSSdkk...", "..kdSSymmySSdk..", "..kdSmmrrmmSdk..", "...kddk..kddk...",
+        "..mSSSddddSSSm..", ".mSSddrrrrddSSm.", ".mSddkk..kkddSm.", "mSSddk....kddSSm",
+        "mSSddk.rr.kddSSm", ".mSddkk..kkddSm.", "..mddddddddddm..", "...mddddddddm...",
+        "....kdd..ddk....", "....kdd..ddk....", ".....kk..kk.....", "................",
+    ], GOLEM_PAL);
+    let golem_f2 = parse_sprite([
+        "...kkdSSSSdkk...", "..kdSSymmySSdk..", "..kdSmmrrmmSdk..", "...kddk..kddk...",
+        "..mSSSddddSSSm..", ".mSSddrrrrddSSm.", ".mSddkk..kkddSm.", "mSSddk....kddSSm",
+        "mSSddk.rr.kddSSm", ".mSddkk..kkddSm.", "..mddddddddddm..", "...mdd....ddm...",
+        "..kdd......ddk..", ".kdd........ddk.", ".kk..........kk.", "................",
+    ], GOLEM_PAL);
+    let golem_f3 = parse_sprite([
+        "...kkdSSSSdkk...", "..kdSSymmySSdk..", "..kdSmmrrmmSdk..", "...kddk..kddk...",
+        "..mSSSddddSSSm..", ".mSSddrrrrddSSm.", ".mSddkk..kkddSm.", "mSSddk....kddSSm",
+        "mSSddk.rr.kddSSm", ".mSddkk..kkddSm.", "..mddddddddddm..", "...mddddddddm...",
+        "....kdd..ddk....", "....kdd..ddk....", ".....kk..kk.....", "................",
+    ], GOLEM_PAL);
+
+    // 84..87: Runner Scout (F0..F3)
+    let runner_f0 = parse_sprite([
+        ".....ykk..kky...", "....ybkkddkby...", "....kbbbddbbk...", "....kbrrddrrk...",
+        "....kbbBBbbk....", "...kbBrrrrBbk...", "..kbBBddddBBbk..", "..rbbBBBBBBbbr..",
+        "...kbbddddbbk...", "....kb....bk....", "...kbb....bbk...", "..kbb......bbk..",
+        "..k..........k..", "................", "................", "................",
+    ], RUNNER_PAL);
+    let runner_f1 = parse_sprite([
+        ".....ykk..kky...", "....ybkkddkby...", "....kbbbddbbk...", "....kbrrddrrk...",
+        "....kbbBBbbk....", "...kbBrrrrBbk...", "..kbBBddddBBbk..", "..rbbBBBBBBbbr..",
+        "...kbbddddbbk...", "....kb....bk....", "....kbb..bbk....", ".....kbbbbk.....",
+        "......k..k......", "................", "................", "................",
+    ], RUNNER_PAL);
+    let runner_f2 = parse_sprite([
+        ".....ykk..kky...", "....ybkkddkby...", "....kbbbddbbk...", "....kbrrddrrk...",
+        "....kbbBBbbk....", "...kbBrrrrBbk...", "..kbBBddddBBbk..", "..rbbBBBBBBbbr..",
+        "...kbbddddbbk...", "....kb....bk....", "...kbb....bbk...", "..kbb......bbk..",
+        "..k..........k..", "................", "................", "................",
+    ], RUNNER_PAL);
+    let runner_f3 = parse_sprite([
+        ".....ykk..kky...", "....ybkkddkby...", "....kbbbddbbk...", "....kbrrddrrk...",
+        "....kbbBBbbk....", "...kbBrrrrBbk...", "..kbBBddddBBbk..", "..rbbBBBBBBbbr..",
+        "...kbbddddbbk...", "....kb....bk....", "....kbb..bbk....", ".....kbbbbk.....",
+        "......k..k......", "................", "................", "................",
+    ], RUNNER_PAL);
+
+    let all_sprites: [[u32; 256]; 88] = [
         empty_sprite,   // 0
         belt_n_f0, belt_n_f1, belt_n_f2, belt_n_f3, // 1..4
         belt_e_f0, belt_e_f1, belt_e_f2, belt_e_f3, // 5..8
@@ -551,16 +810,25 @@ fn main() {
         ore_deposit,   // 47
         goblin_f0, goblin_f1, goblin_f2, goblin_f3, // 48..51
         inserter_n, inserter_e, inserter_s, inserter_w, // 52..55
+        // New T-064 sprites:
+        fast_belt_n_f0, fast_belt_n_f1, fast_belt_n_f2, fast_belt_n_f3, // 56..59
+        fast_belt_e_f0, fast_belt_e_f1, fast_belt_e_f2, fast_belt_e_f3, // 60..63
+        fast_belt_s_f0, fast_belt_s_f1, fast_belt_s_f2, fast_belt_s_f3, // 64..67
+        fast_belt_w_f0, fast_belt_w_f1, fast_belt_w_f2, fast_belt_w_f3, // 68..71
+        filter_inserter_n, filter_inserter_e, filter_inserter_s, filter_inserter_w, // 72..75
+        laser_turret_n, laser_turret_e, laser_turret_s, laser_turret_w, // 76..79
+        golem_f0, golem_f1, golem_f2, golem_f3, // 80..83
+        runner_f0, runner_f1, runner_f2, runner_f3, // 84..87
     ];
 
-    // Serialize pixels into contiguous byte buffer (56 * 256 * 4 = 57,344 bytes)
-    let mut pixel_bytes = Vec::with_capacity(56 * 1024);
+    // Serialize pixels into contiguous byte buffer (88 * 256 * 4 = 90,112 bytes)
+    let mut pixel_bytes = Vec::with_capacity(88 * 1024);
     for sprite in &all_sprites {
         for &word in sprite {
             pixel_bytes.extend_from_slice(&word.to_le_bytes());
         }
     }
-    assert_eq!(pixel_bytes.len(), 56 * 1024);
+    assert_eq!(pixel_bytes.len(), 88 * 1024);
 
     let checksum = fnv1a_64(&pixel_bytes);
 
@@ -568,7 +836,7 @@ fn main() {
     let mut header_bytes = [0u8; 64];
     let magic: u64 = 0x41544C415358414D; // "AXMATLAS"
     let version: u32 = 1;
-    let sprite_count: u32 = 56;
+    let sprite_count: u32 = 88;
     let sprite_size: u32 = 16;
     let bytes_per_sprite: u32 = 1024;
 
@@ -580,7 +848,7 @@ fn main() {
     header_bytes[24..32].copy_from_slice(&checksum.to_le_bytes());
     // 32..64 remains zero-padded
 
-    // Write full binary slab (64 + 57344 = 57408 bytes)
+    // Write full binary slab (64 + 90112 = 90176 bytes)
     let mut file = File::create(&dest_path).expect("Failed to create sprites.atlas");
     file.write_all(&header_bytes).expect("Failed to write atlas header");
     file.write_all(&pixel_bytes).expect("Failed to write atlas pixels");

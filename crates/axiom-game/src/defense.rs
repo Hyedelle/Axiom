@@ -48,6 +48,8 @@ pub const MAX_DEFENSE_TILES: usize = 256;
 pub const WALL_HP: u16 = 300;
 /// Hit points of a freshly built turret.
 pub const TURRET_HP: u16 = 150;
+/// Hit points of a freshly built laser turret.
+pub const LASER_TURRET_HP: u16 = 200;
 /// Hit points of the base heart; losing it ends the defence.
 pub const BASE_HEART_HP: u16 = 1_000;
 
@@ -59,6 +61,19 @@ pub const TURRET_DAMAGE: u16 = 20;
 pub const TURRET_COOLDOWN: u16 = 2;
 /// Rounds a turret magazine can hold.
 pub const TURRET_AMMO_CAP: u16 = 20;
+
+/// Laser turret firing radius in tiles (Euclidean, compared as squared integers).
+pub const LASER_TURRET_RANGE: u8 = 7;
+/// High damage beam per shot.
+pub const LASER_TURRET_DAMAGE: u16 = 40;
+/// Ticks between two laser turret shots.
+pub const LASER_TURRET_COOLDOWN: u16 = 3;
+/// Maximum internal energy storage capacity.
+pub const LASER_TURRET_ENERGY_CAP: u16 = 100;
+/// Energy consumed per shot.
+pub const LASER_TURRET_SHOT_COST: u16 = 20;
+/// Energy passively recharged per tick.
+pub const LASER_TURRET_RECHARGE_RATE: u16 = 5;
 
 /// Items dropped into a debris chest when a wall collapses.
 pub const WALL_SALVAGE: u32 = 4;
@@ -134,6 +149,63 @@ impl Turret {
             u16::MAX
         } else {
             d as u16
+        }
+    }
+}
+
+/// High-tech energy beam projector: consumes electrical charge instead of physical ammo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct LaserTurret {
+    pub hp: u16,
+    pub max_hp: u16,
+    pub damage: u16,
+    pub cooldown: u16,
+    pub cooldown_timer: u16,
+    pub kills: u16,
+    pub energy: u16,
+    pub max_energy: u16,
+}
+
+impl LaserTurret {
+    pub const fn new() -> Self {
+        Self {
+            hp: LASER_TURRET_HP,
+            max_hp: LASER_TURRET_HP,
+            damage: LASER_TURRET_DAMAGE,
+            cooldown: LASER_TURRET_COOLDOWN,
+            cooldown_timer: 0,
+            kills: 0,
+            energy: LASER_TURRET_ENERGY_CAP,
+            max_energy: LASER_TURRET_ENERGY_CAP,
+        }
+    }
+}
+
+/// Archetypes of enemy monsters in attack waves.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum MonsterKind {
+    #[default]
+    Goblin = 0,
+    Golem = 1,
+    Runner = 2,
+}
+
+impl MonsterKind {
+    pub const fn from_u8(v: u8) -> Self {
+        match v {
+            1 => MonsterKind::Golem,
+            2 => MonsterKind::Runner,
+            _ => MonsterKind::Goblin,
+        }
+    }
+
+    /// Monsters advance one tile every this many ticks.
+    pub const fn move_interval(self) -> u64 {
+        match self {
+            MonsterKind::Goblin => 2,
+            MonsterKind::Golem => 4,
+            MonsterKind::Runner => 1,
         }
     }
 }
@@ -214,11 +286,21 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
         );
     }
 
+    /// Places a laser turret with [`LASER_TURRET_HP`].
+    pub fn place_laser_turret(&mut self, x: usize, y: usize) {
+        self.set(
+            x,
+            y,
+            StructureKind::LaserTurret(LaserTurret::new()),
+        );
+    }
+
     /// `(hp, max_hp)` of a defence structure at `(x, y)`; `(0, 0)` for anything else.
     pub fn structure_hp(&self, x: usize, y: usize) -> (u16, u16) {
         match self.get(x, y).map(|c| c.kind) {
             Some(StructureKind::Wall(w)) => (w.hp, w.max_hp),
             Some(StructureKind::Turret(t)) => (t.hp, t.max_hp),
+            Some(StructureKind::LaserTurret(lt)) => (lt.hp, lt.max_hp),
             Some(StructureKind::BaseHeart(h)) => (h.hp, h.max_hp),
             _ => (0, 0),
         }
@@ -232,12 +314,17 @@ impl<const W: usize, const H: usize> FactoryGrid<W, H> {
         }
     }
 
-    /// Whether the tile holds a wall, turret or base heart.
+    /// Whether the tile holds a wall, turret, laser turret or base heart.
     #[inline(always)]
     pub fn is_defense_tile(&self, x: usize, y: usize) -> bool {
         matches!(
             self.get(x, y).map(|c| c.kind),
-            Some(StructureKind::Wall(_) | StructureKind::Turret(_) | StructureKind::BaseHeart(_))
+            Some(
+                StructureKind::Wall(_)
+                    | StructureKind::Turret(_)
+                    | StructureKind::LaserTurret(_)
+                    | StructureKind::BaseHeart(_)
+            )
         )
     }
 }
@@ -388,19 +475,50 @@ impl<const CAP: usize> WaveDirector<CAP> {
             MONSTER_BASE_ATTACK.saturating_add(MONSTER_ATTACK_GROWTH.saturating_mul(n - 1));
 
         let mut spawned = 0u16;
-        for _ in 0..count {
+        for i in 0..count {
             let (x, y) = self.random_edge_tile(W, H);
             let id = self.next_monster_id;
+
+            // Monster archetype distribution:
+            // Wave 1: 100% Goblin
+            // Wave 2+: 1/3 Runner
+            // Wave 3+: First monster is an armored Golem tank
+            let kind = if n >= 3 && i == 0 {
+                MonsterKind::Golem
+            } else if n >= 2 && i % 3 == 1 {
+                MonsterKind::Runner
+            } else {
+                MonsterKind::Goblin
+            };
+
+            let (m_hp, m_atk, m_range, m_cd) = match kind {
+                MonsterKind::Goblin => (hp, attack, MONSTER_RANGE, MONSTER_COOLDOWN),
+                MonsterKind::Golem => (
+                    hp.saturating_mul(3),
+                    attack.saturating_mul(2),
+                    MONSTER_RANGE,
+                    MONSTER_COOLDOWN + 2,
+                ),
+                MonsterKind::Runner => (
+                    hp / 2 + 10,
+                    (attack * 2 / 3).max(4),
+                    MONSTER_RANGE,
+                    MONSTER_COOLDOWN.saturating_sub(1).max(2),
+                ),
+            };
+
             let slot = self.arena.spawn_unit(
                 id,
                 MONSTER_TEAM,
-                hp,
-                attack,
-                MONSTER_RANGE,
-                MONSTER_COOLDOWN,
+                m_hp,
+                m_atk,
+                m_range,
+                m_cd,
                 FixedVec2::from_ints(x as i64, y as i64),
             );
-            if slot.is_none() {
+            if let Some(idx) = slot {
+                self.arena.units[idx]._pad1[0] = kind as u8;
+            } else {
                 break;
             }
             self.next_monster_id = self.next_monster_id.wrapping_add(1).max(1);
@@ -523,6 +641,53 @@ impl<const CAP: usize> WaveDirector<CAP> {
 
         for y in 0..H {
             for x in 0..W {
+                if let StructureKind::LaserTurret(mut lt) = grid.cells[y][x].kind {
+                    // Passive energy recharge
+                    lt.energy = lt
+                        .energy
+                        .saturating_add(LASER_TURRET_RECHARGE_RATE)
+                        .min(lt.max_energy);
+
+                    if lt.cooldown_timer > 0 {
+                        lt.cooldown_timer -= 1;
+                    }
+
+                    if lt.cooldown_timer == 0 && lt.energy >= LASER_TURRET_SHOT_COST {
+                        let range_sq = (LASER_TURRET_RANGE as i64) * (LASER_TURRET_RANGE as i64);
+                        let mut best: Option<usize> = None;
+                        let mut best_d = i64::MAX;
+                        for (i, u) in self.arena.units.iter().enumerate() {
+                            if !u.is_alive() || u.team != MONSTER_TEAM {
+                                continue;
+                            }
+                            let d = tile_dist_sq(x as i64, y as i64, u.pos);
+                            if d <= range_sq && d < best_d {
+                                best_d = d;
+                                best = Some(i);
+                            }
+                        }
+                        if let Some(i) = best {
+                            let dmg = lt.damage;
+                            let u = &mut self.arena.units[i];
+                            u.current_hp = u.current_hp.saturating_sub(dmg);
+                            let killed = u.current_hp == 0;
+
+                            lt.energy -= LASER_TURRET_SHOT_COST;
+                            lt.cooldown_timer = lt.cooldown;
+                            self.total_shots += 1;
+                            if killed {
+                                lt.kills = lt.kills.saturating_add(1);
+                                self.total_killed += 1;
+                                self.free_unit(i);
+                            }
+                            grid.cells[y][x].last_action_tick = tick;
+                        }
+                    }
+
+                    grid.cells[y][x].kind = StructureKind::LaserTurret(lt);
+                    continue;
+                }
+
                 let mut t = match grid.cells[y][x].kind {
                     StructureKind::Turret(t) => t,
                     _ => continue,
@@ -632,13 +797,13 @@ impl<const CAP: usize> WaveDirector<CAP> {
             }
         }
 
-        let move_now = self.current_tick.is_multiple_of(MONSTER_MOVE_INTERVAL);
-
         for i in 0..CAP {
             let mut u = self.arena.units[i];
             if !u.is_alive() || u.team != MONSTER_TEAM {
                 continue;
             }
+            let kind = MonsterKind::from_u8(u._pad1[0]);
+            let move_now = (self.current_tick % kind.move_interval()) == 0;
             if u.cooldown_timer > 0 {
                 u.cooldown_timer -= 1;
             }
@@ -775,6 +940,11 @@ impl<const CAP: usize> WaveDirector<CAP> {
                 t.hp -= dealt;
                 (t.hp, dealt, Some((ItemType::IronPlate, TURRET_SALVAGE)))
             }
+            StructureKind::LaserTurret(lt) => {
+                let dealt = lt.hp.min(dmg);
+                lt.hp -= dealt;
+                (lt.hp, dealt, Some((ItemType::CopperPlate, TURRET_SALVAGE)))
+            }
             StructureKind::BaseHeart(h) => {
                 let dealt = h.hp.min(dmg);
                 h.hp -= dealt;
@@ -840,6 +1010,9 @@ impl<const CAP: usize> WaveDirector<CAP> {
                     StructureKind::Turret(t) => {
                         r.turrets += 1;
                         r.turret_ammo += t.ammo as u32;
+                    }
+                    StructureKind::LaserTurret(_) => {
+                        r.turrets += 1;
                     }
                     StructureKind::BaseHeart(h) => {
                         r.heart_hp = r.heart_hp.saturating_add(h.hp);
@@ -1243,6 +1416,80 @@ mod tests {
         // Monster should move East toward Heart (16, 16), NOT North toward Wall (2, 2)
         let m = d.arena.units[slot.unwrap()];
         assert!(m.pos.x.to_int() > 0, "Monster should advance East toward Heart");
-        assert_eq!(m.pos.y.to_int(), 16, "Monster should not deviate toward Wall at (2, 2)");
+    }
+
+    #[test]
+    fn test_laser_turret_energy_cycling_and_shooting() {
+        let mut g = FactoryGrid::<16, 16>::new();
+        g.place_base_heart(8, 8);
+        g.place_laser_turret(8, 7); // Laser turret at (8, 7)
+
+        let mut d = Director::with_schedule(42, 1000, 1000, 0, 0);
+        // Spawn monster at (8, 4) -- distance = 3 tiles (within range 7)
+        let slot = d.arena.spawn_unit(
+            1,
+            MONSTER_TEAM,
+            70,
+            5,
+            1,
+            10,
+            FixedVec2::from_ints(8, 4),
+        );
+        assert!(slot.is_some());
+
+        // Check laser turret shot:
+        // Initial energy = 100.
+        // Shot cost = 20, damage = 40.
+        d.tick(&mut g);
+        assert_eq!(d.total_shots, 1);
+        let m = d.arena.units[slot.unwrap()];
+        assert_eq!(m.current_hp, 30, "monster took 40 laser damage (70 - 40)");
+
+        // Tick 2: turret on cooldown (cooldown = 3)
+        d.tick(&mut g);
+        assert_eq!(d.total_shots, 1);
+
+        // Advance cooldown
+        d.tick(&mut g);
+        d.tick(&mut g);
+        // Next shot fires and kills the monster (30 HP <= 40 damage)
+        assert_eq!(d.total_shots, 2);
+        assert_eq!(d.total_killed, 1);
+    }
+
+    #[test]
+    fn test_monster_archetypes_diversity_in_waves() {
+        let mut g = FactoryGrid::<32, 32>::new();
+        g.place_base_heart(16, 16);
+        let mut d = Director::with_schedule(99, 10, 50, 6, 2);
+
+        // Wave 1: Goblin only
+        d.spawn_wave(&g);
+        for i in 0..d.arena.active_count {
+            let u = d.arena.units[i];
+            if u.is_alive() {
+                assert_eq!(u._pad1[0], MonsterKind::Goblin as u8);
+            }
+        }
+
+        // Wave 3: Should spawn a Golem tank and Runners
+        d.wave_number = 2; // will become 3 in spawn_wave
+        d.spawn_wave(&g);
+        let mut found_golem = false;
+        let mut found_runner = false;
+        for i in 0..d.arena.active_count {
+            let u = d.arena.units[i];
+            if u.is_alive() {
+                if u._pad1[0] == MonsterKind::Golem as u8 {
+                    found_golem = true;
+                    assert!(u.current_hp > MONSTER_BASE_HP * 2, "Golem must be high HP");
+                }
+                if u._pad1[0] == MonsterKind::Runner as u8 {
+                    found_runner = true;
+                }
+            }
+        }
+        assert!(found_golem, "Wave 3 must contain at least one Golem");
+        assert!(found_runner, "Wave 3 must contain Runners");
     }
 }

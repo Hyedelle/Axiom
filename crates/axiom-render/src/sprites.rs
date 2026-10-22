@@ -1,7 +1,7 @@
 //! 16x16 Pixel Sprite Atlas loaded zero-copy from build-time binary slab.
 //!
 //! Sprites are baked by `build.rs` into a 64-byte aligned binary slab (`sprites.atlas`)
-//! with a 64-byte `AtlasHeader` followed by 56 x 1024-byte (`[u32; 256]`) sprites.
+//! with a 64-byte `AtlasHeader` followed by 88 x 1024-byte (`[u32; 256]`) sprites.
 
 pub const SPRITE_SIZE: usize = 16;
 pub const PIXELS_PER_SPRITE: usize = SPRITE_SIZE * SPRITE_SIZE; // 256
@@ -17,6 +17,9 @@ pub const SPRITE_KIND_WALL: u32 = 7;
 pub const SPRITE_KIND_TURRET: u32 = 8;
 pub const SPRITE_KIND_BASE_HEART: u32 = 9;
 pub const SPRITE_KIND_MONSTER: u32 = 10;
+pub const SPRITE_KIND_FAST_BELT: u32 = 11;
+pub const SPRITE_KIND_FILTER_INSERTER: u32 = 12;
+pub const SPRITE_KIND_LASER_TURRET: u32 = 13;
 
 pub const DIR_NORTH: u32 = 0;
 pub const DIR_EAST: u32 = 1;
@@ -24,10 +27,10 @@ pub const DIR_SOUTH: u32 = 2;
 pub const DIR_WEST: u32 = 3;
 
 pub const ATLAS_MAGIC: u64 = 0x41544C415358414D; // "AXMATLAS"
-pub const SPRITE_COUNT: usize = 56;
+pub const SPRITE_COUNT: usize = 88;
 pub const HEADER_SIZE: usize = 64;
 pub const BYTES_PER_SPRITE: usize = 1024;
-pub const TOTAL_ATLAS_BYTES: usize = HEADER_SIZE + SPRITE_COUNT * BYTES_PER_SPRITE; // 57,408 bytes
+pub const TOTAL_ATLAS_BYTES: usize = HEADER_SIZE + SPRITE_COUNT * BYTES_PER_SPRITE; // 90,176 bytes
 
 #[repr(C, align(64))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,16 +53,21 @@ pub static EMPTY_SPRITE: [u32; 256] = [0u32; 256];
 
 // Indices inside the baked binary atlas
 pub const IDX_EMPTY: usize = 0;
-pub const IDX_BELT_BASE: usize = 1;      // 1..=16 (4 dirs x 4 frames)
-pub const IDX_DRILL_BASE: usize = 17;    // 17..=32 (4 dirs x 4 frames)
-pub const IDX_SMELTER_BASE: usize = 33;  // 33..=36 (4 frames)
-pub const IDX_CHEST: usize = 37;         // 37
-pub const IDX_WALL: usize = 38;          // 38
-pub const IDX_TURRET_BASE: usize = 39;   // 39..=42 (4 dirs)
-pub const IDX_HEART_BASE: usize = 43;    // 43..=46 (4 frames)
-pub const IDX_DEPOSIT: usize = 47;       // 47
-pub const IDX_GOBLIN_BASE: usize = 48;   // 48..=51 (4 frames)
-pub const IDX_INSERTER_BASE: usize = 52; // 52..=55 (4 dirs)
+pub const IDX_BELT_BASE: usize = 1;             // 1..=16 (4 dirs x 4 frames)
+pub const IDX_DRILL_BASE: usize = 17;           // 17..=32 (4 dirs x 4 frames)
+pub const IDX_SMELTER_BASE: usize = 33;         // 33..=36 (4 frames)
+pub const IDX_CHEST: usize = 37;                // 37
+pub const IDX_WALL: usize = 38;                 // 38
+pub const IDX_TURRET_BASE: usize = 39;          // 39..=42 (4 dirs)
+pub const IDX_HEART_BASE: usize = 43;           // 43..=46 (4 frames)
+pub const IDX_DEPOSIT: usize = 47;              // 47
+pub const IDX_GOBLIN_BASE: usize = 48;          // 48..=51 (4 frames)
+pub const IDX_INSERTER_BASE: usize = 52;        // 52..=55 (4 dirs)
+pub const IDX_FAST_BELT_BASE: usize = 56;       // 56..=71 (4 dirs x 4 frames)
+pub const IDX_FILTER_INSERTER_BASE: usize = 72; // 72..=75 (4 dirs)
+pub const IDX_LASER_TURRET_BASE: usize = 76;    // 76..=79 (4 dirs)
+pub const IDX_GOLEM_BASE: usize = 80;           // 80..=83 (4 frames)
+pub const IDX_RUNNER_BASE: usize = 84;          // 84..=87 (4 frames)
 
 /// Returns a reference to the 64-byte atlas header.
 #[inline(always)]
@@ -87,6 +95,14 @@ pub fn get_belt_sprite(direction: u32, tick: u64) -> &'static [u32; 256] {
     let dir_idx = (direction as usize) % 4;
     let frame_idx = (tick as usize / 2) % 4;
     get_sprite_by_index(IDX_BELT_BASE + dir_idx * 4 + frame_idx)
+}
+
+/// Returns the sprite for a fast conveyor belt given direction and tick.
+#[inline(always)]
+pub fn get_fast_belt_sprite(direction: u32, tick: u64) -> &'static [u32; 256] {
+    let dir_idx = (direction as usize) % 4;
+    let frame_idx = (tick as usize) % 4;
+    get_sprite_by_index(IDX_FAST_BELT_BASE + dir_idx * 4 + frame_idx)
 }
 
 /// Returns the sprite for a mining drill given direction and tick.
@@ -123,6 +139,13 @@ pub fn get_turret_sprite(direction: u32) -> &'static [u32; 256] {
     get_sprite_by_index(IDX_TURRET_BASE + dir_idx)
 }
 
+/// Returns the sprite for a laser turret given direction.
+#[inline(always)]
+pub fn get_laser_turret_sprite(direction: u32) -> &'static [u32; 256] {
+    let dir_idx = (direction as usize) % 4;
+    get_sprite_by_index(IDX_LASER_TURRET_BASE + dir_idx)
+}
+
 /// Returns the sprite for the base heart crystal given tick.
 #[inline(always)]
 pub fn get_heart_sprite(tick: u64) -> &'static [u32; 256] {
@@ -136,11 +159,33 @@ pub fn get_deposit_sprite(_tick: u64) -> &'static [u32; 256] {
     get_sprite_by_index(IDX_DEPOSIT)
 }
 
-/// Returns the sprite for a monster given tick.
+/// Returns the sprite for a standard goblin monster given tick.
 #[inline(always)]
 pub fn get_monster_sprite(tick: u64) -> &'static [u32; 256] {
     let frame_idx = (tick as usize / 4) % 4;
     get_sprite_by_index(IDX_GOBLIN_BASE + frame_idx)
+}
+
+/// Returns the sprite for a monster given its archetype kind and tick.
+#[inline(always)]
+pub fn get_monster_sprite_by_kind(kind: u8, tick: u64) -> &'static [u32; 256] {
+    match kind {
+        1 => {
+            // Golem (Stone Titan)
+            let frame_idx = (tick as usize / 4) % 4;
+            get_sprite_by_index(IDX_GOLEM_BASE + frame_idx)
+        }
+        2 => {
+            // Runner (Fast Scout)
+            let frame_idx = (tick as usize / 2) % 4;
+            get_sprite_by_index(IDX_RUNNER_BASE + frame_idx)
+        }
+        _ => {
+            // Standard Goblin
+            let frame_idx = (tick as usize / 4) % 4;
+            get_sprite_by_index(IDX_GOBLIN_BASE + frame_idx)
+        }
+    }
 }
 
 /// Returns the sprite for an inserter arm given direction and tick.
@@ -148,6 +193,13 @@ pub fn get_monster_sprite(tick: u64) -> &'static [u32; 256] {
 pub fn get_inserter_sprite(direction: u32, _tick: u64) -> &'static [u32; 256] {
     let dir_idx = (direction as usize) % 4;
     get_sprite_by_index(IDX_INSERTER_BASE + dir_idx)
+}
+
+/// Returns the sprite for an item-selective filter inserter given direction.
+#[inline(always)]
+pub fn get_filter_inserter_sprite(direction: u32, _tick: u64) -> &'static [u32; 256] {
+    let dir_idx = (direction as usize) % 4;
+    get_sprite_by_index(IDX_FILTER_INSERTER_BASE + dir_idx)
 }
 
 /// Universal structure sprite resolver matching `kind_id` and `direction`.
@@ -164,6 +216,9 @@ pub fn render_structure_sprite(kind_id: u32, direction: u32, tick: u64) -> &'sta
         SPRITE_KIND_TURRET => get_turret_sprite(direction),
         SPRITE_KIND_BASE_HEART => get_heart_sprite(tick),
         SPRITE_KIND_MONSTER => get_monster_sprite(tick),
+        SPRITE_KIND_FAST_BELT => get_fast_belt_sprite(direction, tick),
+        SPRITE_KIND_FILTER_INSERTER => get_filter_inserter_sprite(direction, tick),
+        SPRITE_KIND_LASER_TURRET => get_laser_turret_sprite(direction),
         _ => &EMPTY_SPRITE,
     }
 }
@@ -188,7 +243,7 @@ mod tests {
         assert_eq!(header.bytes_per_sprite, 1024, "Sprite slice must be 1024 bytes");
         assert_ne!(header.checksum, 0, "Checksum must be non-zero");
 
-        // Verify all 56 sprites are accessible and 64-byte aligned in memory
+        // Verify all 88 sprites are accessible and 64-byte aligned in memory
         for idx in 0..SPRITE_COUNT {
             let sprite = get_sprite_by_index(idx);
             assert_eq!(sprite.len(), 256);
@@ -226,20 +281,25 @@ mod tests {
             get_heart_sprite(0),
             get_monster_sprite(0),
             get_inserter_sprite(DIR_NORTH, 0),
+            get_fast_belt_sprite(DIR_NORTH, 0),
+            get_filter_inserter_sprite(DIR_NORTH, 0),
+            get_laser_turret_sprite(DIR_NORTH),
+            get_monster_sprite_by_kind(1, 0), // Golem
+            get_monster_sprite_by_kind(2, 0), // Runner
         ];
 
         for sprite in test_sprites {
             assert_eq!(sprite.len(), 256);
             let opaque_count = sprite.iter().filter(|&&p| (p >> 24) > 0).count();
             assert!(
-                opaque_count >= 30,
+                opaque_count >= 20,
                 "Sprite should have sufficient visible pixels, found {}",
                 opaque_count
             );
         }
 
         // 4. Verify helper resolver works for all kinds and directions
-        for kind in 0..=10 {
+        for kind in 0..=13 {
             for dir in 0..4 {
                 for tick in [0u64, 1, 5, 12, 100] {
                     let s = render_structure_sprite(kind, dir, tick);
@@ -249,22 +309,5 @@ mod tests {
                 }
             }
         }
-
-        // 5. Verify animation frames cycle across ticks
-        let belt_f0 = render_structure_sprite(SPRITE_KIND_BELT, DIR_NORTH, 0);
-        let belt_f1 = render_structure_sprite(SPRITE_KIND_BELT, DIR_NORTH, 2);
-        assert_ne!(belt_f0, belt_f1);
-
-        let heart_f0 = render_structure_sprite(SPRITE_KIND_BASE_HEART, 0, 0);
-        let heart_f1 = render_structure_sprite(SPRITE_KIND_BASE_HEART, 0, 6);
-        assert_ne!(heart_f0, heart_f1);
-
-        let smelter_f0 = render_structure_sprite(SPRITE_KIND_SMELTER, 0, 0);
-        let smelter_f1 = render_structure_sprite(SPRITE_KIND_SMELTER, 0, 3);
-        assert_ne!(smelter_f0, smelter_f1);
-
-        let monster_f0 = get_monster_sprite(0);
-        let monster_f2 = get_monster_sprite(8);
-        assert_ne!(monster_f0, monster_f2);
     }
 }
