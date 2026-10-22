@@ -871,6 +871,7 @@ use axiom_core::ChunkCoord;
 use axiom_game::{
     generate_ore_veins, Chest, ColonyWorkforce, Direction, FactoryGrid, FactoryStructure,
     ItemType, StructureKind, WaveDirector, WorkerRole, CYCLE, MONSTER_TEAM, STAMINA_MAX,
+    TURRET_AMMO_CAP,
 };
 
 /// Factory grid exposed to the web canvas: one 32x32 chunk (64 KiB of 64-byte cells).
@@ -885,7 +886,7 @@ const FACTORY_HEART_Y: usize = 16;
 /// Ore units in a deposit placed by hand (`FACTORY_KIND_DEPOSIT`).
 const FACTORY_DEPOSIT_AMOUNT: u32 = 500;
 /// Items pre-stocked in a chest placed with a non-`None` item (ammo supply).
-const FACTORY_CHEST_STOCK: u32 = 50;
+const FACTORY_CHEST_STOCK: u32 = 500;
 const FACTORY_DRILL_SPEED: u16 = 25;
 const FACTORY_BELT_SPEED: u16 = 50;
 const FACTORY_INSERTER_SPEED: u16 = 50;
@@ -1283,7 +1284,13 @@ impl FactoryWasmEngine {
                 }
             }
             FACTORY_KIND_WALL => self.grid.place_wall(x, y),
-            FACTORY_KIND_TURRET => self.grid.place_turret(x, y),
+            FACTORY_KIND_TURRET => {
+                self.grid.place_turret(x, y);
+                if let StructureKind::Turret(ref mut t) = self.grid.cells[y][x].kind {
+                    t.ammo = TURRET_AMMO_CAP;
+                    t.ammo_item = ItemType::IronPlate;
+                }
+            }
             FACTORY_KIND_INSERTER => {
                 self.grid.place_inserter(x, y, dir, FACTORY_INSERTER_SPEED);
                 self.auto_staff(x, y, WorkerRole::Technician);
@@ -1823,7 +1830,7 @@ mod tests {
         assert!(axiom_factory_place(1, 5, FACTORY_KIND_WALL, 0, 0));
         assert!(matches!(factory_cell(1, 5), StructureKind::Wall(w) if w.hp == axiom_game::WALL_HP));
         assert!(axiom_factory_place(1, 6, FACTORY_KIND_TURRET, 0, 0));
-        assert!(matches!(factory_cell(1, 6), StructureKind::Turret(t) if t.ammo == 0));
+        assert!(matches!(factory_cell(1, 6), StructureKind::Turret(t) if t.ammo == TURRET_AMMO_CAP));
         assert!(axiom_factory_place(1, 7, FACTORY_KIND_INSERTER, 3, 0));
         assert!(matches!(factory_cell(1, 7), StructureKind::Inserter(i) if i.direction == Direction::West));
         assert!(axiom_factory_place(1, 8, FACTORY_KIND_BASE_HEART, 0, 0));
