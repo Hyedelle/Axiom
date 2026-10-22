@@ -6,20 +6,21 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-070: 무한 절차적 오픈월드 청크 스트리밍 & 바이옴 PCG (Phase 3 본격 진입)**
+- [ ] **T-071: 절차적 바이옴 동적 몬스터 스폰 및 거점 영역 방어 (Phase 3)**
   - **목표:**
-    - 64x64 정적 그리드를 넘어, 무한 좌표계를 지원하는 64B L1 정렬 청크 매니저와 시드 결정론 바이옴 PCG 생성 파이프라인 구축
+    - T-070 바이옴/자원 레이어(`BiomeKind`, `ResourceDeposit`)를 기반으로 바이옴별 몬스터 스폰 테이블과 거점(Heart) 영역 방어 웨이브를 무할당 결정론 파이프라인으로 구축
   - **시공:** ⚡ Claude Code (현장 특수 시공팀)
   - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-071: 절차적 바이옴 동적 몬스터 스폰 및 거점 영역 방어 (Phase 3)**
+- (관제탑 지정 대기)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-070: 무한 절차적 오픈월드 청크 스트리밍 & 바이옴 PCG (Phase 3 본격 진입)** (`crates/axiom-core/src/pcg.rs`, `crates/axiom-core/src/chunk.rs`, `crates/axiom-core/src/serialization.rs`, `crates/axiom-core/src/hash.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_infinite_world.rs`, `crates/axiom-cli/src/rpg_demo.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-game/src/world_factory.rs`, `docs/decisions.md` [D-032], 8종 바이옴 `BiomeKind`(온대 평원/아한대 숲/건조 사막/동토 툰드라/화산 암벽/늪지대/심해/균사 지대) 및 7종 `ResourceDeposit`(None/철/구리/석탄/석재/우라늄/원유) `repr(u8)` 열거형, 고도 3옥타브·습도 2옥타브·기온 2옥타브·디테일 1옥타브 총 8레이어 2의 거듭제곱 격자 정수 값 노이즈(시프트/마스크 전용, 나눗셈·부동소수점 0건) Whittaker 분류기 `classify_biome`, 16B POD `BiomeSample` 반환 `sample_world_biome`, 16타일 격자 결정론 광맥 클러스터링(맨해튼 반경 2~5, 바이옴별 매장 테이블, 중심 거리 비례 매장량 감쇠), 64B `ChunkHeader`(좌표·주 바이옴·수정 카운트·롤링 상태 해시·바이옴 히스토그램·매장/수역/보행 타일 수) + `tiles`/`biomes`/`resources` 3레이어 `Chunk<S>`(3,136B = 49 캐시 라인), 16B `ChunkDelta` 오픈 어드레싱 고정 슬랩 `ChunkDeltaMap<CAP>`(기본 2,048 엔트리) 퇴출 후 재진입 시 플레이어 수정 자동 재적용 및 미로드 청크 선편집 지원, 512버킷 `u16` 슬롯 인덱스 테이블 O(1) `find_chunk_index`, `DEFAULT_MAX_CHUNKS` 64 확장, `tile_at` 로드 청크 ➔ 델타 ➔ 절차 샘플 일원화, 아카이브 v2 청크 POD 레코드 + 델타 슬랩 직렬화(열거형 판별값 검증 후 역직렬화), 행 단위 격자 런 노이즈 충전 `fill_noise_row` 및 FNV-1a 인덱스 루프 최적화로 debug 청크 생성 400µs ➔ 160µs, 스트리밍 1,000스텝 1,925µs ➔ 892µs/스텝, 100k NPC 세이브/로드 4.9ms, `ChunkManager::find_open_spawn` 스택 전용 결정론 BFS 개활지(도달 가능 1,024타일 이상) 스폰 선정을 RPG 데모 세션/WASM RPG 엔진에 적용하여 암벽 포켓 스폰 방지, 팩토리 테스트 광맥 중심 수역 회피 보강, 신규 테스트 `test_biome_distribution_and_determinism`(3시드 512×512 샘플 8바이옴 각 1.5%~45% 분포 및 비트 동일성) / `test_resource_vein_clustering`(1024×1024 전수 스캔 동종 인접률 ≥90%, 수역 매장 0건, 6종 전부 출현) / `test_infinite_chunk_streaming_with_deltas`(20건 편집 퇴출 ➔ 재로드 100% 보존 및 무퇴출 경로와 해시 일치, 세이브/로드 왕복) / `test_chunk_manager_chebyshev_radius`(반경 3 → 49청크 적재, 대각 이동 13 퇴출/13 생성, i32 극한 좌표 점프), `tools/guard.ps1` 통과)
 - [x] **T-069: Unity 6 / IL2CPP 호환 C# FFI 스모크 테스트 및 무오염 독립 검증 체계** (`bindings/csharp/AxiomSdk.cs`, `bindings/csharp/AxiomSmokeTest.cs`, `tools/export_sdk_csharp.ps1`, `docs/decisions.md` [D-031], 외부 게임 프로젝트 무수정/무오염 원칙 엄수 하에 엔진 내부 64비트 C# 컴파일러(`csc.exe`) 기반 독립 스모크 테스트 스위트 구축, 4대 게이트 자동 검증: [Gate 1] 64B L1 캐시 정렬 및 `TileCell` 8개 필드 오프셋 정합성, [Gate 2] 순수 정수/고정소수점(`Fixed`) 사칙연산(`+`, `-`, `*`, `/`) 무부동소수점 검증, [Gate 3] 채굴-벨트-제련-가공 200틱 시뮬레이션 및 결정론 상태 해시 `0xC066AEFEB0CF7E63`, [Gate 4] 2프레임 네트워크 지연 환경 P2P GGPO 투기적 롤백 및 양 피어 상태 해시 합의 `0xA76EEE60E807ABA4`, `TileCell` 편의 프로퍼티 `Direction`/`TransporterMode`/`TargetItem` 추가, 총 소요 시간 19ms 전 게이트 통과, `tools/guard.ps1` 통과)
 - [x] **T-068: 10만 엔티티 초고속 무할당 공간 분할 가속기 (`SpatialIndex`, 64B L1 Cache)** (`crates/axiom-core/src/spatial_index.rs`, `crates/axiom-core/src/spatial.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/benchmark_spatial_index.rs`, `SpatialIndex<BUCKETS, MAX_ENTITIES>` 64B 정렬 SoA 슬랩(16,384 버킷 64KB 헤드 테이블 + `next`/`entity_ids`/`cell_keys`/`positions`) 단 1회 힙 할당 후 틱당 재할당 0, 정수 전용 셀 해싱 및 `cell_keys` 정확 소유권 검증으로 해시 충돌 무오류, 음수 좌표 `div_euclid` 지원, `query_radius` i128 제곱거리 오버플로 방어, `query_aabb` 포함 직사각형 쿼리, `find_closest` 동심 링 확장 + 최소 ID 결정론 타이브레이크 및 정수 `isqrt` 거리 반환, 광역 쿼리 시 선형 SoA 스캔 자동 전환, 단위 테스트 `test_spatial_index_100k_entities` 100,000개 브루트포스 대조 100% 일치 및 clear/재삽입 리플레이 동일성, `test_spatial_index_aabb_and_closest`, 벤치마크 삽입 3.0ms / clear 17µs / 반경 쿼리 평균 2.2µs / 최근접 탐색 평균 1.9µs (debug, 1ms 목표 대비 500배 여유), `tools/guard.ps1` 무결성 검증 완료)
 - [x] **T-067: 데이터 드리븐 팩토리/게임플레이 스키마 정의 및 무할당 런타임 변환 엔진 (`schema.rs`, `tile_entity.rs`)** (`crates/axiom-core/src/schema.rs`, `crates/axiom-core/src/tile_entity.rs`, `crates/axiom-sdk/src/lib.rs`, `TileGrid::step_simulation` 4단계 힙 제로 결정론 파이프라인 구현, `PRODUCER` 전방 자동 사출/생산, `TRANSPORTER` 2단계 충돌 없는 전방 이송 및 인서터 후방 흡입 모드, `RecipeRegistry` 무할당 다원 레시피 가공, `COMBATANT` 원거리 피해 타격, `test_data_driven_production_and_logistics_pipeline` 채굴-벨트-제련-투입-상자 100% 데이터 드리븐 실증, C# 바인딩 `axiom_sdk.dll` 연동 검증 및 `tools/guard.ps1` 통과)

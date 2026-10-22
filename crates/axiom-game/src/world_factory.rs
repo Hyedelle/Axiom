@@ -203,9 +203,9 @@ impl OreSurvey {
 
 /// Surveys chunk terrain + seed without materialising any factory grid.
 pub fn survey_chunk<const S: usize>(world_seed: u64, chunk: &Chunk<S>) -> OreSurvey {
-    let veins = generate_ore_veins::<S>(world_seed, chunk.coord);
+    let veins = generate_ore_veins::<S>(world_seed, chunk.header.coord);
     let mut s = OreSurvey {
-        coord: chunk.coord,
+        coord: chunk.header.coord,
         veins: veins.count as u32,
         ..OreSurvey::default()
     };
@@ -981,8 +981,15 @@ mod tests {
         let mut w = WorldFactory::<32, 8, 2>::new(SEED, 1);
         let coord = ChunkCoord::new(-3, 5);
         let idx = w.claim_chunk(coord).unwrap();
+        // Pick a vein whose centre is on land: the spawner skips water tiles by design.
+        let terrain = Chunk::<32>::generate(SEED, coord, 0);
         let veins = generate_ore_veins::<32>(SEED, coord);
-        let v = veins.veins[0];
+        let v = veins
+            .active()
+            .iter()
+            .copied()
+            .find(|v| terrain.tiles[v.cy as usize][v.cx as usize] != TileType::Water)
+            .expect("at least one vein centre must sit on land");
         let (lx, ly) = (v.cx as usize, v.cy as usize);
 
         let deposit = match w.factories[idx].grid.cells[ly][lx].kind {

@@ -37,10 +37,17 @@ impl Hasher for Fnv1aHasher {
 
     #[inline(always)]
     fn write(&mut self, bytes: &[u8]) {
-        for &byte in bytes {
-            self.state ^= byte as u64;
-            self.state = self.state.wrapping_mul(FNV_PRIME);
+        // Index loop instead of an iterator: identical output, but no per-byte
+        // `Iterator::next` call in unoptimized (debug) builds.
+        let len = bytes.len();
+        let mut state = self.state;
+        let mut i = 0usize;
+        while i < len {
+            state ^= bytes[i] as u64;
+            state = state.wrapping_mul(FNV_PRIME);
+            i += 1;
         }
+        self.state = state;
     }
 }
 

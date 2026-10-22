@@ -18,7 +18,9 @@ use std::time::Instant;
 use axiom_core::audio::{
     AudioMixFrame, SoundCategory, SoundEvent, SpatialAudioSimulator, DEFAULT_MAX_VOICES,
 };
-use axiom_core::chunk::{ChunkManager, DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS};
+use axiom_core::chunk::{
+    ChunkManager, DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS, DEFAULT_SPAWN_MIN_OPEN_AREA,
+};
 use axiom_core::effector::{
     AtbArena, AtbUnit, Element, StatusKind, MAX_ACTIVE_UNITS,
 };
@@ -91,9 +93,13 @@ impl OpenWorldRpgSession {
         // 3. Allocate PathFinder on heap
         let pathfinder = Box::new(PathFinder::<DEFAULT_GRID_W, DEFAULT_GRID_H>::new());
 
-        // 4. Initialize ChunkManager centered at player origin (0, 0)
-        let player_pos = FixedVec2::new(Fixed::ZERO, Fixed::ZERO);
+        // 4. Initialize ChunkManager around the origin, then spawn the player on the
+        //    nearest open ground (procedural terrain may wall the origin into a pocket).
         let mut chunk_mgr = ChunkManager::new(world_seed, 2);
+        chunk_mgr.update_player_pos(FixedVec2::ZERO, 0);
+        let (spawn_x, spawn_y) =
+            chunk_mgr.find_open_spawn(DEFAULT_GRID_W, DEFAULT_GRID_H, DEFAULT_SPAWN_MIN_OPEN_AREA);
+        let player_pos = FixedVec2::from_ints(spawn_x, spawn_y);
         chunk_mgr.update_player_pos(player_pos, 0);
 
         // 5. Subsystems initialization

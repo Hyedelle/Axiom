@@ -39,8 +39,10 @@ pub use audio::{
     DEFAULT_MAX_VOICES, MAX_AUDIO_QUEUE,
 };
 pub use chunk::{
-    sample_world_tile, Chunk, ChunkCoord, ChunkManager, ChunkSlot, ChunkStreamStats,
-    DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS, DEFAULT_VIEW_RADIUS,
+    pack_resource, sample_world_tile, unpack_resource, Chunk, ChunkCoord, ChunkDelta,
+    ChunkDeltaMap, ChunkHeader, ChunkManager, ChunkSlot, ChunkStreamStats, CHUNK_INDEX_BUCKETS,
+    DEFAULT_CHUNK_SIZE, DEFAULT_DELTA_CAPACITY, DEFAULT_MAX_CHUNKS, DEFAULT_SPAWN_MIN_OPEN_AREA,
+    DEFAULT_VIEW_RADIUS, SPAWN_WINDOW_MAX,
 };
 pub use combat::{BattleArena, CombatUnit, DEFAULT_MAX_UNITS};
 pub use effector::{
@@ -65,7 +67,11 @@ pub use npc_crowd::{
 pub use pathfinding::{
     Path, PathFinder, DEFAULT_GRID_H, DEFAULT_GRID_W, DEFAULT_HEAP_CAPACITY, MAX_PATH_WAYPOINTS,
 };
-pub use pcg::{Rng, TileMap, TileType};
+pub use pcg::{
+    classify_biome, hash2d, sample_value_noise, sample_world_biome, sample_world_biome_cached,
+    BiomeKind, BiomeNoiseContext, BiomeSample, ResourceDeposit, Rng, TileMap, TileType,
+    BIOME_DEPOSIT_TABLE, NOISE_MAX, VEIN_CELL_SIZE, VEIN_MAX_RADIUS, VEIN_NO_DISTANCE,
+};
 pub use quest::{
     DialogueAction, DialogueChoice, DialogueNode, DialogueSession, ObjectiveType, QuestJournal,
     QuestRecord, QuestStatus, DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS,

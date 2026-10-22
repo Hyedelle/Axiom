@@ -110,7 +110,7 @@ fn test_terrain_modification_dirty_flag() {
 
     assert_eq!(mgr.tile_at(5, 5), modified_tile);
     let chunk = mgr.chunk_at(ChunkCoord::new(0, 0)).unwrap();
-    assert!(chunk.dirty);
+    assert!(chunk.header.dirty);
 }
 
 #[test]

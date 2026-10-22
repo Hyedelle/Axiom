@@ -48,6 +48,53 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T070] 무한 절차적 오픈월드 청크 스트리밍 & 바이옴 PCG (Phase 3 본격 진입)
+- **목표:** 기존 64x64 고정 그리드에서 벗어나, 무한 좌표계($-\infty \sim +\infty$)에서 동작하는 8종 다원 바이옴(Biome) 절차적 생성, 자원 광맥 클러스터링, 그리고 청크 언로드/재로드 시 플레이어 수정 내역을 무할당으로 보존하는 64B L1 캐시 정렬 차세대 `ChunkManager` 파이프라인 구축.
+- **대상 파일 및 구현 상세:**
+  1. `crates/axiom-core/src/pcg.rs` (또는 `biome.rs`):
+     - `BiomeKind` 열거형 (`repr(u8)`, 8종):
+       * `0 = TemperatePlains` (온대 평원: 평원, 숲, 연못)
+       * `1 = BorealForest` (아한대 숲: 침엽수림, 암석)
+       * `2 = AridDesert` (건조 사막: 모래, 사암, 오아시스)
+       * `3 = FrozenTundra` (동토 툰드라: 빙설, 영구동토)
+       * `4 = VolcanicCrag` (화산 암벽: 현무암, 흑요석, 용암/유황)
+       * `5 = SwampMarsh` (늪지대: 진흙, 습지 수역, 갈대)
+       * `6 = OceanDepths` (심해: 깊은 바다)
+       * `7 = MushroomGlade` (균사 지대: 발광 버섯, 비옥토)
+     - `ResourceDeposit` 열거형 (`repr(u8)`):
+       * `None = 0`, `IronOre = 1`, `CopperOre = 2`, `Coal = 3`, `Stone = 4`, `Uranium = 5`, `CrudeOil = 6`
+     - 정수 바이옴 샘플러 `sample_world_biome(wx: i32, wy: i32, seed: u64) -> BiomeSample`:
+       * 고도(Elevation), 습도(Moisture), 기온(Temperature)의 3계층 정수 옥타브 노이즈 합성.
+       * 부동소수점(`f32/f64`) 0건. 완전한 정수 비트 연산 기반.
+       * 자원 매장량(`deposit_kind`, `deposit_richness`) 결정론적 산출.
+  2. `crates/axiom-core/src/chunk.rs`:
+     - 청크 크기 `CHUNK_SIZE = 32`, 슬랩 풀 `DEFAULT_MAX_CHUNKS = 64`.
+     - 64바이트 L1 캐시 정렬 구조체:
+       * `ChunkHeader`: 좌표 `(cx, cy)`, 주 바이옴 `primary_biome`, 수정 카운트, 상태 해시
+       * `Chunk<const S: usize>`: `header: ChunkHeader`, `tiles: [[TileType; S]; S]`, `biomes: [[u8; S]; S]`, `resources: [[u8; S]; S]`
+     - 플레이어 수정 델타 보존 슬랩 (`ChunkDeltaMap<const CAP: usize>`):
+       * 청크가 시야 밖으로 퇴출(Evict)되어도 플레이어가 설치/채굴/파괴한 타일 상태를 고정 슬랩에 기록.
+       * 동일 청크 재진입(Regenerate) 시 델타를 자동 재적용하여 영속성 보장.
+     - `ChunkManager<S, MAX_CHUNKS>`:
+       * 플레이어 좌표 기반 32x32 윈도우 갱신 (`update_center`, `update_player_pos`).
+       * 무할당 O(1) 슬랩 버킷 인덱서 (해시 충돌 방지 고정 테이블).
+       * `sample_world_tile`, `sample_world_biome`, `tile_at`, `set_tile` 일원화.
+  3. `crates/axiom-core/src/lib.rs`:
+     - `pub use pcg::{BiomeKind, ResourceDeposit, BiomeSample};`
+     - `pub use chunk::{Chunk, ChunkCoord, ChunkManager, ChunkStreamStats};` 등 주요 심볼 재수출.
+  4. 단위 테스트 (`crates/axiom-core/tests/test_infinite_world.rs` 또는 `chunk.rs` 내부):
+     - `test_biome_distribution_and_determinism`: 8개 바이옴 고른 생성 및 시드별 100% 비트 동일성 검증.
+     - `test_resource_vein_clustering`: 자원 광맥 클러스터링 및 매장량 결정론 검증.
+     - `test_infinite_chunk_streaming_with_deltas`: 청크 언로드 ➔ 재로드 시 플레이어 수정 사항 100% 보존 검증.
+     - `test_chunk_manager_chebyshev_radius`: 시야 반경 내 청크 완벽 로드 및 퇴출 계측.
+- **불변식 및 헌법 규정:**
+  - `axiom-core` 내 부동소수점(`f32/f64`) 절대 금지 (Q32.16 고정소수점 / 정수 연산만 허용)
+  - 런타임 틱당 힙 재할당 0 (고정 크기 슬랩 풀)
+  - `tools/guard.ps1` 100% All Green 통과 필수
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
 ### [RECIPE-20261022-T068] 10만 엔티티 초고속 무할당 공간 분할 가속기 (SpatialIndex)
 - **목표:** 오픈월드 RPG 및 대규모 유닛 충돌/사거리/시야 판정을 위해, 단일 코어에서 10만 개 엔티티의 공간 쿼리를 1ms 이내로 해결하는 64B L1/L2 캐시 최적화 무할당 공간 인덱스(`SpatialIndex`) 구현.
 - **대상 파일:**

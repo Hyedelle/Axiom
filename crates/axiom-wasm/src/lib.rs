@@ -353,8 +353,16 @@ pub extern "C" fn axiom_rpg_init(seed: u64, width: u32, height: u32, npc_count: 
         npcs.spawn(id, home, work, shift, 256);
     }
 
+    // Stream terrain around the origin, then spawn on the nearest open ground so the
+    // hero never starts inside a walled-in procedural pocket.
     let mut chunk_mgr = ChunkManager::new(seed, 2);
-    let player_pos = FixedVec2::new(Fixed::ZERO, Fixed::ZERO);
+    chunk_mgr.update_player_pos(FixedVec2::new(Fixed::ZERO, Fixed::ZERO), 0);
+    let (spawn_x, spawn_y) = chunk_mgr.find_open_spawn(
+        DEFAULT_GRID_W,
+        DEFAULT_GRID_H,
+        axiom_core::chunk::DEFAULT_SPAWN_MIN_OPEN_AREA,
+    );
+    let player_pos = FixedVec2::from_ints(spawn_x, spawn_y);
     chunk_mgr.update_player_pos(player_pos, 0);
 
     let pathfinder = Box::new(PathFinder::<DEFAULT_GRID_W, DEFAULT_GRID_H>::new());

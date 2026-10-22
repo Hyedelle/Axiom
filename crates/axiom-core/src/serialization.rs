@@ -7,12 +7,13 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use crate::chunk::{Chunk, ChunkCoord, ChunkManager, DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS};
+use crate::chunk::{Chunk, ChunkDelta, ChunkHeader, ChunkManager, DEFAULT_CHUNK_SIZE};
 use crate::npc_crowd::{Npc, NpcCrowdPool, DEFAULT_NPC_TABLE_CAPACITY};
 use crate::quest::{QuestJournal, DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS};
 
 pub const AXM_MAGIC: [u8; 4] = *b"AXM1";
-pub const AXM_VERSION: u32 = 1;
+/// Archive version 2: chunk records are followed by the preserved player-edit delta slab.
+pub const AXM_VERSION: u32 = 2;
 
 /// Binary serialization errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,12 +60,12 @@ pub struct WorldSerializer;
 
 impl WorldSerializer {
     /// Serializes entire open-world state (100k NPCs + Chunks + Quest Journal) into a byte vector.
-    pub fn save_world<const SLABS: usize>(
+    pub fn save_world<const SLABS: usize, const MAX_CHUNKS: usize, const DELTA_CAP: usize>(
         world_seed: u64,
         tick: u64,
         state_hash: u64,
         npcs: &NpcCrowdPool<SLABS>,
-        chunks: &ChunkManager<DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS>,
+        chunks: &ChunkManager<DEFAULT_CHUNK_SIZE, MAX_CHUNKS, DELTA_CAP>,
         quests: &QuestJournal<DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS>,
     ) -> Vec<u8> {
         let active_npc_count = npcs.len() as u32;
@@ -87,9 +88,12 @@ impl WorldSerializer {
         let chunk_size = core::mem::size_of::<Chunk<DEFAULT_CHUNK_SIZE>>();
         let quest_size = core::mem::size_of::<QuestJournal<DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS>>();
 
+        let delta_size = core::mem::size_of::<ChunkDelta>();
         let estimated_capacity = header_size
             + (active_npc_count as usize * npc_size)
             + (loaded_chunks_count as usize * (chunk_size + 4))
+            + 4
+            + chunks.deltas.len() * delta_size
             + quest_size;
 
         let mut buffer = Vec::with_capacity(estimated_capacity);
@@ -121,24 +125,35 @@ impl WorldSerializer {
             }
         }
 
-        // 3. Write Loaded Chunks (Coordinate + Tiles)
+        // 3. Write Loaded Chunks as raw 64B-aligned POD records
+        //    (header + tile / biome / resource layers).
         for slot in &chunks.slots {
             if slot.active {
-                // Write Chunk Coordinate (i32, i32 = 8 bytes)
-                buffer.extend_from_slice(&slot.chunk.coord.x.to_le_bytes());
-                buffer.extend_from_slice(&slot.chunk.coord.y.to_le_bytes());
-                // Write 32x32 Tiles (1024 bytes)
-                let tiles_bytes = unsafe {
+                let chunk_bytes = unsafe {
                     core::slice::from_raw_parts(
-                        slot.chunk.tiles.as_ptr() as *const u8,
-                        DEFAULT_CHUNK_SIZE * DEFAULT_CHUNK_SIZE,
+                        &slot.chunk as *const Chunk<DEFAULT_CHUNK_SIZE> as *const u8,
+                        chunk_size,
                     )
                 };
-                buffer.extend_from_slice(tiles_bytes);
+                buffer.extend_from_slice(chunk_bytes);
             }
         }
 
-        // 4. Write Quest Journal (POD slice)
+        // 4. Write preserved player-edit deltas (count + 16-byte POD records)
+        buffer.extend_from_slice(&(chunks.deltas.len() as u32).to_le_bytes());
+        for delta in chunks.deltas.entries.iter() {
+            if delta.is_occupied() {
+                let delta_bytes = unsafe {
+                    core::slice::from_raw_parts(
+                        delta as *const ChunkDelta as *const u8,
+                        delta_size,
+                    )
+                };
+                buffer.extend_from_slice(delta_bytes);
+            }
+        }
+
+        // 5. Write Quest Journal (POD slice)
         let quest_bytes = unsafe {
             core::slice::from_raw_parts(
                 quests as *const QuestJournal<DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS> as *const u8,
@@ -151,10 +166,10 @@ impl WorldSerializer {
     }
 
     /// Restores entire open-world state from a binary archive with sub-millisecond throughput.
-    pub fn load_world<const SLABS: usize>(
+    pub fn load_world<const SLABS: usize, const MAX_CHUNKS: usize, const DELTA_CAP: usize>(
         bytes: &[u8],
         npcs: &mut NpcCrowdPool<SLABS>,
-        chunks: &mut ChunkManager<DEFAULT_CHUNK_SIZE, DEFAULT_MAX_CHUNKS>,
+        chunks: &mut ChunkManager<DEFAULT_CHUNK_SIZE, MAX_CHUNKS, DELTA_CAP>,
         quests: &mut QuestJournal<DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS>,
     ) -> Result<SaveHeader, SerializationError> {
         let header_size = core::mem::size_of::<SaveHeader>();
@@ -194,37 +209,63 @@ impl WorldSerializer {
             npcs.active_count += 1;
         }
 
-        // 3. Clear & Restore Chunks
+        // 3. Clear & Restore Chunks (raw POD records, validated before being trusted)
         for slot in &mut chunks.slots {
             slot.active = false;
         }
+        chunks.world_seed = header.world_seed;
 
-        let chunk_tiles_len = DEFAULT_CHUNK_SIZE * DEFAULT_CHUNK_SIZE;
+        let chunk_size = core::mem::size_of::<Chunk<DEFAULT_CHUNK_SIZE>>();
         for i in 0..header.loaded_chunks_count as usize {
-            if offset + 8 + chunk_tiles_len > bytes.len() {
+            if offset + chunk_size > bytes.len() {
+                return Err(SerializationError::CorruptedData);
+            }
+            let record = &bytes[offset..offset + chunk_size];
+            offset += chunk_size;
+
+            // Every enum byte must hold a valid discriminant before we reinterpret memory.
+            let header_size = core::mem::size_of::<ChunkHeader>();
+            let layer_len = DEFAULT_CHUNK_SIZE * DEFAULT_CHUNK_SIZE;
+            let tiles_ok = record[header_size..header_size + layer_len].iter().all(|&t| t <= 3);
+            let biomes_ok = record[header_size + layer_len..header_size + 2 * layer_len]
+                .iter()
+                .all(|&b| b <= 7);
+            let primary_biome_ok = record[8] <= 7 && record[9] <= 1;
+            if !(tiles_ok && biomes_ok && primary_biome_ok) {
                 return Err(SerializationError::CorruptedData);
             }
 
-            let cx = i32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let cy = i32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-            offset += 8;
-
-            if i < DEFAULT_MAX_CHUNKS {
-                chunks.slots[i].chunk.coord = ChunkCoord::new(cx, cy);
-                unsafe {
-                    core::ptr::copy_nonoverlapping(
-                        bytes[offset..].as_ptr(),
-                        chunks.slots[i].chunk.tiles.as_mut_ptr() as *mut u8,
-                        chunk_tiles_len,
-                    );
-                }
-                chunks.slots[i].active = true;
-                chunks.slots[i].last_accessed_tick = header.tick;
+            if i < MAX_CHUNKS {
+                let slot = &mut chunks.slots[i];
+                slot.chunk = unsafe {
+                    core::ptr::read_unaligned(record.as_ptr() as *const Chunk<DEFAULT_CHUNK_SIZE>)
+                };
+                slot.active = true;
+                slot.last_accessed_tick = header.tick;
             }
-            offset += chunk_tiles_len;
+        }
+        chunks.rebuild_index();
+
+        // 4. Restore preserved player-edit deltas
+        if offset + 4 > bytes.len() {
+            return Err(SerializationError::CorruptedData);
+        }
+        let delta_count = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize;
+        offset += 4;
+        let delta_size = core::mem::size_of::<ChunkDelta>();
+        chunks.deltas.clear();
+        for _ in 0..delta_count {
+            if offset + delta_size > bytes.len() {
+                return Err(SerializationError::CorruptedData);
+            }
+            let delta = unsafe { core::ptr::read_unaligned(bytes[offset..].as_ptr() as *const ChunkDelta) };
+            offset += delta_size;
+            if delta.is_occupied() {
+                chunks.deltas.record(delta.coord(), delta.local_index, delta.tile_type());
+            }
         }
 
-        // 4. Restore Quest Journal
+        // 5. Restore Quest Journal
         let quest_size = core::mem::size_of::<QuestJournal<DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS>>();
         if offset + quest_size > bytes.len() {
             return Err(SerializationError::CorruptedData);

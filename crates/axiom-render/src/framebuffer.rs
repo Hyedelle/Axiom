@@ -124,8 +124,8 @@ impl FrameBuffer {
             if !slot.active {
                 continue;
             }
-            let chunk_origin_x = slot.chunk.coord.x * S as i32;
-            let chunk_origin_y = slot.chunk.coord.y * S as i32;
+            let chunk_origin_x = slot.chunk.header.coord.x * S as i32;
+            let chunk_origin_y = slot.chunk.header.coord.y * S as i32;
 
             for ly in 0..S {
                 for lx in 0..S {
