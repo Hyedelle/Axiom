@@ -6,3 +6,7 @@ tmp/
 dist/
 *.dll
 *.exe
+
+# Mimic Unity Project (Independent local workspace)
+mimic/
+
