@@ -26,6 +26,7 @@ pub mod quest;
 pub mod schema;
 pub mod serialization;
 pub mod spatial;
+pub mod spatial_index;
 pub mod state;
 pub mod storage;
 pub mod tick;
@@ -76,7 +77,10 @@ pub use schema::{
     category as schema_category, RecipeDefinition, RecipeRegistry, SchemaHeader, TypeDefinition,
     TypeRegistry, DEFAULT_RECIPE_REGISTRY_CAPACITY, DEFAULT_TYPE_REGISTRY_CAPACITY, SCHEMA_MAGIC,
 };
-pub use spatial::{GridCell, SpatialGrid};
+pub use spatial::{
+    GridCell, SpatialGrid, SpatialIndex, DEFAULT_SPATIAL_BUCKETS, DEFAULT_SPATIAL_MAX_ENTITIES,
+    EMPTY_INDEX,
+};
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};
 pub use storage::{EntitySlabPool, EntityTable, DEFAULT_TABLE_CAPACITY};
 pub use tick::{Tick, DELTA_TIME_MICROS, TICK_RATE_HZ};

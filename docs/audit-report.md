@@ -48,6 +48,37 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T068] 10만 엔티티 초고속 무할당 공간 분할 가속기 (SpatialIndex)
+- **목표:** 오픈월드 RPG 및 대규모 유닛 충돌/사거리/시야 판정을 위해, 단일 코어에서 10만 개 엔티티의 공간 쿼리를 1ms 이내로 해결하는 64B L1/L2 캐시 최적화 무할당 공간 인덱스(`SpatialIndex`) 구현.
+- **대상 파일:**
+  1. `crates/axiom-core/src/spatial.rs`:
+     - 상수: `DEFAULT_SPATIAL_BUCKETS = 16384`, `DEFAULT_MAX_ENTITIES = 100000`, `EMPTY_INDEX = u32::MAX`
+     - 구조체 `SpatialIndex<const BUCKETS: usize, const MAX_ENTITIES: usize>`:
+       * `heads: Box<[u32; BUCKETS]>`: 16,384 버킷 헤드 배열 (64KB, CPU L2 캐시 상주)
+       * `next: Box<[u32; MAX_ENTITIES]>`: 엔티티 연결 인덱스
+       * `entity_ids: Box<[u32; MAX_ENTITIES]>`: 엔티티 고유 식별자 배열
+       * `positions: Box<[FixedVec2; MAX_ENTITIES]>`: 고정소수점 좌표 평면 배열
+       * `count: usize`, `cell_size: i64`
+     - 메서드:
+       * `new(cell_size: i64) -> Self`
+       * `clear(&mut self)`: `heads.fill(EMPTY_INDEX)`, `count = 0` (2µs 컷 초고속 리셋)
+       * `insert(&mut self, entity_id: u32, pos: FixedVec2) -> bool`: O(1) 무할당 슬랩 삽입
+       * `query_radius(&self, center: FixedVec2, radius: Fixed, out_buffer: &mut [u32]) -> usize`: AABB 버킷 필터링 + 제곱거리 검증
+       * `query_aabb(&self, min: FixedVec2, max: FixedVec2, out_buffer: &mut [u32]) -> usize`: 직사각형 영역 쿼리
+       * `find_closest(&self, pos: FixedVec2, max_radius: Fixed) -> Option<(u32, Fixed)>`: 최단 거리 엔티티 탐색
+     - 신규 단위 테스트:
+       * `test_spatial_index_100k_entities`: 100,000개 엔티티 일괄 삽입 및 반경 쿼리 검증
+       * `test_spatial_index_aabb_and_closest`: AABB 쿼리 및 KNN 최단거리 검색 정확도 검증
+  2. `crates/axiom-core/src/lib.rs`:
+     - `pub use spatial::SpatialIndex;` 재수출
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 절대 금지 (Q32.16 `Fixed`, `FixedVec2` 정수 연산만 허용)
+  - 런타임 틱당 힙 재할당 0 (초기 Box 슬랩 고정)
+  - `tools/guard.ps1` 무결성 검증 100% 통과 필수
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
 ### [RECIPE-20261022-T066] Unity / C# FFI 바인딩 및 DLL 배포 파이프라인
 - **목표:** Research Lab 아키텍처 헌법([`game-ax-checklist.md`](file:///c:/Dreamhub/Research%20Lab/game-ax-checklist.md) 1단계: Rust vs C# 경계선)에 따라, Unity C#(`steel-the-show`) 및 외부 C# 호스트가 Axiom을 헤드리스 코어 엔진으로 직접 로드하여 1틱 단위 시뮬레이션, 64B 타일 그리드, 데이터 드리븐 스키마, P2P 롤백 넷코드를 완벽히 구동할 수 있는 단일 파일 C# 바인딩 및 자동 검증 파이프라인 완성.
 - **대상 파일:**

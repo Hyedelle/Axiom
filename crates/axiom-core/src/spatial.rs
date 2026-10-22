@@ -5,6 +5,10 @@
 
 use crate::fixed::{Fixed, FixedVec2};
 
+pub use crate::spatial_index::{
+    SpatialIndex, DEFAULT_SPATIAL_BUCKETS, DEFAULT_SPATIAL_MAX_ENTITIES, EMPTY_INDEX,
+};
+
 pub const DEFAULT_GRID_W: usize = 64;
 pub const DEFAULT_GRID_H: usize = 64;
 pub const DEFAULT_CELL_CAP: usize = 16;
