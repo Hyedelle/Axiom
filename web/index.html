@@ -382,7 +382,12 @@
     const height = 480;
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    const imgData = ctx.createImageData(width, height);
+    // Hardware-accelerated offscreen double buffering
+    const offscreenCanvas = document.createElement("canvas");
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const offscreenCtx = offscreenCanvas.getContext("2d", { willReadFrequently: false });
+    const imgData = offscreenCtx.createImageData(width, height);
     const buf32 = new Uint32Array(imgData.data.buffer);
 
     let wasmInstance = null;
@@ -669,17 +674,14 @@
           `<span class="red">Combat:</span> ${inCombat ? 'ACTIVE' : 'IDLE'} (${combatDmg} Dmg)`;
       }
 
-      // Zero-copy pixel transfer from WASM memory to Canvas
+      // High-performance double-buffered pixel blit
       const wasmPixels = new Uint32Array(wasmInstance.memory.buffer, ptr, len);
       for (let i = 0; i < len; i++) {
         const argb = wasmPixels[i];
-        const a = (argb >> 24) & 0xFF;
-        const r = (argb >> 16) & 0xFF;
-        const g = (argb >> 8) & 0xFF;
-        const b = argb & 0xFF;
-        buf32[i] = (a << 24) | (b << 16) | (g << 8) | r;
+        buf32[i] = (argb & 0xFF00FF00) | ((argb >> 16) & 0xFF) | ((argb & 0xFF) << 16);
       }
-      ctx.putImageData(imgData, 0, 0);
+      offscreenCtx.putImageData(imgData, 0, 0);
+      ctx.drawImage(offscreenCanvas, 0, 0);
 
       document.getElementById("tick").innerText = tick;
 

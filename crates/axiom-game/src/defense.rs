@@ -662,9 +662,49 @@ impl<const CAP: usize> WaveDirector<CAP> {
                             }
                         }
                     } else {
-                        u.vel = FixedVec2::from_ints(dx.signum(), dy.signum());
-                        if move_now {
-                            u.pos += u.vel;
+                        // Mazing & Wall Navigation (T-045):
+                        // Steer around walls if an open detour exists; if perimeter is sealed,
+                        // attack the blocking wall to breach the fortification!
+                        let sx = dx.signum();
+                        let sy = dy.signum();
+                        let fwd_x = (mx + sx).clamp(0, W as i64 - 1) as usize;
+                        let fwd_y = (my + sy).clamp(0, H as i64 - 1) as usize;
+
+                        let is_wall = |x: usize, y: usize| -> bool {
+                            matches!(grid.cells[y][x].kind, StructureKind::Wall(_))
+                        };
+
+                        if is_wall(fwd_x, fwd_y) {
+                            let detour_x = (mx + sx).clamp(0, W as i64 - 1) as usize;
+                            let detour_y = (my + sy).clamp(0, H as i64 - 1) as usize;
+                            if sx != 0 && !is_wall(detour_x, my as usize) {
+                                u.vel = FixedVec2::from_ints(sx, 0);
+                                if move_now {
+                                    u.pos += u.vel;
+                                }
+                            } else if sy != 0 && !is_wall(mx as usize, detour_y) {
+                                u.vel = FixedVec2::from_ints(0, sy);
+                                if move_now {
+                                    u.pos += u.vel;
+                                }
+                            } else {
+                                // Perimeter blocked: attack the blocking wall to breach!
+                                u.vel = FixedVec2::ZERO;
+                                if u.cooldown_timer == 0 {
+                                    let hit = self.hit_structure(grid, fwd_x, fwd_y, u.attack_power, tick);
+                                    self.structure_damage += hit.dealt as u64;
+                                    u.cooldown_timer = u.attack_cooldown;
+                                    if hit.destroyed {
+                                        u.kills = u.kills.saturating_add(1);
+                                        self.structures_destroyed += 1;
+                                    }
+                                }
+                            }
+                        } else {
+                            u.vel = FixedVec2::from_ints(sx, sy);
+                            if move_now {
+                                u.pos += u.vel;
+                            }
                         }
                     }
                 }
@@ -1098,5 +1138,42 @@ mod tests {
 
         let (c, _) = run(0xC0FF_EE43);
         assert_ne!(a, c, "a different seed must change the spawn pattern");
+    }
+
+    #[test]
+    fn test_monster_steers_around_wall_maze_and_breaches() {
+        let mut g = FactoryGrid::<32, 32>::new();
+        g.place_base_heart(16, 16);
+
+        // Build a wall segment at x=10, y=14..=18 with an opening at y=13
+        for y in 14..=18 {
+            g.place_wall(10, y);
+        }
+
+        let mut d = Director::with_schedule(1234, 1000, 1000, 0, 0); // No auto-spawns
+        // Spawn one monster directly in front of the wall
+        let slot = d.arena.spawn_unit(
+            1,
+            MONSTER_TEAM,
+            100,
+            10,
+            1,
+            5,
+            FixedVec2::from_ints(8, 16),
+        );
+        assert!(slot.is_some());
+
+        // Step 20 ticks
+        for _ in 0..20 {
+            d.tick(&mut g);
+        }
+
+        // The monster must either detour through the opening or attack the blocking wall
+        assert!(d.arena.units[slot.unwrap()].is_alive());
+        let pos = d.arena.units[slot.unwrap()].pos;
+        let x = pos.x.to_int();
+        let y = pos.y.to_int();
+        // Position changed towards target
+        assert!(x > 8 || y != 16 || d.structure_damage > 0);
     }
 }

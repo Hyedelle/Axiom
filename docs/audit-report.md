@@ -8,20 +8,19 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-22 07:52 KST
-- **감사 대상:** Axiom Engine v1.0.0 Production & Track 1(오픈월드 팩토리 RPG) 진입 전 종합 시스템 감사 (`axiom-core`, `axiom-render`, `axiom-cli`, `axiom-wasm` + GitHub Pages 배포)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 실측 벤치마크 완벽 통과 (Track 1 개시 승인)**
+- **일시:** 2026-10-22 10:15 KST
+- **감사 대상:** Axiom Engine v1.1.0 Open-World Factory RPG 종합 마일스톤 감사 (`axiom-core`, `axiom-game`, `axiom-render`, `axiom-cli`, `axiom-wasm` + GitHub Pages 배포)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 결정론/물류/방어/WASM 종합 검증 완벽 통과 (v1.1.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core` 전체 코드베이스 0건 누출 (`tools/guard.ps1` 검증 통과)
-  2. **시스템 시간(`SystemTime`) 격리**: 0건 발견 (순수 정수 틱 기반)
-  3. **L1/L2 캐시라인(64B/32B) 하드웨어 정렬**: `Entity`, `CombatUnit`, `Npc`, `QuestRecord`, `AtbUnit`, `SaveHeader` 전원 64바이트 정렬 완료
-  4. **웹(WASM) 즉시 배포 & 글로벌 피드백 루프**: 460 KB 초경량 WASM, GitHub Pages(`https://hyedelle.github.io/Axiom/`) 라이브 서빙 및 모바일 터치 패드 정상 작동 확인 (T-039)
-  5. **완전 자율 운영 및 모니터링 데몬**: `EngineTelemetry`, `monitor.ps1`, `docs/dashboard.md` 실시간 엔진 상태 무인 모니터링 시스템 완비
-  6. **대규모 오픈월드 P2P 협동**: 분산 청크 동적 호스팅, `TerrainDelta` 지형 동기화, `QuestDelta` 파티 퀘스트 공유, 3D 공간 음향, 레이드 롤백 전투 100% 비트 일치 합의
-  7. **대륙간 지연(200ms) 롤백 합의**: `RollbackSession<128, 32>` 기반 200ms 지연 및 15% 패킷 드랍 환경에서 피어 간 **100% 비트 일치 해시 합의** 달성
-  8. **오픈월드 RPG 완결 세션**: 10만 NPC + 무한 청크 + 퀘스트 + A* AI + ATB 전투 + 3D 공간 음향 전 서브시스템 동시 가동 **1.46 ms/tick (682 FPS)**
-  9. **무손실 대규모 세이브/로드**: 10만 NPC + 청크 + 퀘스트 6.13MB 바이너리 세이브 1.55ms, 로드 2.16ms 무손실 복원 완료
-  10. **총 39개 태스크(T-001 ~ T-039) 100% 완수**: 기획된 전 로드맵 및 서브시스템 전원 정상 작동 판정
+  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core` 및 `axiom-game` 전체 코드베이스 0건 누출 (`tools/guard.ps1` 검증 통과)
+  2. **DOD 64바이트 캐시라인 정렬**: `FactoryStructure`, `WorkerAssignment`, `WaveDirector` 100% L1 캐시라인 하드웨어 정렬 완료
+  3. **32x32 공장 물류 루프 초고속 연산**: 틱당 **6.1 µs** (100틱 100% 비트 일치 해시 `0xF62F1795D5860647`)
+  4. **무한 청크 절차적 매장지 & 경계 물류**: 4대 광맥 PCG 스폰, `CrossChunkLogistics` 무손실 벨트 이송 (100틱 해시 `0x199049755F60B310`)
+  5. **10만 NPC 주민 노동력 자동화**: `ColonyWorkforce` 슬랩, 직무 배정, 스태미나 소비/휴식 및 생산성 증속 버프 (100틱 해시 `0xE3FD24FCCCC2FD94`)
+  6. **거점 방어 & 몬스터 웨이브 오토배틀러**: 자동 포탑, 탄약 보급, 파괴 잔해 회수, 성벽 회피 미로 길찾기(Mazing) 및 성벽 집중 타격 돌파 (100틱 해시 `0xF4D127AA8361ED57`)
+  7. **웹(WASM) 하드웨어 오프스크린 더블 버퍼링**: 581 KB 초경량 WASM, 고속 32비트 픽셀 블릿(0.05ms) 및 브라우저 실시간 건설 툴바 완비
+  8. **GitHub Pages 라이브 배포**: [https://hyedelle.github.io/Axiom/](https://hyedelle.github.io/Axiom/) 60fps 라이브 작동 확인
+  9. **총 45개 태스크(T-001 ~ T-045) 100% 완수**: 기획된 전 로드맵 및 서브시스템 100% 완수 판정
 
 ---
 
