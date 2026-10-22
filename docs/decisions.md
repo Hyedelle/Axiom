@@ -506,3 +506,25 @@
   4. **검증 체계**: `test_desktop_camera_pan_streaming`(대각선 질주 300스텝 = 축당 1,200타일 이동, 37회 이상 청크 재중심 및 매회 25청크 링 완전 적재 검증, 5스텝마다 프레임 래스터라이징 및 가시 타일 전수 로드 확인, 리플레이 상태 해시·프레임 해시 비트 동일, 복귀 시 홈 청크 순정 해시 일치), `test_world_camera_integer_transforms`(픽셀 ↔ 타일 왕복, 드래그 누적, 클램프), `test_world_palette_covers_all_biomes_and_deposits`.
 - **이유:** T-070~T-072로 완성된 무한 세계 코어를 실제로 눈으로 걸어 다닐 수 있는 데스크톱 러너가 없었다. 기존 `render_chunks`는 로드된 청크 전체(25×1,024타일)를 순회하고 `FixedVec2` 카메라를 썼으나, 뷰포트 가시 타일(1,024개)만 순회하는 정수 카메라가 더 싸고 헌법(무부동소수점)에 정확히 부합한다. 씬 전환을 Tab 하나로 두고 기존 팩토리 입력 경로를 모드 가드로 감싸 T-054~T-064 조작 체계를 깨지 않았다.
 - **영향:** `crates/axiom-cli/src/world_view.rs` 신설, `desktop.rs` `ViewMode`/`render_world`/카메라 입력/F3 확장, `lib.rs` 재수출. 월드 상태는 F5/F9 세이브 아카이브에 아직 포함되지 않는다(후속 과제).
+
+### [D-036] 순수 정수 전력망(Power Grid) 및 무할당 배관 유체 시뮬레이터 (T-074)
+- **날짜:** 2026-10-22
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **16B POD 레코드 레이아웃 조정 (`PowerNode`, `PipeNode`)**:
+     - 처방전의 `PowerNode { x: i32, y: i32, role, capacity: u16, flow_rate: u16, energy_stored: u32 }`는 17B 이상이어서 16B(캐시 라인당 4개)에 들어가지 않는다. 축전기 저장량은 `capacity: u16`를 절대 넘을 수 없으므로 `energy_stored`를 `u16`으로 내리고, 남는 1바이트에 소속 전력망 `net: u8`(`NO_NET = 255`)을 넣어 정확히 16B로 고정했다. 월드 좌표는 무한 월드와 동일한 `i32`를 유지한다.
+     - 필드 의미는 역할별로 다중화한다: 발전기 `capacity` = 최대 출력/틱, `flow_rate` = 실제 인출량; 소비체 `capacity` = 수요/틱, `flow_rate` = 실제 공급량; 축전기 `capacity` = 저장 용량, `flow_rate` = 틱당 충/방전 한도; 전신주 `capacity` = 공급 반경, `flow_rate` = 전선 도달 거리(체비쇼프 타일).
+     - `PipeNode`는 인접 판정을 위한 좌표가 필수이므로 `x/y: i16` + `fluid_type/kind/direction/efficiency_pct` 4바이트 + `volume/capacity/pressure/temperature` 8바이트 = 16B. 팩토리 배관은 기지 국소 구조물이므로 `i16`(±32,767타일)로 충분하다고 판단했다.
+  2. **전력망 클러스터링 및 정산 (`PowerGridManager<MAX_NETS=16, MAX_NODES=256>`)**:
+     - 토폴로지 변경(`add_node`/`remove_node`/`set_position`/전신주 `set_capacity`) 시 dirty 플래그만 세우고 다음 `tick`에서 `u16` 부모 배열 유니온-파인드로 재클러스터링한다. 전신주 쌍은 체비쇼프 거리 ≤ max(두 도달 거리)면 연결, 비전신주 설비는 공급 반경에 포함되는 모든 전신주와 합집합되어 두 전신주를 **브릿지**할 수 있다. 전신주가 하나도 없는 군집은 `NO_NET`(무전력)이다. 루트는 항상 최소 슬롯 인덱스라 네트워크 ID 부여 순서가 유니온 순서와 무관하게 결정론적이다. `MAX_NETS` 초과 군집은 `overflow_clusters`로 계수하고 무전력 처리한다.
+     - 정산은 5패스 정수 연산: (1) 발전 용량/수요/저장 용량 합산 ➔ (2) 잉여/부족 판정 ➔ (3) 축전기 슬롯 순 충전(`min(flow_rate, 여유, 잉여)`) 또는 방전(`min(flow_rate, 저장, 부족)`) ➔ (4) `satisfaction_pct = min(100, available × 100 / demand)`(수요 0이면 100), `wasted`/`deficit`/`brownout_ticks` 집계 ➔ (5) 소비체 `capacity × delivered / demand` 바닥 배분 후 나머지를 슬롯 순으로 1단위씩 분배하여 `Σ consumer.flow_rate == delivered`, `Σ generator.flow_rate == produced`를 비트 정확히 맞춘다.
+     - `efficiency_pct(idx)`는 소속 전력망 만족도를 반환하며(무전력 0) 소비 설비(채굴기/제련소/펌프)의 가동 감속 계수로 쓴다. 64B `PowerNetwork` 원장은 재클러스터링 시 초기화되므로 `brownout_ticks`는 "마지막 토폴로지 변경 이후" 누계다.
+  3. **배관 유체 (`FluidNetwork<MAX_PIPES=512>`)**:
+     - 위치 인덱스는 1,024버킷 개방 주소 테이블(`MAX_PIPES ≤ 512`로 적재율 ≤ 50%), 4방향 이웃 테이블 `[[u16; 4]; MAX_PIPES]`은 dirty 시에만 재구축하여 틱 경로에서 해시 조회 0.
+     - 틱 순서: **펌프**(후방 이웃 ➔ 전방 이웃, `capacity × efficiency_pct / 100` 단위, 자체 보유량 0, 수동 흐름 불참으로 역류 구조적 차단, `pressure` = 처리량) ➔ **수동 균등화**(동/남 이웃 쌍 1회씩, `flow = (v1·c2 − v2·c1) / (c1 + c2)`로 수위(채움률) 균등화, 동일 용량이면 처방전의 `delta / 2`와 일치, Gauss-Seidel 제자리 갱신) ➔ **압력** `volume × 1000 / capacity`(퍼밀).
+     - 역류 방지 밸브는 `direction` 방향으로만 유출, 반대편에서만 유입을 허용한다. 서로 다른 유체는 절대 혼합되지 않으며(수신 측이 비었거나 동종일 때만 이송, 빈 수신 측은 유형·온도 승계) 차단 횟수는 `blocked_last_tick`으로 계측한다. 온도는 부피 가중 정수 평균(`u64` 중간값).
+     - 모든 이송은 송신 잔량·수신 여유로 클램프된 단일 금액을 빼고 더하므로 `Σ volume + drained_total == injected_total`이 비트 단위로 유지된다(`remove_pipe`로 소실된 유체도 `drained_total`에 계상).
+     - **정수 데드존**: 나눗셈이 0으로 절사되므로 동일 용량 이웃은 1단위 차이에서 교환을 멈추고, `n`개 체인은 최대 `n − 1`단위 계단을 보유할 수 있다. 진동 없는 결정론적 수렴을 택한 의도적 특성이며, 해상도가 필요하면 용량 스케일을 키운다(테스트는 "인접 쌍 ≤ 1단위"로 고정).
+  4. **검증 체계**: `test_power_grid_brownout_and_accumulator`(잉여 20/틱 충전 ➔ 부족 20/틱 방전 ➔ 고갈 후 83% 브라운아웃 및 34/33/33 정확 배분 ➔ 발전기 철거 블랙아웃 ➔ 과잉 발전 `wasted` 50 ➔ 무전신주 섬 `NO_NET`), `test_fluid_mass_conservation_and_flow`(13구간 U자관 400틱 질량 보존·인접 ≤ 1단위 수렴, 펌프 순환 링 200틱 보존·효율 0% 정지, 수평/수직 체크 밸브 역류 0, 온도 혼합), `test_power_fluid_determinism`(2망 전력 + 펌프 효율 커플링 400틱 틱별 해시 전수 일치, 복제 중간 상태 50틱 동일 진행, 주입량 1단위 차이로 유체 해시만 분기).
+- **이유:** 팩토리 자동화의 전력·유체는 부동소수점 누적 오차와 힙 할당의 전형적 진입점이다. 역할별 필드 다중화로 16B를 지키고, 비율 계산을 "바닥 배분 + 나머지 순차 분배"로 바꿔 에너지/질량 보존을 비트 단위로 증명 가능하게 했다. 유니온-파인드 최소 인덱스 루트와 슬롯 순 순회만으로 리플레이 결정론이 성립한다.
+- **영향:** `crates/axiom-core/src/power_grid.rs`, `crates/axiom-core/src/fluid.rs` 신설, `lib.rs` 재수출, `crates/axiom-core/tests/test_power_and_fluid.rs`. 게임 레이어(`TileGrid`/`axiom-game`) 연동 및 세이브 아카이브 직렬화는 후속 과제.

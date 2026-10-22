@@ -14,6 +14,7 @@ pub mod combat;
 pub mod effector;
 pub mod entity;
 pub mod fixed;
+pub mod fluid;
 pub mod grid_netcode;
 pub mod hash;
 pub mod hpa;
@@ -24,6 +25,7 @@ pub mod netcode;
 pub mod npc_crowd;
 pub mod pathfinding;
 pub mod pcg;
+pub mod power_grid;
 pub mod quest;
 pub mod schema;
 pub mod serialization;
@@ -53,6 +55,10 @@ pub use effector::{
 };
 pub use entity::Entity;
 pub use fixed::{Fixed, FixedVec2};
+pub use fluid::{
+    dir_offset, opposite_dir, FluidNetwork, FluidStats, FluidType, PipeKind, PipeNode,
+    DEFAULT_MAX_PIPES, FLUID_INDEX_BUCKETS, FLUID_NONE, PRESSURE_FULL,
+};
 pub use hash::{deterministic_hash, Fnv1aHasher};
 pub use hpa::{
     chunk_bfs, ChunkPortalCache, HierarchicalPathfinder, HpaStats, Portal,
@@ -88,6 +94,10 @@ pub use pcg::{
     classify_biome, hash2d, sample_value_noise, sample_world_biome, sample_world_biome_cached,
     BiomeKind, BiomeNoiseContext, BiomeSample, ResourceDeposit, Rng, TileMap, TileType,
     BIOME_DEPOSIT_TABLE, NOISE_MAX, VEIN_CELL_SIZE, VEIN_MAX_RADIUS, VEIN_NO_DISTANCE,
+};
+pub use power_grid::{
+    PowerGridManager, PowerNetwork, PowerNode, PowerRole, DEFAULT_MAX_POWER_NETS,
+    DEFAULT_MAX_POWER_NODES, NO_NET, POWER_NET_ID_LIMIT,
 };
 pub use quest::{
     DialogueAction, DialogueChoice, DialogueNode, DialogueSession, ObjectiveType, QuestJournal,

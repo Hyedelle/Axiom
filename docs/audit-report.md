@@ -48,6 +48,46 @@
 
 ## 🛠️ 현장 시공 처방전 (Active Task Prescription)
 
+### [RECIPE-20261022-T074] 순수 정수 전력망(Power Grid) 및 무할당 배관 유체 시뮬레이터
+- **목표:** 팩토리 자동화 깊이를 완성하기 위해, 부동소수점을 원천 배제한 순수 정수 생산/소비/축전 전력망(`PowerGridManager`)과 정수 수위차 압력 기반 배관 유체 시뮬레이터(`FluidNetwork`)를 64B L1 캐시 정렬 무할당 결정론 파이프라인으로 구축한다.
+- **대상 파일 및 구현 상세:**
+  1. `crates/axiom-core/src/power_grid.rs`:
+     - `PowerRole` 열거형 (`repr(u8)`):
+       * `Generator = 0`: 전력 생산원 (증기 발전기, 태양광 발전기)
+       * `Consumer = 1`: 전력 소비체 (채굴기, 제련소, 레이저 터렛)
+       * `Accumulator = 2`: 전력 축전기 (잉여 전력 충전 및 부족 전력 방전)
+       * `Pole = 3`: 전력 분배/연결 전신주 (공급 반경 커버리지)
+     - `PowerNode` (16B POD):
+       * `x: i32`, `y: i32`, `role: PowerRole`, `capacity: u16`, `flow_rate: u16`, `energy_stored: u32`
+     - `PowerGridManager<const MAX_NETS: usize = 16, const MAX_NODES: usize = 256>` (64B L1 정렬):
+       * 전신주 연결 거리 기반 독립 전력망 클러스터링.
+       * 틱당 생산량(`total_prod`), 수요량(`total_demand`), 축전기 입출력 정수 정산.
+       * 만족도 비율 `satisfaction_pct = min(100, (prod * 100) / demand)` 정수 산출.
+       * 전력 부족 시(Brownout) 소비 설비 가동 효율(0~100%) 비례 감속.
+  2. `crates/axiom-core/src/fluid.rs`:
+     - `FluidType` 열거형 (`repr(u8)`):
+       * `None = 0`, `Water = 1`, `CrudeOil = 2`, `Steam = 3`, `PetroleumGas = 4`
+     - `PipeNode` (16B POD):
+       * `fluid_type: FluidType`, `volume: u16`, `capacity: u16`, `pressure: u16`, `temperature: u16`
+     - `FluidNetwork<const MAX_PIPES: usize = 512>` (64B L1 정렬):
+       * 인접 배관 간 높이/수위차 `delta = p1.volume - p2.volume` 기반 정수 균등 확산 (`flow = delta / 2`).
+       * 유체 질량 보존 법칙(Total Volume Conservation) 100% 비트 레벨 사수.
+       * 단방향 역류 방지 밸브(`CheckValve`) 및 가압 펌프(`Pump`) 로직.
+  3. `crates/axiom-core/src/lib.rs`:
+     - `pub mod power_grid; pub mod fluid;`
+     - `pub use power_grid::{PowerGridManager, PowerNode, PowerRole};`
+     - `pub use fluid::{FluidNetwork, PipeNode, FluidType};`
+  4. 단위 테스트 (`crates/axiom-core/tests/test_power_and_fluid.rs`):
+     - `test_power_grid_brownout_and_accumulator`: 전력 부족 시 정확한 감속 및 잉여 전력 축전/방전 사이클 검증.
+     - `test_fluid_mass_conservation_and_flow`: U자관 및 루프형 배관에서 유체 이송 중 단 1유닛의 소실/증발 없는 질량 보존 검증.
+     - `test_power_fluid_determinism`: 동일 틱 시뮬레이션 상태 해시 100% 비트 동일성 검증.
+- **불변식 및 헌법 규정:**
+  - 부동소수점(`f32/f64`) 0건 (순수 정수 전력/유체 수학)
+  - 런타임 틱당 힙 재할당 0건
+  - `tools/guard.ps1` 100% 통과 필수
+
+---
+
 ### [RECIPE-20261022-T073] 무한 오픈월드 데스크톱 카메라 뷰포트 & 스트리밍 렌더러 (minifb/F11)
 - **목표:** T-070/T-071/T-072로 완성된 무한 오픈월드 코어(`ChunkManager`, 8종 바이옴, 자원 광맥, 몬스터 스폰)를 `crates/axiom-cli/src/desktop.rs` 데스크톱 윈도우(`minifb`)에 연동하여, 자유로운 카메라 팬/이동에 따라 청크가 실시간으로 스트리밍 적재/퇴출되며 8종 바이옴 지형과 자원, 몬스터를 60 FPS로 래스터라이징하는 데스크톱 탐험 러너를 구축한다.
 - **대상 파일 및 구현 상세:**
