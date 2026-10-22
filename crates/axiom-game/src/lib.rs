@@ -7,6 +7,7 @@
 
 pub mod factory;
 pub mod world_factory;
+pub mod worker;
 
 pub use factory::{
     Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, Inserter, ItemType,
@@ -20,4 +21,10 @@ pub use world_factory::{
     WorldFactoryReport, DEFAULT_MAX_FACTORY_CHUNKS, MAX_CROSS_CHUNK_TRANSFERS,
     MAX_VEINS_PER_CHUNK, MAX_VEIN_RADIUS, MIN_VEINS_PER_CHUNK, VEIN_RICHNESS_MAX,
     VEIN_RICHNESS_MIN,
+};
+
+pub use worker::{
+    ColonyWorkforce, WorkerAssignment, WorkerRole, WorkerState, WorkforceReport,
+    DEFAULT_WORKFORCE_CAP, EXHAUSTED_THRESHOLD, HAUL_SPEED, MAX_SKILL, RESTED_THRESHOLD,
+    REST_STAMINA_GAIN, SKILL_BUFF_PCT, STAMINA_MAX, WORK_STAMINA_COST, XP_PER_SKILL,
 };

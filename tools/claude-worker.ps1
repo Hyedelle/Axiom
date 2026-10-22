@@ -71,7 +71,7 @@ if (-not $ClaudeCmd) {
     $ClaudeCmd = "claude"
 }
 
-cmd.exe /c "`"$ClaudeCmd`" -p `"$SinglePrompt`" --dangerously-skip-permissions < NUL > `"$TmpLog`" 2> `"$TmpErr`""
+& $ClaudeCmd -p $SinglePrompt --dangerously-skip-permissions > $TmpLog 2> $TmpErr
 $ExitCode = $LASTEXITCODE
 Write-Host "    [Claude Finished] Exit Code: $ExitCode" -ForegroundColor $(if ($ExitCode -eq 0) { "Green" } else { "Red" })
 

@@ -6,16 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-(T-041 완료 - 다음 태스크는 관제탑이 백로그 T-042에서 승격)
+(T-042 완료 - 다음 태스크는 관제탑이 백로그 T-043에서 승격)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-042: 10만 NPC 주민 영입 및 공장 노동/물류 자동화 배정 시스템**
+- [ ] **T-043: 거점 방어(Base Defense) & 몬스터 웨이브 오토배틀러 연동**
+- [ ] **T-044: WebAssembly 웹 캔버스 팩토리 기지 대화형 건설 인터페이스 릴리즈**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-042: 10만 NPC 주민 영입 및 공장 노동/물류 자동화 배정 시스템** (`crates/axiom-game/src/worker.rs`, `WorkerRole` Miner/SmelterOperator/Hauler/Technician, `WorkerAssignment` 64B 정렬 `repr(C)` 레코드, `ColonyWorkforce<CAP>` 플랫 슬랩 고용/배정/해제, `axiom_core::Npc` 에너지 ↔ 스태미나 양방향 동기화(`hire`/`sync_npc`), 정수 생산성 버프(기본 +25%/+20% + 숙련도 5%/레벨) `MiningDrill`/`Smelter`/`Inserter`/`Belt` 속도 적용, 스태미나 소모(2/틱)·휴식(5/틱) 히스테리시스(100/600), `Hauler` 인력 물류 운반 자원 보존 검증, `WorldFactory` 청크 퇴출 시 Idle 폴백, 힙 제로 `tick`/`tick_world`, 13개 단위 테스트 및 100틱 100% 비트 일치 해시 `0xE3FD24FCCCC2FD94` 결정론 검증 통과)
 - [x] **T-041: 오픈월드 무한 청크 매장지 탐험과 팩토리 기지 확장 연동** (`crates/axiom-game/src/world_factory.rs`, `WorldFactory<CHUNK_SIZE, ACTIVE_CHUNKS>`, 절차적 시드 기반 `generate_ore_veins` 4대 광맥 스폰, 청크 경계 `CrossChunkLogistics` 무손실 벨트 아이템 이송, 플레이어 원거리 이동 청크 퇴출 시에도 기지 생산 불변 보존 검증, 100틱 다중 청크 100% 비트 일치 해시 `0x199049755F60B310` 결정론 검증 통과)
 - [x] **T-040: crates/axiom-game 자원 채굴 및 자동화 물류 기지 건설 루프 프로토타입** (`axiom-game` 신규 크레이트, `FactoryStructure` 64B 정렬 셀, `FactoryGrid<W, H>`, `MiningDrill`/`Belt`/`Inserter`/`Smelter`/`Chest`, 힙 제로 4단계 `step()`, [채굴 ➔ 벨트 ➔ 투입 ➔ 제련 ➔ 철판] 100틱 루프 철판 **47장** 적재 및 자원 보존 검증, 32x32 그리드 틱당 **6.1 µs**, 100틱 양 그리드 100% 비트 일치 해시 `0xF62F1795D5860647` 결정론 검증 통과)
 - [x] **T-039: 웹(WASM) 즉시 배포 & 라이브 피드백 수집 시스템 구축** (`crates/axiom-wasm/index.html`, `web/`, `.github/workflows/deploy-pages.yml`, `tools/deploy-pages.ps1`, 모바일 D-Pad 터치 조작, 스펙 뱃지, 실시간 GitHub Issue 피드백 모달, 원클릭 GitHub Pages 배포 파이프라인 완성)
