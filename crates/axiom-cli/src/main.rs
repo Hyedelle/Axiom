@@ -1,7 +1,8 @@
-//! Axiom Headless CLI Entry Point.
+//! Axiom Headless & Desktop CLI Entry Point.
 //!
 //! Provides CLI execution for fast deterministic replay, state hashing,
-//! time-travel rollback, and autonomous Monte Carlo combat balancing.
+//! time-travel rollback, autonomous Monte Carlo combat balancing, and
+//! native desktop window studio.
 
 use axiom_cli::{AsciiView, MonteCarloBalancer, OpenWorldRpgSession, Replayer, TimeTravelDemo};
 use axiom_core::fixed::FixedVec2;
@@ -10,6 +11,21 @@ use axiom_core::state::TickState;
 use std::time::Instant;
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let has_benchmark = args.iter().any(|a| a == "--benchmark");
+    let has_headless = args.iter().any(|a| a == "--headless");
+    let has_window = args.iter().any(|a| a == "--window");
+
+    if has_benchmark || has_headless || (args.len() > 1 && !has_window) {
+        run_headless_suite();
+    } else if let Err(e) = axiom_cli::desktop::run_desktop_window() {
+        eprintln!("Failed to launch desktop window: {:?}", e);
+        std::process::exit(1);
+    }
+}
+
+/// Runs the headless benchmark and verification suite.
+pub fn run_headless_suite() {
     println!("🏛️ [Axiom Engine] Headless CLI Engine Suite\n");
 
     // 1. Time-Travel Rollback Demo

@@ -36,6 +36,30 @@
 
 ---
 
+## 🛠️ 현장 시공 처방전 (Active Task Prescription)
+
+### [RECIPE-20261022-T054] 1인 인디 개발자를 위한 네이티브 데스크톱 윈도우 러너 (`minifb`)
+- **목표:** 웹 브라우저를 벗어나, `cargo run -p axiom-cli` 단 한 줄로 Windows 데스크톱에 60/144 FPS 인터랙티브 게임 창을 즉시 띄우고 실시간 마우스/키보드로 팩토리 디펜스 게임플레이를 조작할 수 있는 환경 완성.
+- **대상 파일:**
+  1. `crates/axiom-cli/Cargo.toml`:
+     - `minifb = "0.29.0"` 의존성 추가
+     - `axiom-render = { path = "../axiom-render" }` 추가
+     - `axiom-game = { path = "../axiom-game" }` 추가
+  2. `crates/axiom-cli/src/desktop.rs` (신규 파일):
+     - `DesktopEngine`: 640x480 `FrameBuffer`, `FactoryGrid<32, 32>`, `WaveDirector<64>`, `BaseHeart`, 탄약 포탑 및 몬스터 전투 루프 탑재
+     - `minifb::Window::new("Axiom Native Engine v1.3.0 - Desktop Studio", 640, 480, WindowOptions)`
+     - 60 FPS 고정 틱 루프: WASD 이동, R키 회전, 1~8 키 건설 도구 선택, 마우스 좌클릭 배치, 마우스 우클릭 철거
+     - ESC 키 입력 시 깔끔한 종료
+  3. `crates/axiom-cli/src/main.rs`:
+     - CLI 인자 검사: `--benchmark` 또는 `--headless` 플래그가 있으면 기존 벤치마크 및 리플레이어 실행
+     - 인자가 없거나 `--window` 플래그 시 `desktop::run_desktop_window()` 실행
+- **불변식 및 헌법 규정:**
+  - 코어 로직 부동소수점 배제 유지 (`tools/guard.ps1` 무결성 검증 통과 필수)
+  - 헤드리스 모드(`--benchmark`) 완벽 보존 (CI 및 자동화 테스트 깨짐 방지)
+- **외부 러너 검증:** `powershell -ExecutionPolicy Bypass -File tools/guard.ps1`
+
+---
+
 ## 🛠️ 긴급 처방전 템플릿 (Disaster Recovery Protocol)
 
 ```markdown

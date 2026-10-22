@@ -4,6 +4,7 @@
 
 pub mod balancer;
 pub mod coop;
+pub mod desktop;
 pub mod replayer;
 pub mod rpg_demo;
 pub mod session;
@@ -12,6 +13,7 @@ pub mod time_travel;
 
 pub use balancer::{MatchStats, MonteCarloBalancer};
 pub use coop::{MultiplayerRaidPeer, RaidCommand, BOSS_ID, HERO_1_ID, HERO_2_ID};
+pub use desktop::run_desktop_window;
 pub use replayer::{ReplayReport, Replayer};
 pub use rpg_demo::{OpenWorldRpgSession, RpgReport};
 pub use session::{HeadlessSession, SessionReport};

@@ -6,14 +6,21 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **IDLE: Milestone 7 완료 — 디렉터 차기 마일스톤 기획 지시 대기**
-  - **상태:** Axiom Engine v1.3.0 멀티플레이어 데이터 드리븐 릴리즈 및 최종 감사 완료.
-  - **시공:** Antigravity (총괄 관제탑)
+- [x] **T-054: 네이티브 데스크톱 윈도우 러너 구축 (`crates/axiom-cli`, `minifb`)**
+  - **목표:**
+    - 웹 브라우저 탈피: 1인 인디 개발자의 로컬 고속 개발을 위한 60/144Hz 네이티브 데스크톱 윈도우 러너 구축.
+    - `crates/axiom-cli`에 `minifb` 연동: `cargo run -p axiom-cli` 단 한 줄로 1초 만에 네이티브 창 팝업.
+    - 640x480 (또는 스케일업 1280x960) 윈도우에 `FrameBuffer` 실시간 래스터라이징 연동.
+    - 마우스(좌클릭 건설, 우클릭 철거/취소, 휠 줌) 및 키보드(WASD 이동, R키 회전, 1~8 구조물 선택) 입력 파이프라인 완성.
+  - **시공:** Subagent (현장 시공팀)
+  - **검증:** `cargo run -p axiom-cli -- --benchmark` 헤드리스 모드 호환성 유지 및 `tools/guard.ps1` 100% 통과 (완료)
 
 ---
 
 ## ⏳ [BACKLOG]
-(Empty / Ready for next milestone)
+- [ ] **T-055: 실사용 디스크 세이브/로드(F5/F9) 및 슬롯 파일 영속성 (`saves/*.axiom`)**
+- [ ] **T-056: 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`)**
+- [ ] **T-057: 1인 개발자를 위한 실시간 인게임 프로파일러 & 디버그 오버레이 (F3)**
 
 ---
 

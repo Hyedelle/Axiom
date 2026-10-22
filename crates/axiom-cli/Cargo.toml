@@ -7,5 +7,8 @@ license.workspace = true
 
 [dependencies]
 axiom-core = { path = "../axiom-core" }
+minifb = "0.29.0"
+axiom-render = { path = "../axiom-render" }
+axiom-game = { path = "../axiom-game" }
 
 [dev-dependencies]
