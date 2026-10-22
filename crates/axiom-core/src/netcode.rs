@@ -24,6 +24,7 @@ pub struct RollbackFrameStats {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerInputQueue<const FRAMES: usize = DEFAULT_NETCODE_BUFFER_SIZE> {
     pub inputs: [InputState; FRAMES],
+    pub frame_tags: [u64; FRAMES],
     pub is_confirmed: [bool; FRAMES],
     pub last_confirmed_frame: u64,
 }
@@ -38,6 +39,7 @@ impl<const FRAMES: usize> PlayerInputQueue<FRAMES> {
     pub const fn new() -> Self {
         Self {
             inputs: [InputState::NEUTRAL; FRAMES],
+            frame_tags: [u64::MAX; FRAMES],
             is_confirmed: [false; FRAMES],
             last_confirmed_frame: 0,
         }
@@ -47,6 +49,7 @@ impl<const FRAMES: usize> PlayerInputQueue<FRAMES> {
     pub fn set_confirmed(&mut self, frame: u64, input: InputState) {
         let slot = (frame as usize) % FRAMES;
         self.inputs[slot] = input;
+        self.frame_tags[slot] = frame;
         self.is_confirmed[slot] = true;
         if frame > self.last_confirmed_frame {
             self.last_confirmed_frame = frame;
@@ -56,7 +59,7 @@ impl<const FRAMES: usize> PlayerInputQueue<FRAMES> {
     /// Predicts input for `frame` based on previous input heuristics.
     pub fn predict_for_frame(&mut self, frame: u64) -> InputState {
         let slot = (frame as usize) % FRAMES;
-        if self.is_confirmed[slot] {
+        if self.frame_tags[slot] == frame && self.is_confirmed[slot] {
             return self.inputs[slot];
         }
 
@@ -64,6 +67,7 @@ impl<const FRAMES: usize> PlayerInputQueue<FRAMES> {
         let prev_slot = ((frame.saturating_sub(1)) as usize) % FRAMES;
         let predicted = self.inputs[prev_slot];
         self.inputs[slot] = predicted;
+        self.frame_tags[slot] = frame;
         self.is_confirmed[slot] = false;
         predicted
     }
@@ -72,14 +76,18 @@ impl<const FRAMES: usize> PlayerInputQueue<FRAMES> {
     #[inline(always)]
     pub fn get_input(&self, frame: u64) -> InputState {
         let slot = (frame as usize) % FRAMES;
-        self.inputs[slot]
+        if self.frame_tags[slot] == frame {
+            self.inputs[slot]
+        } else {
+            InputState::NEUTRAL
+        }
     }
 
     /// Returns true if the input for a frame was confirmed from the network.
     #[inline(always)]
     pub fn is_frame_confirmed(&self, frame: u64) -> bool {
         let slot = (frame as usize) % FRAMES;
-        self.is_confirmed[slot]
+        self.frame_tags[slot] == frame && self.is_confirmed[slot]
     }
 }
 
@@ -145,8 +153,13 @@ impl<const FRAMES: usize, const ENTITIES: usize> RollbackSession<FRAMES, ENTITIE
         }
 
         let slot = (frame as usize) % FRAMES;
-        let was_confirmed = self.input_queues[remote_player_id].is_confirmed[slot];
-        let previous_input = self.input_queues[remote_player_id].inputs[slot];
+        let was_confirmed = self.input_queues[remote_player_id].frame_tags[slot] == frame
+            && self.input_queues[remote_player_id].is_confirmed[slot];
+        let previous_input = if self.input_queues[remote_player_id].frame_tags[slot] == frame {
+            self.input_queues[remote_player_id].inputs[slot]
+        } else {
+            InputState::NEUTRAL
+        };
 
         // Set confirmed input
         self.input_queues[remote_player_id].set_confirmed(frame, input);

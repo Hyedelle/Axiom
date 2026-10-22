@@ -3,13 +3,26 @@
 //! Exposes a zero-allocation, cache-friendly C-ABI for orchestrating the Axiom Engine
 //! from any host language (TypeScript/WASM, C#, C++, Python) without domain coupling.
 
+use axiom_core::grid_netcode::GridRollbackSession;
 use axiom_core::schema::{RecipeDefinition, RecipeRegistry, TypeDefinition, TypeRegistry};
-use axiom_core::tile_entity::{TileCell, TileGrid};
+pub use axiom_core::tile_entity::grid_action_kind;
+use axiom_core::tile_entity::{GridAction, TileCell, TileGrid};
 
 pub const DEFAULT_GRID_WIDTH: usize = 64;
 pub const DEFAULT_GRID_HEIGHT: usize = 64;
 pub const DEFAULT_TYPE_CAP: usize = 256;
 pub const DEFAULT_RECIPE_CAP: usize = 128;
+pub const DEFAULT_ROLLBACK_FRAMES: usize = 32;
+pub const DEFAULT_NET_PLAYERS: usize = 2;
+
+/// Specialized Rollback Session Type for SDK C-ABI
+pub type SdkGridRollbackSession = GridRollbackSession<
+    DEFAULT_GRID_WIDTH,
+    DEFAULT_GRID_HEIGHT,
+    DEFAULT_ROLLBACK_FRAMES,
+    DEFAULT_NET_PLAYERS,
+    DEFAULT_RECIPE_CAP,
+>;
 
 /// Return codes for C-ABI functions
 pub mod return_code {
@@ -295,6 +308,160 @@ pub extern "C" fn axiom_grid_buffer_len(_ctx: *const EngineContext) -> usize {
     DEFAULT_GRID_WIDTH * DEFAULT_GRID_HEIGHT
 }
 
+/// Applies a 16-byte discrete `GridAction` to the grid in `EngineContext`.
+#[no_mangle]
+pub extern "C" fn axiom_grid_apply_action(
+    ctx: *mut EngineContext,
+    action: *const GridAction,
+) -> i32 {
+    if ctx.is_null() || action.is_null() {
+        return return_code::ERR_NULL_PTR;
+    }
+
+    let act = unsafe { *action };
+    let ok = unsafe { (*ctx).grid.apply_action(&act) };
+    if ok {
+        return_code::SUCCESS
+    } else {
+        return_code::ERR_OPERATION_FAILED
+    }
+}
+
+// ---------------------------------------------------------------------------
+// C-ABI: Multiplayer P2P Grid Rollback Netcode (T-051)
+// ---------------------------------------------------------------------------
+
+/// Allocates and initializes a new P2P Grid Rollback Netcode Session.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_create(local_player_id: u32) -> *mut SdkGridRollbackSession {
+    let session = GridRollbackSession::new_boxed(
+        local_player_id as usize,
+        TileGrid::new(),
+        RecipeRegistry::new(),
+    );
+    Box::into_raw(session)
+}
+
+/// Destroys and frees an existing P2P Grid Rollback Netcode Session.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_destroy(session: *mut SdkGridRollbackSession) {
+    if !session.is_null() {
+        unsafe {
+            drop(Box::from_raw(session));
+        }
+    }
+}
+
+/// Copies registered recipes from an `EngineContext` into the rollback session.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_copy_recipes_from_context(
+    session: *mut SdkGridRollbackSession,
+    ctx: *const EngineContext,
+) -> i32 {
+    if session.is_null() || ctx.is_null() {
+        return return_code::ERR_NULL_PTR;
+    }
+
+    unsafe {
+        (*session).recipes = (*ctx).recipes.clone();
+    }
+    return_code::SUCCESS
+}
+
+/// Advances 1 local frame with zero input latency. If `action` is null, `GridAction::NONE` is applied.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_advance_frame(
+    session: *mut SdkGridRollbackSession,
+    action: *const GridAction,
+) -> u64 {
+    if session.is_null() {
+        return 0;
+    }
+
+    let act = if action.is_null() {
+        GridAction::NONE
+    } else {
+        unsafe { *action }
+    };
+
+    let stats = unsafe { (*session).advance_frame(act) };
+    stats.current_frame
+}
+
+/// Delivers a confirmed remote grid action arriving from network link.
+/// Returns true if a speculative rollback was triggered.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_receive_remote(
+    session: *mut SdkGridRollbackSession,
+    remote_player_id: u32,
+    frame: u64,
+    action: *const GridAction,
+) -> bool {
+    if session.is_null() || action.is_null() {
+        return false;
+    }
+
+    let act = unsafe { *action };
+    unsafe { (*session).receive_remote_action(remote_player_id as usize, frame, act) }
+}
+
+/// Returns a raw pointer to the live `TileCell` buffer of the rollback session for zero-copy rendering.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_get_grid_ptr(session: *mut SdkGridRollbackSession) -> *mut TileCell {
+    if session.is_null() {
+        core::ptr::null_mut()
+    } else {
+        unsafe { (*session).current_grid.cells.as_mut_ptr() as *mut TileCell }
+    }
+}
+
+/// Synchronizes the current rollback grid state back into an `EngineContext`.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_sync_to_context(
+    session: *const SdkGridRollbackSession,
+    ctx: *mut EngineContext,
+) -> i32 {
+    if session.is_null() || ctx.is_null() {
+        return return_code::ERR_NULL_PTR;
+    }
+
+    unsafe {
+        (*ctx).grid = (*session).current_grid;
+        (*ctx).tick_count = (*session).current_frame;
+    }
+    return_code::SUCCESS
+}
+
+/// Returns the 64-bit deterministic hash of the rollback session's current grid.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_state_hash(session: *const SdkGridRollbackSession) -> u64 {
+    if session.is_null() {
+        0
+    } else {
+        unsafe { (*session).state_hash() }
+    }
+}
+
+/// Returns total number of rollbacks executed by the session.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_rollbacks_count(session: *const SdkGridRollbackSession) -> u64 {
+    if session.is_null() {
+        0
+    } else {
+        unsafe { (*session).total_rollbacks }
+    }
+}
+
+/// Returns total number of resimulated frames executed during rollbacks.
+#[no_mangle]
+pub extern "C" fn axiom_grid_net_resimulated_count(session: *const SdkGridRollbackSession) -> u64 {
+    if session.is_null() {
+        0
+    } else {
+        unsafe { (*session).total_frames_resimulated }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -381,6 +548,62 @@ mod tests {
         let pop_res = axiom_grid_pop_item(engine, 10, 20, 5, 4);
         assert_eq!(pop_res, return_code::SUCCESS);
 
+        axiom_engine_destroy(engine);
+    }
+
+    #[test]
+    fn test_grid_action_and_netcode_c_abi() {
+        let engine = axiom_engine_create();
+
+        // 1. Test axiom_grid_apply_action
+        let place_act = GridAction::set_tile(0, 15, 15, 200, 800);
+        let res_apply = axiom_grid_apply_action(engine, &place_act);
+        assert_eq!(res_apply, return_code::SUCCESS);
+
+        let mut cell = TileCell::empty();
+        axiom_grid_get_tile(engine, 15, 15, &mut cell);
+        assert_eq!(cell.type_id, 200);
+        assert_eq!(cell.hp, 800);
+
+        // 2. Test axiom_grid_net lifecycle
+        let session0 = axiom_grid_net_create(0);
+        let session1 = axiom_grid_net_create(1);
+        assert!(!session0.is_null());
+        assert!(!session1.is_null());
+
+        // Check grid pointer
+        let grid_ptr = axiom_grid_net_get_grid_ptr(session0);
+        assert!(!grid_ptr.is_null());
+
+        // Advance peer 0 with local action at frame 0
+        let act0 = GridAction::set_tile(0, 10, 10, 50, 100);
+        let frame0 = axiom_grid_net_advance_frame(session0, &act0);
+        assert_eq!(frame0, 1);
+
+        // Advance peer 1 with empty action at frame 0 and frame 1
+        axiom_grid_net_advance_frame(session1, core::ptr::null());
+        axiom_grid_net_advance_frame(session1, core::ptr::null());
+
+        // Now deliver peer 0's frame 0 action to peer 1 (delayed!)
+        let rolled_back = axiom_grid_net_receive_remote(session1, 0, 0, &act0);
+        assert!(rolled_back, "Peer 1 should have rolled back upon receiving delayed action");
+        assert!(axiom_grid_net_rollbacks_count(session1) > 0);
+
+        // Advance peer 0 to frame 2 with empty actions
+        axiom_grid_net_advance_frame(session0, core::ptr::null());
+
+        // Both peers at frame 2 should have identical state hashes!
+        let hash0 = axiom_grid_net_state_hash(session0);
+        let hash1 = axiom_grid_net_state_hash(session1);
+        assert_eq!(hash0, hash1);
+
+        // Test syncing back to engine context
+        let sync_res = axiom_grid_net_sync_to_context(session0, engine);
+        assert_eq!(sync_res, return_code::SUCCESS);
+        assert_eq!(axiom_engine_tick_count(engine), 2);
+
+        axiom_grid_net_destroy(session0);
+        axiom_grid_net_destroy(session1);
         axiom_engine_destroy(engine);
     }
 }

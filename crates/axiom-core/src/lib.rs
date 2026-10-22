@@ -14,6 +14,7 @@ pub mod combat;
 pub mod effector;
 pub mod entity;
 pub mod fixed;
+pub mod grid_netcode;
 pub mod hash;
 pub mod input;
 pub mod logistics;
@@ -79,7 +80,11 @@ pub use spatial::{GridCell, SpatialGrid};
 pub use state::{TickState, DEFAULT_MAX_ENTITIES};
 pub use storage::{EntitySlabPool, EntityTable, DEFAULT_TABLE_CAPACITY};
 pub use tick::{Tick, DELTA_TIME_MICROS, TICK_RATE_HZ};
-pub use tile_entity::{tile_flags, TileCell, TileGrid};
+pub use tile_entity::{grid_action_kind, tile_flags, GridAction, TileCell, TileGrid};
+pub use grid_netcode::{
+    GridFrameStats, GridInputQueue, GridRollbackSession, SimulatedGridNetworkPipe,
+    DEFAULT_GRID_NETCODE_BUFFER_SIZE, MAX_SUPPORTED_GRID_PLAYERS,
+};
 pub use time_machine::{RollbackError, TimeMachine};
 pub use world_time_machine::{
     WorldSnapshot, WorldTimeMachine, DEFAULT_WORLD_ROLLBACK_CAPACITY,

@@ -48,6 +48,143 @@ pub mod tile_flags {
     pub const PLAYER_PLACED: u32 = 1 << 7;
 }
 
+/// Discrete Grid Action Kinds for Deterministic Multiplayer Synchronization (T-051)
+pub mod grid_action_kind {
+    pub const NONE: u16 = 0;
+    pub const SET_TILE: u16 = 1;
+    pub const CLEAR_TILE: u16 = 2;
+    pub const PUSH_ITEM: u16 = 3;
+    pub const POP_ITEM: u16 = 4;
+    pub const SET_RECIPE: u16 = 5;
+    pub const SET_FLAGS: u16 = 6;
+    pub const DAMAGE_TILE: u16 = 7;
+}
+
+/// 16-Byte Cache-Aligned Grid Action Record for Deterministic Network Synchronization.
+#[repr(C, align(16))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct GridAction {
+    pub kind: u16,
+    pub player_id: u16,
+    pub x: u16,
+    pub y: u16,
+    pub type_id: u32,
+    pub param1: u16, // recipe_id / item_type / flags
+    pub param2: u16, // count / hp / damage
+}
+
+// Compile-time assertion: GridAction must be exactly 16 bytes for zero-waste network packets.
+const _: () = assert!(core::mem::size_of::<GridAction>() == 16);
+const _: () = assert!(core::mem::align_of::<GridAction>() == 16);
+
+impl GridAction {
+    pub const NONE: Self = Self {
+        kind: grid_action_kind::NONE,
+        player_id: 0,
+        x: 0,
+        y: 0,
+        type_id: 0,
+        param1: 0,
+        param2: 0,
+    };
+
+    pub const fn new(kind: u16, player_id: u16, x: u16, y: u16, type_id: u32, param1: u16, param2: u16) -> Self {
+        Self {
+            kind,
+            player_id,
+            x,
+            y,
+            type_id,
+            param1,
+            param2,
+        }
+    }
+
+    pub const fn set_tile(player_id: u16, x: u16, y: u16, type_id: u32, hp: u16) -> Self {
+        Self {
+            kind: grid_action_kind::SET_TILE,
+            player_id,
+            x,
+            y,
+            type_id,
+            param1: 0,
+            param2: hp,
+        }
+    }
+
+    pub const fn clear_tile(player_id: u16, x: u16, y: u16) -> Self {
+        Self {
+            kind: grid_action_kind::CLEAR_TILE,
+            player_id,
+            x,
+            y,
+            type_id: 0,
+            param1: 0,
+            param2: 0,
+        }
+    }
+
+    pub const fn push_item(player_id: u16, x: u16, y: u16, item_type: u16, count: u16) -> Self {
+        Self {
+            kind: grid_action_kind::PUSH_ITEM,
+            player_id,
+            x,
+            y,
+            type_id: 0,
+            param1: item_type,
+            param2: count,
+        }
+    }
+
+    pub const fn pop_item(player_id: u16, x: u16, y: u16, item_type: u16, count: u16) -> Self {
+        Self {
+            kind: grid_action_kind::POP_ITEM,
+            player_id,
+            x,
+            y,
+            type_id: 0,
+            param1: item_type,
+            param2: count,
+        }
+    }
+
+    pub const fn set_recipe(player_id: u16, x: u16, y: u16, recipe_id: u16) -> Self {
+        Self {
+            kind: grid_action_kind::SET_RECIPE,
+            player_id,
+            x,
+            y,
+            type_id: 0,
+            param1: recipe_id,
+            param2: 0,
+        }
+    }
+
+    pub const fn set_flags(player_id: u16, x: u16, y: u16, flags: u32) -> Self {
+        Self {
+            kind: grid_action_kind::SET_FLAGS,
+            player_id,
+            x,
+            y,
+            type_id: 0,
+            param1: flags as u16,
+            param2: (flags >> 16) as u16,
+        }
+    }
+
+    pub const fn damage_tile(player_id: u16, x: u16, y: u16, damage: u16) -> Self {
+        Self {
+            kind: grid_action_kind::DAMAGE_TILE,
+            player_id,
+            x,
+            y,
+            type_id: 0,
+            param1: 0,
+            param2: damage,
+        }
+    }
+}
+
 impl TileCell {
     /// Creates an empty tile cell.
     pub const fn empty() -> Self {
@@ -180,7 +317,7 @@ impl TileCell {
 /// L1/L2 cache friendly 2D grid of 64-byte `TileCell`s stored in a flat contiguous row-major array.
 /// Completely heap-free, zero-allocation, deterministic.
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct TileGrid<const W: usize, const H: usize> {
     pub cells: [[TileCell; W]; H],
 }
@@ -232,6 +369,68 @@ impl<const W: usize, const H: usize> TileGrid<W, H> {
             true
         } else {
             false
+        }
+    }
+
+    /// Applies a deterministic grid action. Returns true if executed successfully.
+    pub fn apply_action(&mut self, action: &GridAction) -> bool {
+        let x = action.x as usize;
+        let y = action.y as usize;
+        if x >= W || y >= H {
+            return false;
+        }
+
+        match action.kind {
+            grid_action_kind::NONE => true,
+            grid_action_kind::SET_TILE => {
+                let mut cell = TileCell::new(action.type_id, action.param2);
+                cell.state_flags |= tile_flags::PLAYER_PLACED;
+                self.set(x, y, cell)
+            }
+            grid_action_kind::CLEAR_TILE => self.clear_at(x, y),
+            grid_action_kind::PUSH_ITEM => {
+                if let Some(cell) = self.get_mut(x, y) {
+                    cell.push_item(action.param1, action.param2)
+                } else {
+                    false
+                }
+            }
+            grid_action_kind::POP_ITEM => {
+                if let Some(cell) = self.get_mut(x, y) {
+                    cell.pop_item(action.param1, action.param2)
+                } else {
+                    false
+                }
+            }
+            grid_action_kind::SET_RECIPE => {
+                if let Some(cell) = self.get_mut(x, y) {
+                    cell.recipe_id = action.param1;
+                    true
+                } else {
+                    false
+                }
+            }
+            grid_action_kind::SET_FLAGS => {
+                if let Some(cell) = self.get_mut(x, y) {
+                    let flags = (action.param1 as u32) | ((action.param2 as u32) << 16);
+                    cell.state_flags = flags;
+                    true
+                } else {
+                    false
+                }
+            }
+            grid_action_kind::DAMAGE_TILE => {
+                if let Some(cell) = self.get_mut(x, y) {
+                    cell.hp = cell.hp.saturating_sub(action.param2);
+                    if cell.hp == 0 {
+                        cell.clear();
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
         }
     }
 
@@ -442,5 +641,43 @@ mod tests {
         g2.set(2, 3, TileCell::new(12, 100));
 
         assert_eq!(g1.state_hash(), g2.state_hash());
+    }
+
+    #[test]
+    fn test_grid_action_application() {
+        let mut grid = TileGrid::<8, 8>::new();
+
+        // 1. Place building via GridAction
+        let place_act = GridAction::set_tile(1, 2, 2, 10, 500);
+        assert!(grid.apply_action(&place_act));
+        let cell = grid.get(2, 2).unwrap();
+        assert_eq!(cell.type_id, 10);
+        assert_eq!(cell.hp, 500);
+        assert!(cell.has_flag(tile_flags::PLAYER_PLACED));
+
+        // 2. Push items
+        let push_act = GridAction::push_item(1, 2, 2, 5, 20);
+        assert!(grid.apply_action(&push_act));
+        assert_eq!(grid.get(2, 2).unwrap().count_item(5), 20);
+
+        // 3. Pop items
+        let pop_act = GridAction::pop_item(1, 2, 2, 5, 5);
+        assert!(grid.apply_action(&pop_act));
+        assert_eq!(grid.get(2, 2).unwrap().count_item(5), 15);
+
+        // 4. Set recipe
+        let recipe_act = GridAction::set_recipe(1, 2, 2, 42);
+        assert!(grid.apply_action(&recipe_act));
+        assert_eq!(grid.get(2, 2).unwrap().recipe_id, 42);
+
+        // 5. Damage tile
+        let dmg_act = GridAction::damage_tile(1, 2, 2, 200);
+        assert!(grid.apply_action(&dmg_act));
+        assert_eq!(grid.get(2, 2).unwrap().hp, 300);
+
+        // 6. Clear tile
+        let clear_act = GridAction::clear_tile(1, 2, 2);
+        assert!(grid.apply_action(&clear_act));
+        assert!(grid.get(2, 2).unwrap().is_empty());
     }
 }
