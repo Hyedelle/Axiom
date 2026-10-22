@@ -6,25 +6,24 @@
 ---
 
 ## ▶ [CURRENT]
-- [x] **T-054: 네이티브 데스크톱 윈도우 러너 구축 (`crates/axiom-cli`, `minifb`)**
+- [ ] **T-055: 실사용 디스크 세이브/로드(F5/F9) 및 슬롯 파일 영속성 (`saves/*.axiom`)**
   - **목표:**
-    - 웹 브라우저 탈피: 1인 인디 개발자의 로컬 고속 개발을 위한 60/144Hz 네이티브 데스크톱 윈도우 러너 구축.
-    - `crates/axiom-cli`에 `minifb` 연동: `cargo run -p axiom-cli` 단 한 줄로 1초 만에 네이티브 창 팝업.
-    - 640x480 (또는 스케일업 1280x960) 윈도우에 `FrameBuffer` 실시간 래스터라이징 연동.
-    - 마우스(좌클릭 건설, 우클릭 철거/취소, 휠 줌) 및 키보드(WASD 이동, R키 회전, 1~8 구조물 선택) 입력 파이프라인 완성.
+    - 1인 인디 개발자의 실사용 영속성: 인게임 실시간 상태를 디스크 파일(`saves/slot_01.axiom`)로 100% 무손실 저장/복원.
+    - F5 키: 빠른 저장 (Quick Save) — `FactoryGrid`, `WaveDirector`, `BaseHeart`, 탄약/인벤토리 스냅샷 직렬화.
+    - F9 키: 빠른 불러오기 (Quick Load) — 디스크 바이너리 파싱 후 1틱 롤백 타임머신 복원 및 HUD 알림.
   - **시공:** Subagent (현장 시공팀)
-  - **검증:** `cargo run -p axiom-cli -- --benchmark` 헤드리스 모드 호환성 유지 및 `tools/guard.ps1` 100% 통과 (완료)
+  - **검증:** `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-055: 실사용 디스크 세이브/로드(F5/F9) 및 슬롯 파일 영속성 (`saves/*.axiom`)**
 - [ ] **T-056: 16x16 픽셀 스프라이트 아틀라스 및 애니메이션 래스터라이저 (`crates/axiom-render`)**
 - [ ] **T-057: 1인 개발자를 위한 실시간 인게임 프로파일러 & 디버그 오버레이 (F3)**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-054: 네이티브 데스크톱 윈도우 러너 구축 (`crates/axiom-cli`, `minifb`)** (`crates/axiom-cli/src/desktop.rs`, `minifb` 60 FPS 네이티브 640x480 창 연동, `cargo run -p axiom-cli` 한 줄 실행, 마우스 좌/우 클릭 및 WASD/R/1~8 키보드 배치/철거/회전 파이프라인, 3x5 레트로 HUD 및 포탑 사격/제련소 연기 실시간 래스터라이징, `--benchmark` 헤드리스 모드 100% 결정론 보존, `tools/guard.ps1` 통과)
 - [x] **T-053: Axiom Engine v1.3.0 멀티플레이어 데이터 드리븐 릴리즈 및 최종 감사** (`Cargo.toml` v1.3.0 공식 판올림, `docs/architecture.md` Section 15 등재, `docs/decisions.md` [D-016]/[D-017] 동기화, `docs/audit-report.md` [AUDIT-20261022-v1.3.0] 공식 종합 감사 승인, WebRTC DataChannel 및 그리드 롤백 넷코드 마일스톤 완결)
 - [x] **T-052: 브라우저 WebRTC DataChannel을 통한 원격 멀티플레이어 팩토리 협동 시연** (`crates/axiom-wasm/src/lib.rs`, `CoopFactoryWasmEngine`, `axiom_coop_*` 11개 C-ABI 바인딩, `index.html` 및 `web/index.html` WebRTC DataChannel 24B 바이너리 패킷 송수신, 모의 네트워크 파이프(0~300ms 지연 / 0~30% 드랍율), P0(블루)/P1(오렌지) 2인 P2P 팩토리 동시 협동 건설/물류, 지연 패킷 도착 시 실시간 캔버스 GGPO 롤백 재렌더링 시각화, `tools/guard.ps1` 무부동소수점 무결성 통과)
 - [x] **T-051: 멀티플레이어 P2P 넷코드와 데이터 드리븐 SDK 그리드 동기화 바인딩** (`crates/axiom-core/src/grid_netcode.rs`, `GridAction` 16B 캐시라인 정렬 레코드, `GridInputQueue` 64비트 프레임 태그 기반 무한 랩어라운드 링 버퍼, `GridRollbackSession` 64B 타일 그리드 분산 롤백 세션, `SimulatedGridNetworkPipe` 200ms 대륙간 지연 및 15% 패킷 드랍 환경 100% 비트 일치 `state_hash` 합의 검증, `crates/axiom-sdk` `axiom_grid_net_*` 10개 C-ABI 엔드포인트 바인딩, `tools/guard.ps1` 무부동소수점 무결성 통과)
