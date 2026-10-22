@@ -7,6 +7,7 @@
 
 pub mod defense;
 pub mod factory;
+pub mod schema_catalog;
 pub mod world_factory;
 pub mod worker;
 
@@ -38,3 +39,5 @@ pub use defense::{
     TURRET_AMMO_CAP, TURRET_COOLDOWN, TURRET_DAMAGE, TURRET_HP, TURRET_RANGE, TURRET_SALVAGE,
     WALL_HP, WALL_SALVAGE,
 };
+
+pub use schema_catalog::{factory_types, register_factory_recipes, register_factory_types};

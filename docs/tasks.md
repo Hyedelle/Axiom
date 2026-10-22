@@ -6,23 +6,25 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-049: 팩토리 RPG를 신규 데이터 드리븐 SDK 위의 예제 게임으로 리팩토링**
+- [ ] **T-050: Axiom Engine v1.2.0 범용 엔진 아키텍처 공식 감사 및 릴리즈**
   - **목표:**
-    - 기존 `axiom-game` 및 `axiom-wasm`의 하드코딩된 도메인 로직을 신규 `axiom-sdk` 스키마 및 C-ABI를 활용하는 순수 클라이언트 예제 구조로 재정렬.
-    - 엔진 코어는 100% 도메인 프리 범용 엔진으로 보존되고, 게임 콘텐츠(광석, 드릴, 제련소, 포탑, 몬스터)는 데이터 드리븐 스키마 등록을 통해 구동됨을 실증.
-    - 웹 캔버스 플레이어 및 GitHub Pages 배포와의 완전한 호환성 유지.
-    - 무부동소수점, 제로-힙, 결정론적 시뮬레이션 검증.
+    - 데이터 드리븐 범용 엔진화 피벗(T-046 ~ T-049) 종합 아키텍처 감사(`docs/audit-report.md`).
+    - `docs/architecture.md` Section 14 (Data-Driven Architecture & Universal Engine SDK) 등재.
+    - `docs/decisions.md` [D-015] (Data-Driven Schema & Zero-Allocation C-ABI Pivot) 채택 기록.
+    - `Cargo.toml` v1.2.0 버전 판올림 및 GitHub Pages 웹 빌드 최종 무결성 검증.
+    - 100% 무부동소수점, 제로-힙, 결정론적 시뮬레이션 완결 확인.
   - **시공:** Antigravity (총괄 관제탑)
   - **검증:** `cargo test --workspace` 및 `tools/guard.ps1` 통과
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-050: Axiom Engine v1.2.0 범용 엔진 아키텍처 공식 감사 및 릴리즈**
+- [ ] **T-051: 멀티플레이어 P2P 넷코드와 데이터 드리븐 SDK 그리드 동기화 바인딩**
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-049: 팩토리 RPG를 신규 데이터 드리븐 SDK 위의 예제 게임으로 리팩토링** (`crates/axiom-game/src/schema_catalog.rs`, 팩토리 전용 구조물 8종 및 아이템 5종을 `category` 비트플래그 기반 데이터 드리븐 `TypeDefinition`으로 매핑, 제련/가공 변환 3종 `RecipeDefinition` 등록 브릿지 완성, 엔진 코어와 게임 콘텐츠의 100% 분리 실증 및 38개 단위 테스트 무부동소수점 결정론 통과)
 - [x] **T-048: 범용 C-ABI 및 WASM Engine SDK 아키텍처 구축 (`crates/axiom-sdk`)** (`crates/axiom-sdk`, `EngineContext` 범용 컨텍스트, `axiom_engine_*` 생명주기 API, `axiom_schema_*` 런타임 스키마/레시피 등록 C-ABI, `axiom_grid_*` 64B 제로-카피 타일 조작 및 버퍼 포인터 연동, FNV-1a 엔진 상태 해시, 3개 단위 C-ABI 테스트 및 무부동소수점 무결성 검증 완료)
 - [x] **T-047: 범용 타일 엔티티 및 공간 그리드 컴포넌트 파이프라인 (`crates/axiom-core/src/tile_entity.rs`)** (`crates/axiom-core/src/tile_entity.rs`, `TileCell` 64B 정렬 레코드, `TileGrid<W, H>` 고정 슬랩 2D 무할당 평면 그리드, O(1) 좌표 접근 및 이웃 탐색, `process_recipes` 데이터 드리븐 제작 파이프라인, FNV-1a 그리드 결정론 해시 검증, 5개 신규 단위 테스트 및 무부동소수점 무결성 검증 완료)
 - [x] **T-046: 데이터 드리븐 스키마 정의 및 무할당 룩업 테이블 (`crates/axiom-core/src/schema.rs`)** (`crates/axiom-core/src/schema.rs`, `TypeDefinition` 64B 정렬 레코드, `RecipeDefinition` 64B 변환 규칙, `SchemaHeader` 64B 바이너리 헤더, `TypeRegistry<CAP>`/`RecipeRegistry<CAP>` 고정 슬랩 무할당 O(1) 룩업, FNV-1a 무할당 해시, 직렬화/역직렬화 및 31개 단위 테스트 100% 통과, 무부동소수점 무결성 검증 완료)
