@@ -5397,6 +5397,88 @@ pub extern "C" fn axiom_net_bench_nat_traversal(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_job_bench_scheduler(
+    job_count: u32,
+    workers: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let target_jobs = (job_count as usize).clamp(16, 240);
+    let worker_count = (workers as usize).clamp(1, 8);
+
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(worker_count));
+
+    fn bench_payload_job(ctx: JobContext) {
+        let mut x = ctx.param;
+        for _ in 0..10 {
+            x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        }
+    }
+
+    // 1. Allocate root parent job
+    let parent_handle = js.allocate_job(
+        bench_payload_job,
+        9999,
+        0xFEED,
+        JobPriority::Critical,
+    ).unwrap();
+
+    // 2. Allocate child jobs and bind to parent
+    for i in 0..target_jobs {
+        let child = js.allocate_job(
+            bench_payload_job,
+            (i as u64) + 1,
+            (i as u64) * 31,
+            JobPriority::Normal,
+        ).unwrap();
+        js.set_parent(child, parent_handle);
+
+        // Imbalance: push 80% of jobs exclusively onto worker 0 to trigger heavy work stealing
+        let target_worker = if i % 5 == 0 {
+            (i / 5) % worker_count
+        } else {
+            0
+        };
+        js.descriptors[child.slot()].status = JobStatus::Ready as u8;
+        coordinator.push_local(target_worker, child);
+    }
+
+    // Submit parent (waits until all children complete)
+    js.submit(parent_handle);
+
+    // 3. Drain workers cooperatively via Chase-Lev work stealing
+    let executed_stolen = coordinator.drain_all(&mut js);
+
+    // 4. Drain any remaining ready jobs (including root parent after children completed)
+    let executed_parent = js.run_all(0);
+    let total_executed = executed_stolen + executed_parent;
+
+    let total_stolen = coordinator.total_jobs_stolen() as u32;
+    let total_attempts = coordinator.telemetry.iter().take(worker_count)
+        .map(|t| t.steal_attempts.load(core::sync::atomic::Ordering::Relaxed))
+        .sum::<u64>() as u32;
+    let consensus_hash = js.compute_consensus_hash();
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = total_executed as u32;
+            *out_stats.add(1) = worker_count as u32;
+            *out_stats.add(2) = total_stolen;
+            *out_stats.add(3) = total_attempts;
+            *out_stats.add(4) = (consensus_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(5) = (consensus_hash >> 32) as u32;
+            *out_stats.add(6) = 256; // max capacity
+            *out_stats.add(7) = (target_jobs + 1) as u32;
+        }
+    }
+
+    total_executed as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -6383,5 +6465,14 @@ mod tests {
         assert!(nat_stats[2] > 0, "Probes sent > 0");
         assert!(nat_stats[3] > 0, "Probes recv > 0");
         assert!(nat_stats[5] != 0 || nat_stats[6] != 0, "NAT consensus hash must be non-zero");
+
+        // 7. Async Job System & Work-Stealing Benchmark (50 jobs, 4 workers)
+        let mut job_stats = [0u32; 8];
+        let total_exec = axiom_job_bench_scheduler(50, 4, job_stats.as_mut_ptr());
+        assert_eq!(total_exec, 51); // 50 children + 1 root parent
+        assert_eq!(job_stats[0], 51);
+        assert_eq!(job_stats[1], 4);  // 4 workers
+        assert!(job_stats[2] > 0, "Work-stealing events must be > 0");
+        assert!(job_stats[4] != 0 || job_stats[5] != 0, "Job consensus hash must be non-zero");
     }
 }
