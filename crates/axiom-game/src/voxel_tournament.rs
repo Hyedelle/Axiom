@@ -7,6 +7,7 @@
 //! Fully deterministic, zero floating-point arithmetic, cache-friendly 64-byte L1 telemetry.
 
 use axiom_core::voxel_destruct::{VoxelVolume16, VOXEL_STONE};
+use axiom_core::voxel_shard::VoxelShardPool;
 use axiom_core::neural_ai::NeuralAiWeights;
 use crate::boxing::{ActionKind, BoxingEvent, BoxingRingEngine};
 use crate::neural_fighter::NeuralFighterController;
@@ -53,6 +54,7 @@ pub struct VoxelChampionshipDirector {
     pub tournament: TournamentEngine<4>,
     pub ring: BoxingRingEngine,
     pub arena: VoxelVolume16,
+    pub shards: VoxelShardPool<128>,
     pub controller_a: NeuralFighterController,
     pub controller_b: NeuralFighterController,
     pub phase: BroadcastPhase,
@@ -76,6 +78,7 @@ impl VoxelChampionshipDirector {
         let tournament = TournamentEngine::new_4_bracket(f0, f1, f2, f3);
         let ring = BoxingRingEngine::new(seed);
         let arena = VoxelVolume16::new_solid(VOXEL_STONE);
+        let shards = VoxelShardPool::new(seed);
 
         let mut weights_b = NeuralAiWeights::default();
         weights_b.b1[0] = 30;
@@ -86,6 +89,7 @@ impl VoxelChampionshipDirector {
             tournament,
             ring,
             arena,
+            shards,
             controller_a: NeuralFighterController::new(NeuralAiWeights::default()),
             controller_b: NeuralFighterController::new(weights_b),
             phase: BroadcastPhase::MatchActive,
@@ -133,6 +137,9 @@ impl VoxelChampionshipDirector {
                 // 2. Step deterministic ring physics and capture events
                 let (ev0, ev1) = self.ring.step_pvp(action_a, action_b);
 
+                // Advance ballistic physics for active voxel shards
+                self.shards.step();
+
                 // 3. Dynamic Terrain Cratering on heavy combat strikes
                 let mut crater_event = false;
                 let is_heavy_0 = matches!(ev0, BoxingEvent::PlayerPunched { .. } | BoxingEvent::OpponentDowned | BoxingEvent::PlayerBlocked { .. });
@@ -142,18 +149,18 @@ impl VoxelChampionshipDirector {
                     let crater_x = ((self.match_frame * 3) % 12 + 2) as i16;
                     let crater_z = ((self.match_frame * 7) % 12 + 2) as i16;
                     let radius: i16 = if action_a == ActionKind::Finisher { 4 } else { 2 };
-                    self.arena.carve_crater(crater_x, crater_z, 2, radius);
+                    self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
                     self.craters_carved += 1;
-                    self.debris_count = self.debris_count.saturating_add((radius * 8) as u16);
+                    self.debris_count = self.shards.active_count as u16;
                     crater_event = true;
                 }
                 if is_heavy_1 {
                     let crater_x = ((self.match_frame * 5) % 12 + 2) as i16;
                     let crater_z = ((self.match_frame * 11) % 12 + 2) as i16;
                     let radius: i16 = if action_b == ActionKind::Finisher { 4 } else { 2 };
-                    self.arena.carve_crater(crater_x, crater_z, 2, radius);
+                    self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
                     self.craters_carved += 1;
-                    self.debris_count = self.debris_count.saturating_add((radius * 8) as u16);
+                    self.debris_count = self.shards.active_count as u16;
                     crater_event = true;
                 }
 
@@ -231,6 +238,10 @@ impl VoxelChampionshipDirector {
         let p0_hp = (self.ring.player.hp as u64) & 0xFFFF;
         let p1_hp = (self.ring.opponent.hp as u64) & 0xFFFF;
         hash ^= (p0_hp << 16) | p1_hp;
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
+        let shard_hash = self.shards.compute_consensus_hash();
+        hash ^= shard_hash;
         hash = hash.wrapping_mul(0x100_0000_01B3);
 
         hash

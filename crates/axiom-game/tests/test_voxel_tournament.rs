@@ -55,6 +55,7 @@ fn test_voxel_championship_deterministic_run_to_crown_champion() {
     assert!(director.tournament.champion.is_some());
     assert!(director.craters_carved > 0, "Autonomous combat must carve craters in the voxel arena");
     assert!(director.arena.damaged_count > 0, "Arena must accumulate voxel destruction");
+    assert!(director.shards.total_spawned > 0, "Shards must have been spawned during championship combat");
 
     let telem = director.telemetry();
     assert_ne!(telem.champion_id, 0xFF);
