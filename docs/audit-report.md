@@ -8,26 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 08:06 KST
-- **감사 대상:** Axiom Engine v3.7.0 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 물리 엔진 마일스톤 종합 감사 (T-199, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-129]~[D-132], `tools/package.ps1`, `dist/axiom-v3.7.0-unified-milestone.zip`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64`, `SweptAabbResult64` 및 40B 인라인 `EventSlab64` 무결성 검증, 민코프스키 합(Minkowski Sum) 확장 및 64비트 정수 Kay-Kajiya 광선 슬랩 교차법 기반 $O(1)$ 해석적 CCD 알고리즘(`swept_aabb_toi`, `raycast_aabb_toi`), 20~40 m/s 초고속 펀치 터널링(Bullet-through-Paper) 원천 차단 실증, `dispatch_ccd_hitboxes_with_jobs` 워커 풀 분할 및 `emit_ccd_hits_to_event_bus` (`EVENT_CCD_HIT = 0x0230`), WASM 🥊 230 CCD Hitbox (64B Slabs) 대화형 모달 및 1.31 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_ccd_pipeline`, F3 HUD 카드 및 레이더 접촉 경고 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.7.0-unified-milestone.zip` (2.2 MB, SHA-256: `B25BEB04FBA652332B3963F54BB9D1E9CB4F93BD2821D9ABCD2CB0176D56E28D` 검증 완료), 전체 워크스페이스 v3.7.0 판올림 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 08:10 KST
+- **감사 대상:** Axiom Engine 240대 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 연구 (T-200, `docs/audit-report.md`, `axiom-ragdoll-and-ik-physics-research.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` 슬랩 설계 승인, Position-Based Dynamics (PBD) 순수 정수 거리/힌지 제약 조건 해석기 및 폐형식(Closed-form) Two-Bone IK 수식화 완료, 기구학 ➔ 물리 래그돌 동적 전이(Kinematic-to-Dynamic Blending) 및 파츠 절단(Limb Severance) 분리 역학 명세 확정, 230대 Swept CCD / 220대 SpatialHashGrid / 200대 JobSystem / 210대 EventBus (`EVENT_RAGDOLL_IMPACT = 0x0240`) 연계 아키텍처 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 정렬 슬랩 및 $O(1)$ 해석적 CCD 엔진**:
-     - `HitboxSlab64` (exact 64B slab, 0-암시적 패딩 자연 정렬) 및 `SweptAabbResult64` (exact 64B slab, Q16.16 TOI, hit_xyz, normal_xyz).
-     - 민코프스키 합 확장 슬랩 교차법을 통해 30 m/s 초고속 주먹(500 mm/tick)의 100mm 장애물 관통(터널링)을 $TOI = 0.3$에서 완벽 차단.
-  2. **잡 시스템 및 분산 이벤트 버스 파이프라인**:
-     - Chase-Lev 4-워커 풀 비동기 분할 및 드레인 완료, 40-바이트 인라인 POD 페이로드 방출 및 GGPO 되감기(`rollback_to`) 무결성 확인.
-  3. **WASM 쇼케이스 및 상용 데스크톱 게임 뷰**:
-     - Web 🥊 **230 CCD Hitbox (64B Slabs)** 인터랙티브 모달 및 1.31 MB 바이너리 동기화.
-     - `mimic-the-show` 경기장 싱글/16-인 배틀로얄 연속 충돌 판정 및 F3 HUD 카드, 56x56 미니 레이더 인디케이터 연동.
-  4. **상용 배포 아카이브 및 헌법 가드 검증**:
-     - 단일 상용 크로스 플랫폼 패키지 `dist/axiom-v3.7.0-unified-milestone.zip` (2.2 MB) 생성 및 SHA-256 서명 검증.
-     - 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 최신 릴리즈 바이너리 타겟팅 검증.
-     - `tools/guard.ps1` 100% 올패스.
+  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`RagdollBoneSlab64`, `RagdollJointSlab64`)**:
+     - `RagdollBoneSlab64`: 24B 좌표/선속도, 6B BAMS 각도, 6B 각속도, 4B 역질량($Q16.16$), 4B 반경/길이, 4B 부모/ID/플래그/레이어, 4B 마찰/반발 계수, 12B 예약 패딩으로 구성된 정확히 64B 무패딩 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
+     - `RagdollJointSlab64`: 4B 본 인덱스/타입/절단플래그, 10B 기준길이/최소최대가동각/강성/감쇠/목표각, 4B 모터토크, 12B 힌지 주축 벡터($Q16.16$), 4B 파단한계외력, 2B 플래그, 26B 예약 패딩으로 구성된 정확히 64B 슬랩.
+  2. **0-Float PBD 메카 관절 제약 해석기 및 Two-Bone IK 수식화**:
+     - 역질량 가중치 기반 정수 변위 보정 $\Delta \mathbf{p} = \frac{C \cdot w_i}{W \cdot d} \Delta \mathbf{x}$ 알고리즘.
+     - 코사인 법칙 및 Pole Vector 기하 투영을 통한 $O(1)$ 닫힌 형식 Two-Bone IK 수식화.
+  3. **파츠 절단 및 동적 전이**:
+     - 피니셔 및 신체 절단 시 관절 슬랩의 `is_severed` 비트를 통해 독립 래그돌 서브트리로 즉시 분리 비산.
+  4. **엔진 파이프라인 결합**:
+     - 230 Swept CCD, 220 SpatialHashGrid, 200 JobSystem (`dispatch_ragdoll_with_jobs`), 210 EventBus (`EVENT_RAGDOLL_IMPACT`) 연계 규격 수립.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v3.7.0] Axiom Engine v3.7.0 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 물리 엔진 마일스톤 종합 감사
+- **일시:** 2026-10-24 08:06 KST
+- **판정:** 🟢 **ALL CLEAR (v3.7.0 공식 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64`, `SweptAabbResult64` 및 40B 인라인 `EventSlab64` 무결성 검증, 민코프스키 합(Minkowski Sum) 확장 및 64비트 정수 Kay-Kajiya 광선 슬랩 교차법 기반 $O(1)$ 해석적 CCD 알고리즘(`swept_aabb_toi`, `raycast_aabb_toi`), 20~40 m/s 초고속 펀치 터널링(Bullet-through-Paper) 원천 차단 실증, `dispatch_ccd_hitboxes_with_jobs` 워커 풀 분할 및 `emit_ccd_hits_to_event_bus` (`EVENT_CCD_HIT = 0x0230`), WASM 🥊 230 CCD Hitbox (64B Slabs) 대화형 모달 및 1.31 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_ccd_pipeline`, F3 HUD 카드 및 레이더 접촉 경고 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.7.0-unified-milestone.zip` (2.2 MB, SHA-256 검증 완료), 전체 워크스페이스 v3.7.0 판올림 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T198] Mimic The Show 챔피언십 링 CCD 나이트메어 복싱 히트박스 판정 및 HUD 텔레메트리 연동
 - **일시:** 2026-10-24 07:58 KST

@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-200: Axiom 240대 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 연구** (`docs/audit-report.md`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-201: Axiom 240대 64B L1 캐시 정렬 래그돌 본/조인트 슬랩 및 제약 조건 해석기 구현** (`crates/axiom-core/src/ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ragdoll.rs`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-202: Axiom 240대 래그돌 물리 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/ragdoll.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ragdoll_jobs.rs`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-200: Axiom 240대 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 연구** (`docs/audit-report.md`, `axiom-ragdoll-and-ik-physics-research.md`, 0-Float 64B L1 캐시 정렬 래그돌 본 슬랩 `RagdollBoneSlab64` [#[repr(C, align(64))], exact 64B slab, 24B pos/vel, 6B BAMS orientation, 6B ang_vel, 4B inv_mass Q16.16, 4B radius/length, 4B parent/id/flags/layer, 4B friction/restitution, 12B pad], 0-Float 64B L1 정렬 관절 제약 슬랩 `RagdollJointSlab64` [#[repr(C, align(64))], exact 64B slab, 4B parent/child/type/severed, 10B rest_len/angles/stiffness/damping/target, 4B torque, 12B axis XYZ Q16.16, 4B break_force, 2B flags, 26B pad], Position-Based Dynamics (PBD) 순수 정수 거리/힌지 제약 조건 해석기, 폐형식(Closed-form) Two-Bone IK 수식화, 피니셔/파츠 절단(Limb Severance) 분리 역학, 230대 Swept CCD / 220대 SpatialHashGrid / 200대 JobSystem / 210대 EventBus [`EVENT_RAGDOLL_IMPACT = 0x0240`] 연계 아키텍처 명세 수립 완료)
 - [x] **T-199: Axiom 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 물리 엔진 공식 릴리즈 v3.7.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-129]~[D-132], `docs/audit-report.md` [AUDIT-20261024-v3.7.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 히트박스 슬랩 `HitboxSlab64` [#[repr(C, align(64))], exact 64B slab, 0-암시적 패딩 자연 정렬, 8B target_mask, 11x 4B coords/velocity, 4x 2B damage/knockback/ticks, 2B hitbox_id, 1B flags, 1B hit_type], 0-Float 64B L1 정렬 충돌 결과 슬랩 `SweptAabbResult64` [#[repr(C, align(64))], exact 64B slab, Q16.16 TOI, hit_xyz, normal_xyz, has_hit, attacker_id, victim_id, pair_key], 64비트 정수 Kay-Kajiya 슬랩 교차법 `raycast_aabb_toi`, 민코프스키 합(Minkowski Sum) 확장 AABB 기반 해석적 $O(1)$ 연속 충돌 알고리즘 `swept_aabb_toi`, 히트박스-허트박스 평가 함수 `swept_hitbox_vs_hurtbox`, 30 m/s 초고속 주먹(500 mm/tick)의 100mm 장애물 관통(터널링) 완벽 차단 실증, 64-bit FNV-1a 상태 합의 체크섬 `compute_ccd_consensus_hash`, `dispatch_ccd_hitboxes_with_jobs` 워커 풀 병렬 디스패치 및 `emit_ccd_hits_to_event_bus` 롤백 지원 이벤트 버스 발행 [`EVENT_CCD_HIT = 0x0230` 및 `channel::COMBAT | channel::PHYSICS` 채널, 40B 인라인 페이로드], WebGL/WASM 🥊 **230 CCD Hitbox (64B Slabs)** 대화형 모달 및 1.31 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` 내 `step_ccd_pipeline` [싱글플레이 및 16-인 배틀로얄 연속 충돌 판정], F3 HUD 카드 `CCD: {} Hits | TOI: {:.2} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 충돌 경고 인디케이터, 하단 `[CCD: {}H]` 상시 모니터링 연동, 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v3.7.0-unified-milestone.zip` [2.2 MB, SHA-256: `B25BEB04FBA652332B3963F54BB9D1E9CB4F93BD2821D9ABCD2CB0176D56E28D` 검증], 전체 워크스페이스 v3.7.0 공식 판올림 및 Git 태그 `v3.7.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-198: Mimic The Show 챔피언십 링 CCD 나이트메어 복싱 히트박스 판정 및 HUD 텔레메트리 연동** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `step_ccd_pipeline` [싱글플레이 플레이어/상대 500~600 mm/tick 고속 펀치 및 나이트메어 AI 반격 스윕 교차 판정, 16-인 배틀로얄 `step_ccd_with_jobs` 워커 풀 분할 및 이벤트 버스 방출], F3 HUD 카드 `CCD: {} Hits | TOI: {:.2} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 충돌 경고 인디케이터, 하단 컨트롤 바 `[CCD: {}H]` 연동, 25개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-197: Axiom 230대 CCD 히트박스 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_ccd_bench_hitbox` [4~64 히트박스 슬랩 생성, 30 m/s 고속 펀치 스윕 평가, Chase-Lev 4-워커 잡 디스패치 및 `EVENT_CCD_HIT (0x0230)` 이벤트 버스 연계, 서브프레임 TOI 정규화 및 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 🥊 **230 CCD Hitbox (64B Slabs)** 대화형 모달 연동, 1.31 MB 최적화 WASM 바이너리 동기화, 26개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
