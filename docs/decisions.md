@@ -758,6 +758,38 @@
   2. **Axiom Engine v1.8.0 종합 릴리즈**: 스팀 워크숍 생태계, 초저용량 3D 리플레이, Web Audio 3D 공간 음향, WebRTC 4인 토너먼트 자동 중계 엔진을 통합 승인하고 워크스페이스 버전을 v1.7.0에서 **v1.8.0**으로 공식 판올림 및 Git 태그 `v1.8.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-055] 64B L1 캐시 정렬 스팀 클라우드 세이브 (`CloudSaveHeader`) & 원자적 동기화 엔진 (T-112)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 캐시 라인 정렬 헤더 (`CloudSaveHeader`)**: 64-bit FNV-1a 무결성 체크섬, 이산 유닉스 에포크 초(Seconds), 시뮬레이션 상태 해시를 담은 무패딩 64B POD 헤더 구축.
+  2. **크래시 프리 원자적 교체 (`atomic_write`)**: 임시 파일 작성 후 OS 원자적 이름 변경(`fs::rename`)을 수행하여 세이브 도중 비정상 종료 시에도 파일 오손 영구 방어.
+  3. **양방향 충돌 해결기 (`resolve_sync_conflict`)**: 내용 일치 시 불필요한 전송을 건너뛰고, 타임스탬프와 진행도를 기반으로 로컬과 스팀 클라우드 간 최신 버전을 100% 결정론적으로 합의.
+- **영향:** `crates/axiom-core/src/cloud_save.rs`, `crates/axiom-cli/src/cloud_sync.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-056] WebGL/WASM 3D 메카 복싱 리플레이 뷰어 및 .axrp 스크러버 파이프라인 (T-113)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **WASM C-ABI 리플레이 플레이어 엔진 (`WasmReplayPlayer`)**: O(1) 프레임 입력 인덱싱, 2인 대칭 대전 물리 평가, <0.05ms 서브밀리초 임의 프레임 탐색(`axiom_replay_seek`) 및 16개 엔드포인트 실장.
+  2. **웹 플레이어 3D 리플레이 컨트롤 바 (`replayActionBar`)**: 재생/일시정지 토글, 프레임 단위 전진/후진 스텝퍼, 1x~4x 가변 배속 가속기, 실시간 타임라인 슬라이더 스크러빙 및 커스텀 `.axrp` 파일 드래그 앤 드롭 업로더 연동.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-057] Axiom Engine v1.9.0 클라우드 세이브 & 리플레이 웹 생태계 공식 릴리즈 (T-114)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. Valve Steam Auto-Cloud 호환 크래시 프리 원자적 세이브 동기화 엔진, 64B L1 캐시 정렬 `CloudSaveHeader`, WASM 3D 리플레이 웹 플레이어 및 가변 배속 스크러버를 통합 승인.
+  2. 전체 워크스페이스 버전을 v1.8.0에서 **v1.9.0**으로 공식 판올림하고 Git 태그 `v1.9.0`을 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
 

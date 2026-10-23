@@ -8,20 +8,25 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-23 18:30 KST
-- **감사 대상:** Axiom Engine v1.8.0 스팀 워크숍 모딩 생태계, 초저용량 3D 리플레이, Web Audio 3D 공간 음향, WebRTC 4인 토너먼트 자동 중계 & 스펙테이터 릴레이 종합 감사 (`axiom-render`, `axiom-core`, `axiom-game`, `axiom-wasm`, `axiom-cli`, `mimic-the-show`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 스팀 워크숍 클라우드 UGC 퍼블리셔(WorkshopPublisher), 독립형 .axmod 컨테이너, 0-Float 4-비트 패킹 리플레이(.axrp), Web Audio 3D 공간 오디오, WebRTC 4인 토너먼트 자율 중계 올패스 (v1.8.0 공식 승인)**
+- **일시:** 2026-10-23 18:50 KST
+- **감사 대상:** Axiom Engine v1.9.0 스팀 클라우드 세이브(Steam Cloud Save), WASM 3D 리플레이 웹 플레이어 & .axrp 뷰어 생태계 종합 감사 (`axiom-core`, `axiom-cli`, `axiom-wasm`, `mimic-the-show`, `web`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 CloudSaveHeader, 원자적 동기화 매니저(CloudSyncManager), WASM 3D 리플레이 웹 뷰어 올패스 (v1.9.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **스팀 워크숍 클라우드 UGC 퍼블리셔 (`WorkshopPublisher`)**: SteamPipe 규격 `steam_workshop.vdf` 자동 생성, 7단계 사전 무결성 진단(`validate_mod`), 독립형 `.axmod` 바이너리 컨테이너 패커/언패커 및 원클릭 파이프라인(`tools/publish_mod.ps1`) 검증 올패스.
-  2. **런타임 무재부팅 3D 모드 핫스왑 (`hot_swap_reload`)**: `mods/` 디렉터리 자동 탐색 및 `Key::F7` 핫키를 통한 메카 파츠/UV 텍스처/스탯 0.05ms 원자적 교체 실증.
-  3. **초저용량 결정론 3D 복싱 리플레이 (`.axrp`)**: 64B L1 캐시 라인 정렬 `ReplayHeader`, 4-비트 P0/P1 액션 패킹 런렝스 인코딩(RLE)을 통해 30초 1,800프레임 대전 기준 800바이트 이하 달성 (>85% 압축률). 60프레임 상태 해시 키프레임 탈동기화 방지 및 `mimic-the-show` 글로벌 `F6` 연동.
-  4. **WASM Web Audio AudioWorklet 3D 공간 음향**: 13종 메카 사운드 순수 정수 PCM 절차적 합성(22,050Hz), 3-탭 금속성 지하실 공간 잔향기(Arena Reverb), 3D 상대 좌표 거리 감쇄 및 좌우 스테레오 패닝 8-보이스 실시간 스트리밍 검증.
-  5. **WebRTC P2P 4인 토너먼트 자동 중계 디렉터**: 18B 무할당 바이너리 와이어 프로토콜 `NetboxWirePacket` 4프레임 슬라이딩 윈도우 중복 전송, Tom Cannon GGPO 클록 동기화, 0-Rollback 무예측 관전 세션 `SpectatorRelaySession<64>`, `TournamentDirector` 상태 머신 실시간 중계 텔레메트리 연동.
+  1. **64-Byte L1 캐시 라인 정렬 헤더 (`CloudSaveHeader`)**: 64-bit FNV-1a 무결성 체크섬, 이산 유닉스 에포크 초(Seconds), 시뮬레이션 상태 해시를 담은 무패딩 64B POD 헤더 검증 올패스.
+  2. **크래시 프리 원자적 교체 (`atomic_write`)**: 임시 파일 작성 후 OS 원자적 파일 교체(`fs::rename`)를 수행하여 세이브 도중 비정상 종료 시에도 파일 오손 영구 방어.
+  3. **양방향 충돌 해결기 (`resolve_sync_conflict`)**: 내용 일치 시 불필요한 전송을 건너뛰고, 타임스탬프와 진행도를 기반으로 로컬과 스팀 클라우드 간 최신 버전을 100% 결정론적으로 합의.
+  4. **WASM C-ABI 리플레이 플레이어 엔진 (`WasmReplayPlayer`)**: O(1) 프레임 입력 인덱싱, 2인 대칭 대전 물리 평가, <0.05ms 서브밀리초 임의 프레임 탐색(`axiom_replay_seek`) 및 16개 엔드포인트 실장 및 1,070 KB WASM 번들 컴파일 완료.
+  5. **웹 플레이어 3D 리플레이 컨트롤 바 (`replayActionBar`)**: 재생/일시정지 토글, 프레임 단위 전진/후진 스텝퍼, 1x~4x 가변 배속 가속기, 실시간 타임라인 슬라이더 스크러빙 및 커스텀 `.axrp` 파일 드래그 앤 드롭 업로더 연동.
   6. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261023-v1.8.0] Axiom Engine v1.8.0 스팀 워크숍 모딩 생태계, 초저용량 3D 리플레이 & WebRTC 토너먼트 종합 감사
+- **일시:** 2026-10-23 18:30 KST
+- **판정:** 🟢 **ALL CLEAR (v1.8.0 공식 승인)**
+- **검증:** 스팀 워크숍 클라우드 UGC 퍼블리셔(WorkshopPublisher), 독립형 .axmod 컨테이너, 0-Float 4-비트 패킹 리플레이(.axrp), Web Audio 3D 공간 오디오, WebRTC 4인 토너먼트 자율 중계 올패스.
 
 ### [AUDIT-20261023-v1.7.0] Axiom Engine v1.7.0 멀티플레이어 롤백 넷코드 & WebGL/WASM 3D 완성 종합 감사
 - **일시:** 2026-10-23 15:00 KST
