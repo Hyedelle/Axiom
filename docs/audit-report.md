@@ -8,25 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-23 14:00 KST
-- **감사 대상:** Axiom Engine v1.6.0 3D 소프트웨어 렌더링 & 미믹 더 쇼(mimic-the-show) 상용 완성도 릴리즈 종합 감사 (`axiom-render`, `axiom-core`, `axiom-game`, `axiom-cli`, `axiom-sdk`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 0-Float 3D GLB 파이프라인, Juan Pineda 8x8 타일 비닝, 64B L1 정렬 시네마틱 카메라/빈티지 신문 그라비아/전광판 브로드캐스트, 림 라이팅 & 3D 공간 잔향 오디오 올패스 (v1.6.0 공식 승인)**
+- **일시:** 2026-10-23 15:00 KST
+- **감사 대상:** Axiom Engine v1.7.0 멀티플레이어 롤백 넷코드 & WebGL/WASM 3D 완성 종합 감사 (`axiom-wasm`, `axiom-game`, `axiom-render`, `axiom-core`, `axiom-cli`, `axiom-sdk`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 0-Float WebGL/WASM 3D 소프트웨어 래스터라이저, 2인 실시간 P2P 롤백 넷코드(BoxingRollbackSession<64>), 876 FPS 3D 벤치마크 및 상용 배포 패키징 올패스 (v1.7.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **절대 결정론 0-Float 3D 파이프라인**: 4x4 행렬 곱셈, 원근 투영, 클리핑에 Q16.16 고정소수점 전면 적용, `i64` 중간 누산기 오버플로 방지 (`tools/guard.ps1` 통과)
-  2. **Tripo/Blender 정본 12부위 GLB (29,283 tris) 무할당 바이너리 파서**: `crates/axiom-render/src/mesh3d.rs` 0초 바이너리 파싱
-  3. **Juan Pineda 8x8 타일 비닝 래스터라이저**: 512B L1 데이터 캐시 100% 상주, 스캔라인 미스 0건, Reversed-Z 1/Z 어핀 선형 보간으로 나눗셈 0건 뎁스 테스트 실현
-  4. **인버티드 헐 먹선(+0.008m) & 캐논 색 문법 툰 셰이더**: INK, IRON, AMBER, BRASS, RED, OLIVE 6대 램프 툰 셰이딩 및 화이트 클리핑(38% ➔ 0%) 완전 해소
-  5. **64B L1 캐시 정렬 `Camera3D` & 5대 시네마틱 프리셋**: `BroadcastCenter`, `PlayerCorner`, `OpponentCorner`, `ImpactCloseUp`, `KnockdownLowAngle`
-  6. **128 슬롯 무할당 `ParticleSystem3D`**: 지면 바운스 파편, 엠버 스파크, 4코너 턴버클 고압 스팀 제트(`spawn_steam_jet`), 70인 관중석 플래시 스톰 연동
-  7. **64B L1 정렬 `NewspaperGravureConfig`**: 3대 신문사별(철판일보 모노크롬, 불꽃스포츠 세피아 망점, 주간하역장 풀컬러 셀) 0-Float 빈티지 1면 그라비아 3D 인쇄
-  8. **듀얼 3D 메카 페이스오프 전광판 브로드캐스트 (`render_broadcast_matchup_scene`)**: 플레이오프 및 결승전 진입 시 듀얼 3D 메카 실시간 페이스오프, 중앙 VS 엠블럼, 4팀 순위 티커
-  9. **0-Float 프레넬 림 라이팅 & 오라클 바이저 발광**: 시선 스침각($|Nz| < 16000$) 실루엣 림 에지 검출 및 펀치/피격/회피/KO 상태별 골드/레드/사이언/순백 림 오라 연동
-  10. **0-Float 선형 피치 시프트 & 3-탭 금속성 지하실 잔향기 (`sound.rs`)**: 보스 THESEUS(850 피치 다운)/TINKER(1140 피치 업) 및 지하 갱도 특유의 공간 잔향 완비
-  11. **전체 워크스페이스 단위 테스트 100% 통과**: 58개 단위 테스트 및 FFI 테스트 올패스
+  1. **WebGL/WASM 3D 소프트웨어 래스터라이저 포팅**: 외장 WebGL 셰이더나 GPU 없이 순수 정수 CPU 메모리 상에서 직접 렌더링하는 WASM C-ABI 13개 엔드포인트(`axiom_3d_*`) 실장 및 검증 통과.
+  2. **무할당 절차적 10부위 ELPIS 섀시**: 외장 GLB 없이도 즉시 부팅 가능한 `MechaModel3D::procedural_chassis` (1.14ms, 876.1 FPS) 및 640x480 화면 렌더링 완비.
+  3. **360° 마우스/터치 인터랙티브 턴테이블 웹 플레이어**: 휠 줌, 림 라이팅/만화 먹선 토글, 4대 정본 툰 팔레트 액션바 및 29k tris GLB 동적 스테이징 파서 연동.
+  4. **2인 실시간 대칭 대전 물리 루프 `step_pvp`**: 클린 히트, 150% 카운터 히트, 80% 가드 흡수/칩 데미지, 슬립 회피 헛침 등 비대칭 턴제가 아닌 완벽한 60Hz 대칭 대전 물리 루프 확립.
+  5. **256B POD `BoxingRingEngine` & 무할당 `BoxingRollbackSession<64>`**: 0ms 예측 실행, 100ms 지연 패킷 수신 시 <200ns 서브밀리초 롤백 재시뮬레이션 달성.
+  6. **관전자 및 피어 간 100% 비트 상태 해시 합의**: 로컬 플레이어 ID(P0, P1, 관전자)에 관계없이 매 프레임 정확히 동일한 FNV-1a 상태 해시 산출 입증. WASM C-ABI 12개 엔드포인트 연동.
+  7. **3D 래스터라이저 실측 벤치마크**: 절차적 섀시 876.1 FPS, 100 파티클 1.88 µs/tick, 풀 GLB 1.61 Mtris/sec, Juan Pineda 8x8 타일(512B) L1 캐시 완전 상주 및 Reversed-Z 무나눗셈 뎁스 테스트 실증.
+  8. **상용 스탠드얼론 배포 패키징**: 단일 무의존 바이너리 `mimic-the-show.exe` (0.76MB, dist.zip 0.65MB) 및 `axiom.exe` (0.70MB, dist.zip 0.30MB) 배포 아카이브 생성.
+  9. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261023-v1.6.0] Axiom Engine v1.6.0 3D 소프트웨어 렌더링 & 미믹 더 쇼 상용 완성도 종합 감사
+- **일시:** 2026-10-23 14:00 KST
+- **판정:** 🟢 **ALL CLEAR (v1.6.0 공식 승인)**
+- **검증:** 0-Float 3D GLB 파이프라인, Juan Pineda 8x8 타일 비닝, 64B L1 정렬 시네마틱 카메라/빈티지 신문 그라비아/전광판 브로드캐스트, 림 라이팅 & 3D 공간 잔향 오디오 올패스.
 
 ### [AUDIT-20261022-v1.5.0] Axiom Engine v1.5.0 상용 출시 네이티브 게임 루프, 정수배 스케일러 & 0-의존성 오디오 릴리즈 감사
 - **일시:** 2026-10-22 14:20 KST

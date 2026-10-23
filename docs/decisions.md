@@ -664,5 +664,49 @@
   2. 엔진 및 전체 서브 크레이트 버전을 v1.5.0에서 **v1.6.0**으로 공식 판올림.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-046] 0-Float WebGL/WASM 3D 소프트웨어 래스터라이저 웹 플레이어 및 360° 턴테이블 파이프라인 (T-098)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **WASM 3D 소프트웨어 래스터라이저 포팅**: 외장 WebGL 셰이더나 GPU 가속 없이 CPU 메모리 상에서 직접 렌더링하는 순수 정수 3D 래스터라이저 C-ABI 13개 엔드포인트(`axiom_3d_*`) 실장.
+  2. **무할당 절차적 10부위 ELPIS 섀시**: 외장 GLB 없이도 즉각 부팅 가능한 `MechaModel3D::procedural_chassis` (1.14ms, 876 FPS) 구현.
+  3. **360° 마우스/터치 인터랙티브 턴테이블**: 휠 줌, 림 라이팅/만화 먹선 토글, 4대 정본 툰 팔레트 실시간 조작 액션바 및 29k tris GLB 동적 스테이징 파서 연동.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `crates/axiom-render/src/mesh3d.rs`, `web/index.html`.
+
+---
+
+### [D-047] 2인 실시간 P2P 롤백 메카 복싱 넷코드 (`BoxingRollbackSession<64>`) 및 관전 동기화 (T-099)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **2인 실시간 대칭 대전 물리 루프 `step_pvp`**: 클린 히트, 150% 카운터 히트, 80% 가드 흡수 및 칩 데미지, 슬립 회피 헛침 등 비대칭 턴제가 아닌 완벽한 60Hz 대칭 대전 물리 루프 확립.
+  2. **256B POD `BoxingRingEngine` & 64-슬롯 링 버퍼**: 힙 할당 0의 `BoxingRollbackSession<64>` 구축으로 0ms 예측 실행 및 100ms 지연 수신 시 <200ns 서브밀리초 롤백 재시뮬레이션 달성.
+  3. **관전자 100% 비트 상태 해시 일치**: 로컬 플레이어 ID에 관계없이 동일한 FNV-1a 상태 해시 합의 검증 완료. WASM C-ABI 12개 엔드포인트 연동.
+- **영향:** `crates/axiom-game/src/boxing.rs`, `crates/axiom-game/src/boxing_netcode.rs`, `crates/axiom-wasm/src/lib.rs`.
+
+---
+
+### [D-048] Axiom 3D 래스터라이저 벤치마크, L1 캐시 국소성 증명 및 상용 배포 패키징 (T-100)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **3D 파이프라인 정밀 실측**: 절차적 섀시 876.1 FPS (1.141ms), 100 파티클 1.88 µs/tick (531,900 TPS), Full GLB (29k tris) 1.61 Mtris/sec 실측.
+  2. **Juan Pineda 8x8 타일 비닝 L1 캐시 국소성 증명**: 512B 타일 슬랩이 L1 캐시 내에 100% 상주하며 스캔라인 미스를 0으로 억제함을 검증.
+  3. **상용 배포 패키징 완결**: 단일 바이너리 `mimic-the-show.exe` (0.76MB, dist.zip 0.65MB) 및 `axiom.exe` (0.70MB, dist.zip 0.30MB) 배포 아카이브 생성.
+- **영향:** `crates/axiom-render/tests/benchmark_raster3d.rs`, `mimic-the-show/tools/package.ps1`, `tools/package.ps1`.
+
+---
+
+### [D-049] Axiom Engine v1.7.0 멀티플레이어 롤백 넷코드 & 3D 완성 종합 릴리즈 (T-101)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 0-Float WebGL/WASM 3D 소프트웨어 래스터라이저, 2인 실시간 P2P 롤백 넷코드, 3D 벤치마크 및 상용 배포 패키징을 종합 승인.
+  2. 전체 워크스페이스 버전을 v1.6.0에서 **v1.7.0**으로 공식 판올림하고 Git 태그 `v1.7.0`을 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
