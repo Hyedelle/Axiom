@@ -197,3 +197,75 @@ fn test_boxing_rollback_spectator_parity() {
     assert_eq!(hash0, hash1);
     assert_eq!(hash0, hash_spec, "Spectator state hash must match participant state hash 100%");
 }
+
+#[test]
+fn test_boxing_redundant_packet_packet_drop_recovery() {
+    use axiom_game::boxing_netcode::{NetboxWirePacket, NETBOX_WIRE_MAGIC};
+
+    assert_eq!(core::mem::size_of::<NetboxWirePacket>(), 18);
+    assert_eq!(NetboxWirePacket::SIZE, 18);
+
+    let initial_state = BoxingRingEngine::new(5555);
+    let mut session0 = BoxingRollbackSession::<64>::new(0, initial_state);
+    let mut session1 = BoxingRollbackSession::<64>::new(1, initial_state);
+
+    // Frame 0..2: Normal exchange
+    for frame in 0..3 {
+        let pkt0 = session0.create_wire_packet(ActionKind::Idle, frame as u16);
+        let pkt1 = session1.create_wire_packet(ActionKind::Idle, frame as u16);
+
+        session0.advance_frame(ActionKind::Idle);
+        session1.advance_frame(ActionKind::Idle);
+
+        session1.receive_redundant_packet(&pkt0);
+        session0.receive_redundant_packet(&pkt1);
+    }
+
+    // Frames 3, 4, 5: Packets from P0 are DROPPED! (Simulated packet loss)
+    let p0_actions = [ActionKind::Jab, ActionKind::Cross, ActionKind::Hook];
+    for (idx, &act) in p0_actions.iter().enumerate() {
+        let _pkt_dropped = session0.create_wire_packet(act, (3 + idx) as u16);
+        session0.advance_frame(act);
+        session1.advance_frame(ActionKind::Idle); // P1 advances predicting Idle
+    }
+
+    // At this point, P1 predicted Idle for frames 3, 4, 5, while P0 performed Jab, Cross, Hook.
+    // Hashes temporarily diverge due to prediction
+    assert_ne!(
+        session0.current_state.compute_hash(),
+        session1.current_state.compute_hash()
+    );
+
+    // Frame 6: Packet from P0 ARRIVES!
+    // It contains [I(6)=Guard, I(5)=Hook, I(4)=Cross, I(3)=Jab]
+    let pkt6 = session0.create_wire_packet(ActionKind::Guard, 6);
+    assert_eq!(pkt6.magic, NETBOX_WIRE_MAGIC);
+    assert_eq!(pkt6.window_inputs[0], ActionKind::Guard.to_u8());
+    assert_eq!(pkt6.window_inputs[1], ActionKind::Hook.to_u8());
+    assert_eq!(pkt6.window_inputs[2], ActionKind::Cross.to_u8());
+    assert_eq!(pkt6.window_inputs[3], ActionKind::Jab.to_u8());
+
+    // Test byte serialization roundtrip
+    let raw_bytes = pkt6.to_bytes();
+    let deserialized = NetboxWirePacket::from_bytes(&raw_bytes).expect("Valid wire packet");
+    assert_eq!(deserialized, pkt6);
+
+    // P1 receives redundant packet for frame 6!
+    session0.advance_frame(ActionKind::Guard);
+    session1.advance_frame(ActionKind::Idle);
+
+    let (rolled, rolled_count) = session1.receive_redundant_packet(&deserialized);
+    assert!(rolled, "Single atomic rollback must trigger to recover dropped frames");
+    assert!(rolled_count >= 3, "Must have rolled back across dropped frames 3, 4, 5");
+
+    // Reciprocal sync: P0 receives P1's packet for frame 6
+    let pkt1_f6 = session1.create_wire_packet(ActionKind::Idle, 6);
+    session0.receive_redundant_packet(&pkt1_f6);
+
+    // After single redundant packet recovery, hashes must match exactly!
+    assert_eq!(
+        session0.current_state.compute_hash(),
+        session1.current_state.compute_hash(),
+        "State hashes must converge 100% after 4-frame sliding window recovery!"
+    );
+}

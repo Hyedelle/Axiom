@@ -324,6 +324,7 @@
     <button class="action-btn" onclick="sendBoxingInput(3)" style="color: #ef4444; border-color: #b91c1c;">🔥 Hook (L)</button>
     <button class="action-btn" onclick="sendBoxingInput(7)" style="color: #c084fc; border-color: #7e22ce; font-weight: bold;">⚡ 2D Cut-In (Space)</button>
     <button class="action-btn" id="btnTogglePvp" onclick="toggleNetboxPvp()" style="color: #a855f7; border-color: #9333ea; font-weight: bold;">🌐 P2P Rollback PvP</button>
+    <button class="action-btn" id="btnNetboxBroker" onclick="openNetboxRoomModal()" style="display:none; color: #38bdf8; border-color: #0284c7; font-weight: bold;">📡 P2P Room: STS-9021</button>
     <button class="action-btn" onclick="switchMode('boxing')" style="color: #94a3b8;">🔄 Rematch</button>
   </div>
 
@@ -451,6 +452,42 @@
         <button class="action-btn" onclick="connectRtcPeer()" style="flex: 1; color: #a855f7; border-color: #9333ea;">🔗 Peer 연결 완료</button>
       </div>
       <div id="rtcStatus" style="margin-top: 10px; font-size: 12px; color: #94a3b8; text-align: center;">상태: 로컬 루프백 모드 (120ms 시뮬레이션 대기 중)</div>
+    </div>
+  </div>
+
+  <!-- Netbox P2P Room Broker Modal (T-102) -->
+  <div id="netboxRoomModal" class="modal-overlay">
+    <div class="modal" style="max-width: 520px;">
+      <button class="modal-close" onclick="closeNetboxRoomModal()">✕</button>
+      <h2>🥊 P2P Boxing Ring Room Broker</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 12px 0;">
+        WebRTC 비신뢰/비정렬 SCTP DataChannel & 4-프레임 슬라이딩 윈도우 GGPO 롤백 넷코드 대전입니다.
+      </p>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+        <span style="font-size: 13px; color: #cbd5e1; font-weight: bold;">방 코드:</span>
+        <input type="text" id="netboxRoomId" value="STS-9021" style="flex: 1; background: #0f172a; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-family: monospace; font-size: 14px; font-weight: bold;">
+        <button class="action-btn" onclick="randomizeNetboxRoom()" style="color: #facc15; border-color: #ca8a04;">🎲 난수 생성</button>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <button class="action-btn active" id="btnRoleHost" onclick="setNetboxRole(0)" style="flex: 1; color: #ef4444; border-color: #b91c1c;">🔴 P0 Host (Red)</button>
+        <button class="action-btn" id="btnRoleGuest" onclick="setNetboxRole(1)" style="flex: 1; color: #38bdf8; border-color: #0284c7;">🔵 P1 Guest (Blue)</button>
+        <button class="action-btn" id="btnRoleSpec" onclick="setNetboxRole(2)" style="flex: 1; color: #a855f7; border-color: #9333ea;">👁️ Spectator</button>
+      </div>
+
+      <div style="margin-bottom: 8px; display: flex; gap: 8px;">
+        <button class="action-btn" onclick="startNetboxP2POffer()" style="color: #38bdf8; border-color: #0284c7; flex: 1;">1. Host Offer 생성</button>
+        <button class="action-btn" onclick="acceptNetboxP2PAnswer()" style="color: #4ade80; border-color: #166534; flex: 1;">2. Answer 수신 / 적용</button>
+      </div>
+
+      <textarea id="netboxSignalBox" placeholder="Offer 또는 Answer SDP 신호 코드가 여기에 표시됩니다..." style="width: 100%; height: 80px; background: #0f172a; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; font-family: monospace; font-size: 11px; padding: 6px; box-sizing: border-box;"></textarea>
+
+      <div style="margin-top: 8px; display: flex; gap: 8px;">
+        <button class="action-btn" onclick="copyNetboxSignal()" style="flex: 1; color: #facc15; border-color: #ca8a04;">📋 SDP 신호 복사</button>
+        <button class="action-btn" onclick="copyNetboxInviteUrl()" style="flex: 1; color: #c084fc; border-color: #7e22ce;">🔗 초대 링크 복사</button>
+      </div>
+      <div id="netboxBrokerStatus" style="margin-top: 10px; font-size: 12px; color: #94a3b8; text-align: center;">상태: 로컬 루프백 모드 (100ms 파이프 가동 중)</div>
     </div>
   </div>
 
@@ -631,29 +668,150 @@
       document.getElementById('dropVal').innerText = val + '%';
     }
 
+    class RollbackClockSync {
+      constructor() {
+        this.frameDeltas = new Int32Array(60);
+        this.deltaIdx = 0;
+        this.rollingSum = 0;
+      }
+      recordRemoteFrame(localFrame, remoteFrame) {
+        const delta = localFrame - remoteFrame;
+        this.rollingSum -= this.frameDeltas[this.deltaIdx];
+        this.frameDeltas[this.deltaIdx] = delta;
+        this.rollingSum += delta;
+        this.deltaIdx = (this.deltaIdx + 1) % 60;
+      }
+      getAdvantage() {
+        return this.rollingSum / 60.0;
+      }
+    }
+
     let isBoxingPvp = false;
     let netboxPacketPipe = [];
+    const netboxClockSync = new RollbackClockSync();
+    let netboxRole = 0; // 0: P0 Host, 1: P1 Guest, 2: Spectator
+    let netboxSeq = 0;
+    let netboxPingMap = new Map();
+    let netboxRttSmooth = 0;
+    let netboxStallsCount = 0;
+    let netboxCatchupsCount = 0;
+    let netboxRoomId = 'STS-9021';
 
     function toggleNetboxPvp() {
       isBoxingPvp = !isBoxingPvp;
       const btn = document.getElementById('btnTogglePvp');
+      const brokerBtn = document.getElementById('btnNetboxBroker');
       if (isBoxingPvp) {
         if (btn) {
           btn.innerText = '🥊 Single-Player AI';
           btn.style.color = '#38bdf8';
           btn.style.borderColor = '#0284c7';
         }
-        wasmInstance.axiom_netbox_init(0, BigInt(12345), width, height);
-        document.getElementById('instruction').innerText = '🌐 P2P 롤백 넷코드 대전: 0ms 예측 실행 | P0(레드)/P1(블루) 실시간 공방 | 100ms 지연 패킷 수신 시 자동 롤백 재시뮬레이션!';
+        if (brokerBtn) {
+          brokerBtn.style.display = 'inline-block';
+          brokerBtn.innerText = '📡 P2P Room: ' + netboxRoomId;
+        }
+        wasmInstance.axiom_netbox_init(netboxRole, BigInt(12345), width, height);
+        document.getElementById('instruction').innerText = '🌐 P2P 롤백 넷코드 대전: 0ms 예측 실행 | 4-프레임 슬라이딩 윈도우 | GGPO TimeSync 클록 동기화!';
       } else {
         if (btn) {
           btn.innerText = '🌐 P2P Rollback PvP';
           btn.style.color = '#a855f7';
           btn.style.borderColor = '#9333ea';
         }
+        if (brokerBtn) {
+          brokerBtn.style.display = 'none';
+        }
         wasmInstance.axiom_boxing_init(BigInt(Date.now()), width, height);
         document.getElementById('instruction').innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
       }
+    }
+
+    function openNetboxRoomModal() {
+      document.getElementById('netboxRoomModal').style.display = 'flex';
+      document.getElementById('netboxRoomId').value = netboxRoomId;
+    }
+    function closeNetboxRoomModal() {
+      document.getElementById('netboxRoomModal').style.display = 'none';
+    }
+    function randomizeNetboxRoom() {
+      const code = 'STS-' + Math.floor(1000 + Math.random() * 9000);
+      document.getElementById('netboxRoomId').value = code;
+      netboxRoomId = code;
+      const bBtn = document.getElementById('btnNetboxBroker');
+      if (bBtn) bBtn.innerText = '📡 P2P Room: ' + code;
+    }
+    function setNetboxRole(role) {
+      netboxRole = role;
+      document.getElementById('btnRoleHost').classList.toggle('active', role === 0);
+      document.getElementById('btnRoleGuest').classList.toggle('active', role === 1);
+      document.getElementById('btnRoleSpec').classList.toggle('active', role === 2);
+      if (wasmInstance && isBoxingPvp) {
+        wasmInstance.axiom_netbox_init(role, BigInt(12345), width, height);
+      }
+    }
+    async function startNetboxP2POffer() {
+      try {
+        rtcPeer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        rtcChannel = rtcPeer.createDataChannel('axiom-netbox', { ordered: false, maxRetransmits: 0 });
+        setupRtcChannel(rtcChannel);
+
+        const offer = await rtcPeer.createOffer();
+        await rtcPeer.setLocalDescription(offer);
+
+        rtcPeer.onicecandidate = (e) => {
+          if (!e.candidate) {
+            const sdp = btoa(JSON.stringify(rtcPeer.localDescription));
+            document.getElementById('netboxSignalBox').value = sdp;
+            document.getElementById('netboxBrokerStatus').innerText = '✅ Host Offer 생성 완료! 상대방(게스트)에게 SDP 신호를 전달하세요.';
+          }
+        };
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    async function acceptNetboxP2PAnswer() {
+      try {
+        const raw = document.getElementById('netboxSignalBox').value.trim();
+        if (!raw) return;
+        const desc = JSON.parse(atob(raw));
+        if (desc.type === 'offer') {
+          rtcPeer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+          rtcPeer.ondatachannel = (e) => {
+            setupRtcChannel(e.channel);
+          };
+          await rtcPeer.setRemoteDescription(desc);
+          const answer = await rtcPeer.createAnswer();
+          await rtcPeer.setLocalDescription(answer);
+
+          rtcPeer.onicecandidate = (e) => {
+            if (!e.candidate) {
+              document.getElementById('netboxSignalBox').value = btoa(JSON.stringify(rtcPeer.localDescription));
+              document.getElementById('netboxBrokerStatus').innerText = '✅ Answer 생성 완료! 호스트에게 회신하세요.';
+            }
+          };
+        } else if (desc.type === 'answer') {
+          await rtcPeer.setRemoteDescription(desc);
+          document.getElementById('netboxBrokerStatus').innerText = '✅ P2P WebRTC DataChannel 연결 수립 완료!';
+          const bBtn = document.getElementById('btnNetboxBroker');
+          if (bBtn) bBtn.innerText = '🟢 P2P Connected [' + netboxRoomId + ']';
+          setTimeout(closeNetboxRoomModal, 1200);
+        }
+      } catch (err) {
+        alert('유효하지 않은 SDP 코드입니다.');
+      }
+    }
+    function copyNetboxSignal() {
+      const box = document.getElementById('netboxSignalBox');
+      box.select();
+      navigator.clipboard.writeText(box.value);
+      alert('SDP 신호 코드가 복사되었습니다!');
+    }
+    function copyNetboxInviteUrl() {
+      const room = document.getElementById('netboxRoomId').value || netboxRoomId;
+      const url = `${window.location.origin}${window.location.pathname}?mode=boxing&pvp=1&room=${room}`;
+      navigator.clipboard.writeText(url);
+      alert('대전 초대 링크가 복사되었습니다:\n' + url);
     }
 
     function setFactoryTool(toolId) {
@@ -1229,19 +1387,46 @@
         closeWebRtcModal();
       };
       rtcChannel.onmessage = (e) => {
-        if (e.data instanceof ArrayBuffer && e.data.byteLength === 24) {
-          const view = new DataView(e.data);
-          const sender = view.getUint16(0, true);
-          const kind = view.getUint16(2, true);
-          const x = view.getUint16(4, true);
-          const y = view.getUint16(6, true);
-          const typeId = view.getUint32(8, true);
-          const p1 = view.getUint16(12, true);
-          const p2 = view.getUint16(14, true);
-          const frame = view.getBigUint64(16, true);
+        if (e.data instanceof ArrayBuffer) {
+          if (e.data.byteLength === 24) {
+            const view = new DataView(e.data);
+            const sender = view.getUint16(0, true);
+            const kind = view.getUint16(2, true);
+            const x = view.getUint16(4, true);
+            const y = view.getUint16(6, true);
+            const typeId = view.getUint32(8, true);
+            const p1 = view.getUint16(12, true);
+            const p2 = view.getUint16(14, true);
+            const frame = view.getBigUint64(16, true);
 
-          if (wasmInstance && mode === 'coop') {
-            wasmInstance.axiom_coop_receive_remote(sender, frame, kind, x, y, typeId, p1, p2);
+            if (wasmInstance && mode === 'coop') {
+              wasmInstance.axiom_coop_receive_remote(sender, frame, kind, x, y, typeId, p1, p2);
+            }
+          } else if (e.data.byteLength === 18) {
+            // Axiom Netbox 18B wire packet over Unreliable DataChannel
+            if (wasmInstance && mode === 'boxing' && isBoxingPvp) {
+              const u8 = new Uint8Array(e.data);
+              const view = new DataView(e.data);
+              const sender = view.getUint8(1);
+              const seq = view.getUint16(2, true);
+              const remoteFrame = view.getUint32(4, true);
+              const ackFrame = view.getUint32(8, true);
+
+              const wirePtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+              if (wirePtr) {
+                new Uint8Array(wasmInstance.memory.buffer, wirePtr, 18).set(u8);
+                wasmInstance.axiom_netbox_receive_wire_packet(wirePtr, 18);
+              }
+
+              const localFrame = Number(wasmInstance.axiom_netbox_get_frame());
+              netboxClockSync.recordRemoteFrame(localFrame, remoteFrame);
+
+              if (netboxPingMap.has(ackFrame)) {
+                const rtt = performance.now() - netboxPingMap.get(ackFrame);
+                netboxPingMap.delete(ackFrame);
+                netboxRttSmooth = netboxRttSmooth === 0 ? rtt : (netboxRttSmooth * 0.85 + rtt * 0.15);
+              }
+            }
           }
         }
       };
@@ -1267,6 +1452,16 @@
 
         // Default: Mecha Boxing mode!
         switchMode('boxing');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoom = urlParams.get('room');
+        if (urlRoom) {
+          netboxRoomId = urlRoom;
+        }
+        if (urlParams.get('pvp') === '1') {
+          toggleNetboxPvp();
+        }
+
         requestAnimationFrame(loop);
       } catch (err) {
         console.error("Failed to load Axiom WASM module:", err);
@@ -1315,30 +1510,69 @@
         }
 
         if (isBoxingPvp) {
-          // Process simulated delayed packets from remote peer P1
-          const nowMs = performance.now();
-          const pending = [];
-          for (const p of netboxPacketPipe) {
-            if (nowMs >= p.deliverAt) {
-              wasmInstance.axiom_netbox_receive_remote(1, BigInt(p.frame), p.action);
-            } else {
-              pending.push(p);
+          const isRtcConnected = rtcChannel && rtcChannel.readyState === 'open';
+          const adv = netboxClockSync.getAdvantage();
+
+          // GGPO TimeSync: If local is > 2.0 frames ahead of remote peer, stall 1 tick
+          if (isRtcConnected && adv > 2.0) {
+            netboxStallsCount++;
+            // Skip advance this frame to let remote catch up
+          } else {
+            // Process simulated delayed packets if offline loopback
+            if (!isRtcConnected) {
+              const nowMs = performance.now();
+              const pending = [];
+              for (const p of netboxPacketPipe) {
+                if (nowMs >= p.deliverAt) {
+                  const wirePtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+                  if (wirePtr) {
+                    new Uint8Array(wasmInstance.memory.buffer, wirePtr, 18).set(p.data);
+                    wasmInstance.axiom_netbox_receive_wire_packet(wirePtr, 18);
+                  }
+                } else {
+                  pending.push(p);
+                }
+              }
+              netboxPacketPipe = pending;
+            }
+
+            const currentFrame = Number(wasmInstance.axiom_netbox_get_frame());
+            wasmInstance.axiom_netbox_advance_frame(action);
+
+            // GGPO TimeSync: If local is < -2.0 frames behind, fast-forward 1 extra tick
+            if (isRtcConnected && adv < -2.0) {
+              wasmInstance.axiom_netbox_advance_frame(0);
+              netboxCatchupsCount++;
+            }
+
+            // Create outbound 18B redundant wire packet
+            netboxSeq = (netboxSeq + 1) & 0xFFFF;
+            const wirePtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+            if (wirePtr) {
+              wasmInstance.axiom_netbox_create_wire_packet(wirePtr, 18, action, netboxSeq);
+              const packetBytes = new Uint8Array(wasmInstance.memory.buffer, wirePtr, 18).slice();
+              netboxPingMap.set(currentFrame, performance.now());
+
+              if (isRtcConnected) {
+                rtcChannel.send(packetBytes.buffer);
+              } else {
+                // Loopback simulation (remote AI with 100ms latency)
+                const p1Action = (Math.random() < 0.12) ? (Math.floor(Math.random() * 4) + 1) : 0;
+                const simBuf = new Uint8Array(18);
+                simBuf[0] = 0x58; // 'X'
+                simBuf[1] = 1;    // sender P1
+                const simDv = new DataView(simBuf.buffer);
+                simDv.setUint16(2, netboxSeq, true);
+                simDv.setUint32(4, currentFrame, true);
+                simDv.setUint32(8, currentFrame, true);
+                simBuf[12] = p1Action;
+                netboxPacketPipe.push({
+                  deliverAt: performance.now() + 100,
+                  data: simBuf
+                });
+              }
             }
           }
-          netboxPacketPipe = pending;
-
-          const currentFrame = wasmInstance.axiom_netbox_get_frame();
-          wasmInstance.axiom_netbox_advance_frame(action);
-
-          // Simulated remote peer AI inputs through 100ms latency pipe
-          const p1Action = (Math.random() < 0.12)
-            ? (Math.floor(Math.random() * 4) + 1)
-            : 0;
-          netboxPacketPipe.push({
-            deliverAt: performance.now() + 100,
-            frame: Number(currentFrame),
-            action: p1Action
-          });
 
           wasmInstance.axiom_netbox_render();
           ptr = wasmInstance.axiom_netbox_get_framebuffer_ptr();
@@ -1351,11 +1585,20 @@
           const resim = wasmInstance.axiom_netbox_get_total_resimulated();
           const hash = wasmInstance.axiom_netbox_get_hash();
 
+          const connBadge = isRtcConnected
+            ? `<span class="green" style="font-weight:bold;">🟢 P2P WEBRTC [${netboxRoomId}]</span>`
+            : `<span class="purple" style="font-weight:bold;">🌐 P2P LOOPBACK</span>`;
+
+          const pingText = isRtcConnected
+            ? `<span class="blue">RTT: ${Math.round(netboxRttSmooth)}ms</span> | <span class="gold">Adv: ${adv >= 0 ? '+' : ''}${adv.toFixed(1)}f</span> | `
+            : `<span class="blue">Latency: 100ms</span> | `;
+
           document.getElementById('hudDetail').innerHTML =
-            `<span class="purple" style="font-weight:bold;">P2P ROLLBACK PVP</span> | ` +
+            `${connBadge} | ` +
             `<span class="red">P0 HP: ${p0Hp}</span> | ` +
             `<span class="blue">P1 HP: ${p1Hp}</span> | ` +
             `<span class="gold">Frame: ${tick}</span> | ` +
+            `${pingText}` +
             `<span class="red">Rollbacks: ${rollbacks}</span> | ` +
             `<span class="blue">Resim: ${resim}</span> | ` +
             `<span class="gray">Hash: 0x${hash.toString(16).toUpperCase()}</span>`;

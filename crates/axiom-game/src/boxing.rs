@@ -24,6 +24,25 @@ pub enum ActionKind {
 }
 
 impl ActionKind {
+    pub const fn to_u8(self) -> u8 {
+        self as u8
+    }
+
+    pub const fn from_u8(val: u8) -> Self {
+        match val {
+            1 => Self::SlipLeft,
+            2 => Self::SlipRight,
+            3 => Self::Guard,
+            4 => Self::Jab,
+            5 => Self::Cross,
+            6 => Self::Hook,
+            7 => Self::Finisher,
+            8 => Self::HitStagger,
+            9 => Self::Down,
+            _ => Self::Idle,
+        }
+    }
+
     pub const fn is_attack(&self) -> bool {
         matches!(self, Self::Jab | Self::Cross | Self::Hook | Self::Finisher)
     }

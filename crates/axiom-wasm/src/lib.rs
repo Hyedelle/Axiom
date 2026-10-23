@@ -23,7 +23,7 @@ use axiom_core::state::TickState;
 pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
-use axiom_game::boxing_netcode::BoxingRollbackSession;
+use axiom_game::boxing_netcode::{BoxingRollbackSession, NetboxWirePacket};
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D};
@@ -2818,6 +2818,7 @@ pub extern "C" fn axiom_3d_get_tick() -> u64 {
 struct NetboxWasmEngine {
     session: BoxingRollbackSession<64>,
     framebuffer: FrameBuffer,
+    wire_buffer: [u8; 64],
 }
 
 static mut NETBOX: Option<Box<NetboxWasmEngine>> = None;
@@ -2836,7 +2837,27 @@ pub extern "C" fn axiom_netbox_init(local_player_id: u32, seed: u64, width: u32,
         NETBOX = Some(Box::new(NetboxWasmEngine {
             session,
             framebuffer,
+            wire_buffer: [0u8; 64],
         }));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_wire_buffer_ptr() -> *mut u8 {
+    netbox_engine().map(|e| e.wire_buffer.as_mut_ptr()).unwrap_or(core::ptr::null_mut())
+}
+
+#[inline]
+fn u32_to_action_kind(val: u32) -> ActionKind {
+    match val {
+        1 => ActionKind::Jab,
+        2 => ActionKind::Cross,
+        3 => ActionKind::Hook,
+        4 => ActionKind::Guard,
+        5 => ActionKind::SlipLeft,
+        6 => ActionKind::SlipRight,
+        7 => ActionKind::Finisher,
+        _ => ActionKind::Idle,
     }
 }
 
@@ -2846,16 +2867,7 @@ pub extern "C" fn axiom_netbox_advance_frame(local_input: u32) -> u64 {
         Some(e) => e,
         None => return 0,
     };
-    let action = match local_input {
-        1 => ActionKind::Jab,
-        2 => ActionKind::Cross,
-        3 => ActionKind::Hook,
-        4 => ActionKind::Guard,
-        5 => ActionKind::SlipLeft,
-        6 => ActionKind::SlipRight,
-        7 => ActionKind::Finisher,
-        _ => ActionKind::Idle,
-    };
+    let action = u32_to_action_kind(local_input);
     let stats = engine.session.advance_frame(action);
     stats.state_hash
 }
@@ -2866,17 +2878,58 @@ pub extern "C" fn axiom_netbox_receive_remote(remote_player_id: u32, frame: u64,
         Some(e) => e,
         None => return false,
     };
-    let action = match input {
-        1 => ActionKind::Jab,
-        2 => ActionKind::Cross,
-        3 => ActionKind::Hook,
-        4 => ActionKind::Guard,
-        5 => ActionKind::SlipLeft,
-        6 => ActionKind::SlipRight,
-        7 => ActionKind::Finisher,
-        _ => ActionKind::Idle,
-    };
+    let action = u32_to_action_kind(input);
     engine.session.receive_remote_input(remote_player_id as usize, frame, action)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_wire_packet_size() -> u32 {
+    NetboxWirePacket::SIZE as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_create_wire_packet(
+    out_ptr: *mut u8,
+    max_len: u32,
+    local_input: u32,
+    sequence: u32,
+) -> u32 {
+    let engine = match netbox_engine() {
+        Some(e) => e,
+        None => return 0,
+    };
+    if max_len < NetboxWirePacket::SIZE as u32 || out_ptr.is_null() {
+        return 0;
+    }
+    let action = u32_to_action_kind(local_input);
+    let pkt = engine.session.create_wire_packet(action, sequence as u16);
+    let bytes = pkt.to_bytes();
+    unsafe {
+        core::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, NetboxWirePacket::SIZE);
+    }
+    NetboxWirePacket::SIZE as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_receive_wire_packet(in_ptr: *const u8, len: u32) -> u32 {
+    let engine = match netbox_engine() {
+        Some(e) => e,
+        None => return 0,
+    };
+    if in_ptr.is_null() || len < NetboxWirePacket::SIZE as u32 {
+        return 0;
+    }
+    let slice = unsafe { core::slice::from_raw_parts(in_ptr, NetboxWirePacket::SIZE) };
+    let pkt = match NetboxWirePacket::from_bytes(slice) {
+        Some(p) => p,
+        None => return 0,
+    };
+    let (rolled, rolled_count) = engine.session.receive_redundant_packet(&pkt);
+    if rolled {
+        rolled_count
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -3061,6 +3114,18 @@ mod tests {
         axiom_netbox_render();
         assert!(!axiom_netbox_get_framebuffer_ptr().is_null());
         assert_eq!(axiom_netbox_get_framebuffer_len(), 320 * 240);
+
+        // Test WebRTC wire packet generation and reception
+        assert_eq!(axiom_netbox_get_wire_packet_size(), 18);
+        let mut wire_buf = [0u8; 18];
+        let written = axiom_netbox_create_wire_packet(wire_buf.as_mut_ptr(), 18, 1, 1);
+        assert_eq!(written, 18);
+        assert_eq!(wire_buf[0], 0x58); // Magic 'X'
+
+        // Peer 1 receives Peer 0's wire packet
+        axiom_netbox_init(1, 1001, 320, 240);
+        let rolled_cnt = axiom_netbox_receive_wire_packet(wire_buf.as_ptr(), 18);
+        assert_eq!(rolled_cnt, 0); // P1 at frame 0, received frame 5, confirmed without rollback
     }
 
     #[test]
