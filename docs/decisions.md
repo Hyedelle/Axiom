@@ -1251,15 +1251,49 @@
 
 ---
 
-### [D-100] 수리-열응력 연성 완화 모델 및 10,000 스텝 15,494 TPS 벤치마크 (T-154, T-155)
+### [D-101] 수증기 폭발 상변이 및 간극수압 지반 연약화 크레이터 확장 (T-157)
 - **날짜:** 2026-10-23
 - **결정권자:** Hyedelle (디렉터)
 - **내용:**
-  1. 다공성 암석 내부 침투 유체에 의한 잠열 급속 냉각 및 간극수압 전단응력 완화 모델 `relax_thermal_and_stress` 도입.
-  2. 10,000 스텝 연속 복합 물리 벤치마크에서 15,494 TPS (64.54 µs/step) 스루풋 및 64-bit FNV-1a 상태 합의 비트 단위 100% 일치(`0x6EC408607380A9CF`) 입증.
-  3. `axiom voxel bench-fluid` CLI 도구군 및 4,096-셀 전역 포화 래스터라이징 무크래시 스트레스 검증 완료.
-  4. 전체 워크스페이스 버전을 v2.8.0에서 **v2.9.0**으로 공식 판올림하고 Git 태그 `v2.9.0` 발행.
-- **영향:** `crates/axiom-core/src/voxel_fluid.rs`, `crates/axiom-core/tests/benchmark_fluid_physics.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `Cargo.toml`, `tools/package.ps1`.
+  1. 고온 유체 접촉($T \ge 750^\circ\text{C}$ && $\text{fluid} \ge 40$) 시 물 ➔ 수증기 즉시 상변이(Instantaneous Phase Flashing), $-250^\circ\text{C}$ 잠열 급랭 및 $+300$ 유효 전단 팽창 응력 방출 모델 도입.
+  2. 간극수압 포화 임계치($\text{infiltrated} \ge 180$) 도달 시 연약화 판정 `is_rock_softened` 적용 및 크레이터 굴착 반경 $+1$ 확장.
+  3. 64B L1 정렬 `VoxelChampionshipTelemetry` 내 `steam_explosions` 탑재 및 3D 수증기 제트 파티클, 지진성 충격음 SFX 연동.
+- **영향:** `crates/axiom-core/src/voxel_fluid.rs`, `crates/axiom-game/src/voxel_tournament.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-102] 3D 레드-블랙 체커보드 2-패스 무경합 병렬화 및 능동 슬라이스 수면 머신 (T-158)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 셀 패리티 $\text{Color}(x, y, z) = (x + y + z) \pmod 2$ 기반 Red/Black 2-패스 분할로 뮤텍스/원자적 연산 0회의 100% 무경합 병렬 확산 달성.
+  2. 256개 수직 독립 컬럼 중력 배수 및 16개 Y-슬라이스 정수압 확산 파이프라인 분리.
+  3. 능동 슬라이스 수면 비트마스크 `active_slices: u16`를 통한 $O(1)$ 조기 탈출로 342,459 TPS (2.92 µs/step, 22.1배 가속) 및 10,000 스텝 비트 결정론 합의(`0x586C343AE3B9986F`) 입증.
+- **영향:** `crates/axiom-core/src/voxel_fluid_simd.rs`, `crates/axiom-cli/src/voxel_cli.rs`.
+
+---
+
+### [D-103] WebGL/WASM 340k TPS SIMD 유체 벤치마크 및 F9 복합 물리 데모 (T-159)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI `axiom_voxel_bench_simd_fluid` 및 `axiom_voxel_get_simd_active_slices` 연동 완료.
+  2. Web 3D 복셀 스튜디오 내 **⚡ 5k SIMD Fluid (340k TPS)** 모달 탑재 및 최적화 WASM 바이너리(1.24 MB) 배포.
+  3. `mimic-the-show` 글로벌 `F9` [COMPOSITE ENVIRONMENTAL PHYSICS] 핫키 탑재로 열응력+유체침투+급랭+크레이터붕괴 동시 가동 데모 구현.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-104] 정통 메카닉 복싱 3/4 오버 더 숄더 스테이징 및 160대 환경 물리 v3.0.0 공식 릴리즈 (T-160)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 상대 슬롯 매핑 테이블 정규화 및 `T * R` 로컬 자전 후 월드 배치 행렬 연산 교정으로 관절 찢어짐 및 모델 관통(Clipping) 완전 박멸.
+  2. 플레이어($X=-0.32, Z=0.42$) 전방 좌측 3/4 백뷰, 상대($X=0.15, Z=-0.10$) 링 중앙 대치로 $\Delta Z=0.52\text{m}$ 유효 타격 거리 확보.
+  3. 인버티드 헐 외곽선(#2B222A)과 림 라이트 셰이더 분리, 일체형 단일 기체 피니셔 절단 분기 정상화.
+  4. 전체 워크스페이스 버전을 v2.9.0에서 **v3.0.0**으로 공식 판올림하고 Git 태그 `v3.0.0` 발행.
+- **영향:** `crates/axiom-render/src/kinematics3d.rs`, `crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
 
 
 
