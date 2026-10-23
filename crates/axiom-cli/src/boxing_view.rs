@@ -5,10 +5,16 @@
 //! 2D anime cut-in finisher overlays, and sound synthesis.
 
 use minifb::{Key, Window};
+use std::cell::RefCell;
+use std::path::Path;
 
+use axiom_core::Fixed;
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_game::card::DeckState;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
+use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
+use axiom_render::mesh3d::{parse_glb, MechaModel3D};
+use axiom_render::raster3d::Rasterizer3D;
 use axiom_render::FrameBuffer;
 
 use crate::sound::{self, SoundKind};
@@ -23,19 +29,37 @@ pub struct BoxingView {
     pub feedback_msg: &'static str,
     pub feedback_color: u32,
     pub rng_state: u64,
+    pub hero_model: Option<MechaModel3D>,
+    pub rasterizer: RefCell<Rasterizer3D>,
+    pub use_3d: bool,
 }
 
 impl BoxingView {
     pub fn new(seed: u64) -> Self {
+        let hero_glb_path = Path::new(r"C:\Dreamhub\Game\steel-the-show\assets\robot3d\hero\hero_a.glb");
+        let hero_model = if hero_glb_path.exists() {
+            std::fs::read(hero_glb_path)
+                .ok()
+                .and_then(|bytes| parse_glb(&bytes).ok())
+        } else {
+            None
+        };
+
+        let has_model = hero_model.is_some();
+        let r = Rasterizer3D::new(704, 544);
+
         Self {
             engine: BoxingRingEngine::new(seed),
             deck: DeckState::new(),
             cutin_frames: 0,
             cutin_kind: CutinKind::OverheatMeltdown,
             feedback_timer: 0,
-            feedback_msg: "FIGHT START! [A/D: SLIP, S: GUARD, J/K/L: PUNCH, SPACE: CUTIN]",
+            feedback_msg: "FIGHT START! [A/D: SLIP, S: GUARD, J/K/L: PUNCH, F4: 3D/2D]",
             feedback_color: 0xFFFBBF24,
             rng_state: seed.wrapping_add(12345),
+            hero_model,
+            rasterizer: RefCell::new(r),
+            use_3d: has_model,
         }
     }
 
@@ -105,6 +129,16 @@ impl BoxingView {
                 input = ActionKind::Hook;
                 sound::play_sound(SoundKind::Shoot);
             }
+        }
+
+        if window.is_key_pressed(Key::F4, minifb::KeyRepeat::No) {
+            self.use_3d = !self.use_3d;
+            let msg = if self.use_3d {
+                "3D MECHA RASTERIZER ON [PINEDA 8x8 L1]"
+            } else {
+                "2D RETRO SPRITE MODE ON"
+            };
+            self.set_feedback(msg, 0xFF38BDF8);
         }
 
         // Advance simulation
@@ -216,7 +250,7 @@ impl BoxingView {
         // 4. Render Player Mecha Boxer (Foreground Bottom, Facing Up)
         let player_base_x = ring_cx + self.engine.player.x_offset_px as i32;
         let player_base_y = ring_cy + 110;
-        self.render_player_boxer(fb, player_base_x, player_base_y);
+        self.render_player_boxer(fb, player_base_x, player_base_y, w, h);
 
         // 5. Render HUD Elements
         self.render_hud(fb, w, h);
@@ -277,7 +311,44 @@ impl BoxingView {
         }
     }
 
-    fn render_player_boxer(&self, fb: &mut FrameBuffer, cx: i32, cy: i32) {
+    fn render_player_boxer(&self, fb: &mut FrameBuffer, cx: i32, cy: i32, w: i32, _h: i32) {
+        if self.use_3d {
+            if let Some(model) = &self.hero_model {
+                let mut r = self.rasterizer.borrow_mut();
+                r.clear_depth();
+
+                // 3D Player transform:
+                // Base rotation: 128 BAM (180 deg) so player faces into the ring away from camera
+                let base_rot = Mat4Fixed::from_rotation_y(128);
+
+                // Action rotations & tilt:
+                let action_rot = match self.engine.player.action.kind {
+                    ActionKind::SlipLeft => Mat4Fixed::from_rotation_z(12),
+                    ActionKind::SlipRight => Mat4Fixed::from_rotation_z(244),
+                    ActionKind::Guard => Mat4Fixed::from_rotation_x(8),
+                    _ => Mat4Fixed::IDENTITY,
+                };
+                let rot_mat = base_rot.mul_mat(&action_rot);
+
+                // Translation: offset by player horizontal slip
+                let slip_m = (cx - w / 2) as f32 * 0.0035;
+                let drop_y = if self.engine.player.action.kind == ActionKind::Down {
+                    -0.55
+                } else {
+                    -0.38
+                };
+                let trans_mat =
+                    Mat4Fixed::from_translation(Vec3Fixed::from_f32(slip_m, drop_y, 0.0));
+
+                let world_mat = rot_mat.mul_mat(&trans_mat);
+                let cam_dist = Fixed::from_raw((1.85 * 65536.0) as i64); // 1.85m close shoulder camera
+                let focal_length = 520;
+
+                r.render_model(fb, model, &world_mat, cam_dist, focal_length);
+                return;
+            }
+        }
+
         let is_guard = self.engine.player.action.kind == ActionKind::Guard;
         let is_hit = self.engine.player.action.kind == ActionKind::HitStagger;
         let is_down = self.engine.player.action.kind == ActionKind::Down;
@@ -354,7 +425,9 @@ impl BoxingView {
 
         // Bottom Right Tactical Cards & Controls
         fb.draw_rect_blend(w - 280, 430, 260, 95, 0xEE0B0F19);
-        fb.draw_text(w - 270, 440, "PUNCH-OUT CONTROLS [TAB:MODE]", 0xFFFBBF24);
+        let mode_tag = if self.use_3d { "3D PINEDA" } else { "2D SPRITE" };
+        let tag_col = if self.use_3d { 0xFF38BDF8 } else { 0xFF94A3B8 };
+        fb.draw_text(w - 270, 440, &format!("CONTROLS [F4: {}]", mode_tag), tag_col);
         fb.draw_text(w - 270, 456, "A / D : SLIP WEAVE EVADE", 0xFFE2E8F0);
         fb.draw_text(w - 270, 470, "S     : TITAN GUARD BLOCK", 0xFFE2E8F0);
         fb.draw_text(w - 270, 484, "J/K/L : JAB / CROSS / HOOK", 0xFF38BDF8);
