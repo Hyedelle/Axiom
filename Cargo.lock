@@ -28,6 +28,8 @@ name = "axiom-render"
 version = "1.5.0"
 dependencies = [
  "axiom-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
