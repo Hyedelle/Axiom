@@ -1,15 +1,16 @@
-//! Software 3D Rasterizer with Juan Pineda 8x8 Tile Binning and Reversed-Z Affine Interpolation.
+//! Software 3D Rasterizer with Juan Pineda 8x8 Tile Binning, Reversed-Z Affine Interpolation,
+//! and Manga Inverted Hull Ink Outlines.
 //!
 //! Renders 3D mecha models directly to `FrameBuffer` using deterministic
 //! fixed-point integer mathematics with zero external GPU dependencies.
-//! Optimized for 100% CPU L1 Data Cache residency and zero per-pixel divisions.
+//! Follows Steel-the-Show Color Grammar v1 (INK, IRON, AMBER, BRASS, RED, OLIVE).
 
 use crate::framebuffer::FrameBuffer;
 use crate::math3d::{Mat4Fixed, Vec3Fixed};
 use crate::mesh3d::MechaModel3D;
 use axiom_core::Fixed;
 
-/// Color palette for mecha cel-shading.
+/// Color palette for mecha cel-shading adhering to Steel-the-Show Color Grammar v1.
 #[derive(Debug, Clone, Copy)]
 pub struct CelShadingPalette {
     pub highlight: u32,
@@ -18,47 +19,68 @@ pub struct CelShadingPalette {
     pub outline: u32,
 }
 
+impl CelShadingPalette {
+    /// Canon INK outline color from color-grammar-v1.md (#2B222A).
+    pub const INK: u32 = 0xFF2B222A;
+}
+
 impl Default for CelShadingPalette {
     fn default() -> Self {
-        // High-contrast industrial mecha steel palette
+        // Canon STEEL armor palette
         Self {
-            highlight: 0xFFE2E8F0, // Bright metallic chrome
-            base: 0xFF64748B,      // Cool slate steel
-            shadow: 0xFF1E293B,    // Dark gunmetal shadow
-            outline: 0xFF0F172A,   // Deep ink outline
+            highlight: 0xFFD1D5DB, // Pale cool steel
+            base: 0xFF64748B,      // Mid slate steel
+            shadow: 0xFF334155,    // Dark naval steel
+            outline: Self::INK,    // #2B222A Manga ink
         }
     }
 }
 
-/// Palette presets for various mecha parts.
+/// Palette presets mapped to canon materials from Steel-the-Show `color-grammar-v1.md`.
 impl CelShadingPalette {
     pub fn for_part(name: &str) -> Self {
         if name.contains("eye") {
-            // Glowing cyan optic visor
+            // Canon AMBER optic visor glow (#FD9F07)
             Self {
-                highlight: 0xFFE0F2FE,
-                base: 0xFF0284C7,
-                shadow: 0xFF0369A1,
-                outline: 0xFF082F49,
+                highlight: 0xFFFED7AA,
+                base: 0xFFFD9F07,
+                shadow: 0xFFC2410C,
+                outline: Self::INK,
             }
         } else if name.contains("glove") {
-            // Heavy crimson boxing gloves
+            // Canon RED weathered boxing gloves (#DC2626)
             Self {
                 highlight: 0xFFFCA5A5,
                 base: 0xFFDC2626,
                 shadow: 0xFF7F1D1D,
-                outline: 0xFF450A0A,
+                outline: Self::INK,
             }
-        } else if name.contains("torso") || name.contains("pelvis") {
-            // Core frame dark iron
+        } else if name.contains("torso") {
+            // Canon OLIVE / IRON hero torso (#686536 / #5A5148)
             Self {
-                highlight: 0xFF94A3B8,
-                base: 0xFF475569,
-                shadow: 0xFF1E293B,
-                outline: 0xFF0F172A,
+                highlight: 0xFFA3A06B,
+                base: 0xFF686536,
+                shadow: 0xFF332D28,
+                outline: Self::INK,
+            }
+        } else if name.contains("pelvis") || name.contains("boot") || name.contains("leg") {
+            // Canon IRON worn gunmetal chassis (#5A5148)
+            Self {
+                highlight: 0xFF8D8378,
+                base: 0xFF5A5148,
+                shadow: 0xFF332D28,
+                outline: Self::INK,
+            }
+        } else if name.contains("brass") || name.contains("piston") {
+            // Canon BRASS fittings (#A06432)
+            Self {
+                highlight: 0xFFFED7AA,
+                base: 0xFFA06432,
+                shadow: 0xFF6E5320,
+                outline: Self::INK,
             }
         } else {
-            // Primary mecha armor (Elpis steel)
+            // Primary mecha armor
             Self::default()
         }
     }
@@ -72,11 +94,13 @@ pub struct Rasterizer3D {
     pub light_dir: Vec3Fixed,
     pub cull_backfaces: bool,
     pub custom_palette: Option<CelShadingPalette>,
+    pub draw_outline: bool,
+    pub outline_width: Fixed,
+    pub outline_color: u32,
 }
 
 impl Rasterizer3D {
     pub fn new(width: usize, height: usize) -> Self {
-        // Default directional light shining from top-right-front
         let light = Vec3Fixed::from_f32(0.577, 0.577, 0.577);
         Self {
             width,
@@ -85,6 +109,9 @@ impl Rasterizer3D {
             light_dir: light,
             cull_backfaces: false,
             custom_palette: None,
+            draw_outline: true,
+            outline_width: Fixed::from_raw(524), // ~0.008m extrusion
+            outline_color: CelShadingPalette::INK,
         }
     }
 
@@ -126,6 +153,76 @@ impl Rasterizer3D {
         let cx = (self.width / 2) as i64;
         let cy = (self.height / 2) as i64;
 
+        // Pass 1: Inverted Hull Manga Ink Outline (Extruded backface shell)
+        if self.draw_outline && self.outline_width.raw() > 0 {
+            for part in &model.parts {
+                let part_mat = crate::kinematics3d::get_part_matrix(transforms, &part.name);
+                let effective_world = world_mat.mul_mat(&part_mat);
+
+                let mut outline_verts: Vec<(i64, i64, i32)> =
+                    Vec::with_capacity(part.vertices.len());
+
+                for v in &part.vertices {
+                    // Displace vertex outward along its normal
+                    let p_extruded = Vec3Fixed::new(
+                        v.pos.x + v.norm.x * self.outline_width,
+                        v.pos.y + v.norm.y * self.outline_width,
+                        v.pos.z + v.norm.z * self.outline_width,
+                    );
+
+                    let p_world = effective_world.transform_point(p_extruded);
+                    let vz = (p_world.z + cam_dist).raw();
+
+                    if vz <= 65536 / 10 {
+                        outline_verts.push((0, 0, i32::MIN));
+                        continue;
+                    }
+
+                    let sx = cx + (p_world.x.raw() * focal_length) / vz;
+                    let sy = cy - (p_world.y.raw() * focal_length) / vz;
+                    // Slightly depress depth so body always wins
+                    let inv_z = (((1i64 << 30) / vz) as i32).saturating_sub(400);
+
+                    outline_verts.push((sx, sy, inv_z));
+                }
+
+                let tri_count = part.indices.len() / 3;
+                for t in 0..tri_count {
+                    let i0 = part.indices[t * 3] as usize;
+                    let i1 = part.indices[t * 3 + 1] as usize;
+                    let i2 = part.indices[t * 3 + 2] as usize;
+
+                    if i0 >= outline_verts.len() || i1 >= outline_verts.len() || i2 >= outline_verts.len() {
+                        continue;
+                    }
+
+                    let (x0, y0, z0) = outline_verts[i0];
+                    let (x1, y1, z1) = outline_verts[i1];
+                    let (x2, y2, z2) = outline_verts[i2];
+
+                    if z0 == i32::MIN || z1 == i32::MIN || z2 == i32::MIN {
+                        continue;
+                    }
+
+                    // Inverted hull: ONLY draw backfaces (area < 0 in original screen orientation)
+                    let area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+                    if area >= 0 {
+                        continue; // Cull front-facing triangles
+                    }
+
+                    // Rasterize outline triangle in canon INK
+                    self.rasterize_pineda_8x8(
+                        fb,
+                        x0, y0, z0,
+                        x1, y1, z1,
+                        x2, y2, z2,
+                        self.outline_color,
+                    );
+                }
+            }
+        }
+
+        // Pass 2: Main Mecha Body Cel-Shading
         for part in &model.parts {
             let palette = self
                 .custom_palette
@@ -133,7 +230,6 @@ impl Rasterizer3D {
             let part_mat = crate::kinematics3d::get_part_matrix(transforms, &part.name);
             let effective_world = world_mat.mul_mat(&part_mat);
 
-            // Transform vertices to view space
             let mut view_verts: Vec<(i64, i64, i32, Vec3Fixed)> =
                 Vec::with_capacity(part.vertices.len());
 
@@ -144,22 +240,17 @@ impl Rasterizer3D {
                 let vz = (p_world.z + cam_dist).raw();
 
                 if vz <= 65536 / 10 {
-                    // Behind near clipping plane
                     view_verts.push((0, 0, i32::MIN, n_world));
                     continue;
                 }
 
-                // Perspective projection in fixed point
                 let sx = cx + (p_world.x.raw() * focal_length) / vz;
                 let sy = cy - (p_world.y.raw() * focal_length) / vz;
-
-                // Affine linear 1/Z depth (Reversed-Z: larger = closer)
                 let inv_z = ((1i64 << 30) / vz) as i32;
 
                 view_verts.push((sx, sy, inv_z, n_world));
             }
 
-            // Rasterize triangles
             let tri_count = part.indices.len() / 3;
             for t in 0..tri_count {
                 let i0 = part.indices[t * 3] as usize;
@@ -178,7 +269,6 @@ impl Rasterizer3D {
                     continue;
                 }
 
-                // Calculate average face normal for flat / cel lighting
                 let avg_norm = Vec3Fixed::new(
                     (n0.x + n1.x + n2.x) * Fixed::from_raw(21845),
                     (n0.y + n1.y + n2.y) * Fixed::from_raw(21845),
@@ -216,17 +306,15 @@ impl Rasterizer3D {
         mut z2: i32,
         color: u32,
     ) {
-        // Initial 2D cross product for area
         let area_init = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
         if area_init == 0 {
-            return; // Degenerate
+            return;
         }
 
         if self.cull_backfaces && area_init <= 0 {
-            return; // Cull back-facing triangle
+            return;
         }
 
-        // Guarantee area > 0 by swapping vertices if wound clockwise
         if area_init < 0 {
             core::mem::swap(&mut x1, &mut x2);
             core::mem::swap(&mut y1, &mut y2);
@@ -238,7 +326,6 @@ impl Rasterizer3D {
             return;
         }
 
-        // Bounding box clamped to screen
         let min_x = (x0.min(x1).min(x2)).max(0).min(self.width as i64 - 1);
         let max_x = (x0.max(x1).max(x2)).max(0).min(self.width as i64 - 1);
         let min_y = (y0.min(y1).min(y2)).max(0).min(self.height as i64 - 1);
@@ -248,24 +335,18 @@ impl Rasterizer3D {
             return;
         }
 
-        // Edge vectors:
-        // Edge 0: from v1 to v2
         let dx0 = x2 - x1;
         let dy0 = y2 - y1;
-        // Edge 1: from v2 to v0
         let dx1 = x0 - x2;
         let dy1 = y0 - y2;
-        // Edge 2: from v0 to v1
         let dx2 = x1 - x0;
         let dy2 = y1 - y0;
 
-        // Affine Linear 1/Z gradients across screen space (Constant for the entire triangle)
         let dz10 = z1 as i64 - z0 as i64;
         let dz20 = z2 as i64 - z0 as i64;
         let d_zinv_dx = (dz10 * (y2 - y0) - dz20 * (y1 - y0)) / area;
         let d_zinv_dy = (dz20 * (x1 - x0) - dz10 * (x2 - x0)) / area;
 
-        // 8x8 Tile bounds
         let tile_min_x = min_x / 8;
         let tile_max_x = max_x / 8;
         let tile_min_y = min_y / 8;
@@ -280,34 +361,31 @@ impl Rasterizer3D {
                 let t_x1 = (t_x0 + 7).min(self.width as i64 - 1);
 
                 // Tile Trivial Reject Test at 4 corners
-                // Edge 0: w0 = dx0 * (y - y1) - dy0 * (x - x1)
                 let e0_c00 = dx0 * (t_y0 - y1) - dy0 * (t_x0 - x1);
                 let e0_c10 = dx0 * (t_y0 - y1) - dy0 * (t_x1 - x1);
                 let e0_c01 = dx0 * (t_y1 - y1) - dy0 * (t_x0 - x1);
                 let e0_c11 = dx0 * (t_y1 - y1) - dy0 * (t_x1 - x1);
                 if e0_c00 < 0 && e0_c10 < 0 && e0_c01 < 0 && e0_c11 < 0 {
-                    continue; // Completely outside edge 0
+                    continue;
                 }
 
-                // Edge 1: w1 = dx1 * (y - y2) - dy1 * (x - x2)
                 let e1_c00 = dx1 * (t_y0 - y2) - dy1 * (t_x0 - x2);
                 let e1_c10 = dx1 * (t_y0 - y2) - dy1 * (t_x1 - x2);
                 let e1_c01 = dx1 * (t_y1 - y2) - dy1 * (t_x0 - x2);
                 let e1_c11 = dx1 * (t_y1 - y2) - dy1 * (t_x1 - x2);
                 if e1_c00 < 0 && e1_c10 < 0 && e1_c01 < 0 && e1_c11 < 0 {
-                    continue; // Completely outside edge 1
+                    continue;
                 }
 
-                // Edge 2: w2 = dx2 * (y - y0) - dy2 * (x - x0)
                 let e2_c00 = dx2 * (t_y0 - y0) - dy2 * (t_x0 - x0);
                 let e2_c10 = dx2 * (t_y0 - y0) - dy2 * (t_x1 - x0);
                 let e2_c01 = dx2 * (t_y1 - y0) - dy2 * (t_x0 - x0);
                 let e2_c11 = dx2 * (t_y1 - y0) - dy2 * (t_x1 - x0);
                 if e2_c00 < 0 && e2_c10 < 0 && e2_c01 < 0 && e2_c11 < 0 {
-                    continue; // Completely outside edge 2
+                    continue;
                 }
 
-                // Tile overlaps triangle: rasterize 8x8 pixels with incremental additions
+                // Incremental evaluation within tile
                 let mut row_e0 = dx0 * (t_y0 - y1) - dy0 * (t_x0 - x1);
                 let mut row_e1 = dx1 * (t_y0 - y2) - dy1 * (t_x0 - x2);
                 let mut row_e2 = dx2 * (t_y0 - y0) - dy2 * (t_x0 - x0);
@@ -321,26 +399,22 @@ impl Rasterizer3D {
                     let mut zinv = row_zinv;
 
                     for px in t_x0..=t_x1 {
-                        // Check if pixel is inside all 3 edges (sign bit test)
                         if (e0 | e1 | e2) >= 0 {
                             let pixel_idx = row_idx + px as usize;
                             let z_val = zinv as i32;
 
-                            // Reversed-Z depth test: closer is larger
                             if z_val > self.depth_buffer[pixel_idx] {
                                 self.depth_buffer[pixel_idx] = z_val;
                                 fb.pixels[pixel_idx] = color;
                             }
                         }
 
-                        // Incremental step in X: w(x+1, y) = w(x, y) - dy
                         e0 -= dy0;
                         e1 -= dy1;
                         e2 -= dy2;
                         zinv += d_zinv_dx;
                     }
 
-                    // Incremental step in Y: w(x, y+1) = w(x, y) + dx
                     row_e0 += dx0;
                     row_e1 += dx1;
                     row_e2 += dx2;
