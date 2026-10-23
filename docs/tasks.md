@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-092: 경기 후 3D 시네마틱 신문 1면 승리/패배 호외 래스터라이징 고도화** (`crates/axiom-render/src/newspaper.rs` 및 `mimic-the-show/src/view.rs`, 챔피언 벨트 착용한 ELPIS 3D 메카 승리 포즈 및 패배 시 파손된 메카 3D 뷰를 신문 1면 사진 프레임 내에 0-Float 래스터라이징 임베딩, 헤드라인 동적 생성, `tools/guard.ps1` 통과)
+- [ ] **T-093: 3D 관중석 조명 플래시 반응 및 챔피언 라운드 스팀 배출 축제 효과 연출** (`crates/axiom-render/src/particles3d.rs`, `mimic-the-show/src/view.rs`, 승리/패배/KO 피니시 시 전 관중석 플래시 버스트 및 링 코너 4방향 고압 스팀 축제 밸브 분출, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-093: 3D 관중석 조명 플래시 반응 및 챔피언 라운드 스팀 배출 축제 효과 연출** (`crates/axiom-render/src/particles3d.rs`, `mimic-the-show/src/view.rs`, 승리/패배/KO 피니시 시 전 관중석 플래시 버스트 및 링 코너 4방향 고압 스팀 축제 밸브 분출)
+- [ ] **T-094: 챔피언십 풀 리그 4인 대전 3D 전광판 브로드캐스트 하이라이트 뷰** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/season.rs`, 리그 순위표 옆 3D 메카 미니 하이라이트 투영)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-092: 경기 후 3D 시네마틱 신문 1면 승리/패배 호외 래스터라이징 고도화** (`crates/axiom-render/src/newspaper.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_newspaper_gravure.rs`, 64B L1 캐시 정렬 `NewspaperGravureConfig`, 3대 신문사별(철판일보 모노크롬/불꽃스포츠 세피아 망점/주간하역장 풀컬러 셀) 0-Float 빈티지 그라비아 인쇄 필터, 2-칼럼 조판 및 브라스 리벳 프레임 144x114 3D 메카 스냅샷 서브뷰포트 래스터라이징, `tools/guard.ps1` 통과, 커밋 `fc850af`, `eb0612b`)
 - [x] **T-091: 3D 링 코너 샷 및 동적 피격 카메라 셰이크 연출 강화** (`crates/axiom-render/src/camera3d.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_camera_particles_3d.rs`, 64B L1 캐시 정렬 `Camera3D` 및 `CameraShot` 5대 프리셋(BroadcastCenter, PlayerCorner, OpponentCorner, ImpactCloseUp, KnockdownLowAngle), 고정소수점 회전 뷰 행렬 `compute_view_matrix`를 통한 메카 및 3D 파티클 동시 회전 투영, 타격 강도별 셰이크 및 스프링 펀치 줌 연동, `tools/guard.ps1` 통과, 커밋 `b44c028`, `ba825d5`)
 - [x] **T-090: 3D 메카 피격 부위별 파티클 파편(Debris) 및 스파크 지면 바운스 시뮬레이션** (`crates/axiom-render/src/particles3d.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_camera_particles_3d.rs`, 중력 가속도 및 캔버스 지면 탄성 바운스(Sparks 65%, Debris 35%), 스파크 골드➔오렌지➔레드 엠버 쿨링 감쇠, 피격 부위별(헤드 건메탈/암 아이언/바디 올리브) 파편 비산, `tools/guard.ps1` 통과, 커밋 `bd87600`, `9497ab9`)
 - [x] **T-089: 3D 관중석 환경 래스터라이징 및 링 사이드 조명 그림자 연출** (`crates/axiom-render/src/framebuffer.rs`, `crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, 순수 정수 `draw_ellipse_blend` AO 발밑 그림자 및 `draw_cone_light_blend` 볼류메트릭 브라스 램프 조명, 3단 계단식 관중석 실루엣 CrowdLayer 70인 환호 및 카메라 플래시, 전경 링 포스트 및 텐션 로프, `tools/guard.ps1` 통과, 커밋 `05944d4`, `ac0f497`)
