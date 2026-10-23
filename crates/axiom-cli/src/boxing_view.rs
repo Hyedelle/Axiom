@@ -12,6 +12,7 @@ use axiom_core::Fixed;
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_game::card::DeckState;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
+use axiom_render::kinematics3d::{evaluate_forward_kinematics, MechaPose3D};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D};
 use axiom_render::raster3d::Rasterizer3D;
@@ -30,6 +31,7 @@ pub struct BoxingView {
     pub feedback_color: u32,
     pub rng_state: u64,
     pub hero_model: Option<MechaModel3D>,
+    pub opponent_model: Option<MechaModel3D>,
     pub rasterizer: RefCell<Rasterizer3D>,
     pub use_3d: bool,
 }
@@ -39,6 +41,23 @@ impl BoxingView {
         let hero_glb_path = Path::new(r"C:\Dreamhub\Game\steel-the-show\assets\robot3d\hero\hero_a.glb");
         let hero_model = if hero_glb_path.exists() {
             std::fs::read(hero_glb_path)
+                .ok()
+                .and_then(|bytes| parse_glb(&bytes).ok())
+        } else {
+            None
+        };
+
+        // Opponent candidate DUMMY_v2 or fallback to opponents/DUMMY.glb
+        let opp_path_v2 = Path::new(r"C:\Dreamhub\Game\steel-the-show\assets\robot3d\opponent_candidates\DUMMY_v2\DUMMY.glb");
+        let opp_path_std = Path::new(r"C:\Dreamhub\Game\steel-the-show\assets\robot3d\opponents\DUMMY.glb");
+        let opp_path = if opp_path_v2.exists() {
+            opp_path_v2
+        } else {
+            opp_path_std
+        };
+
+        let opponent_model = if opp_path.exists() {
+            std::fs::read(opp_path)
                 .ok()
                 .and_then(|bytes| parse_glb(&bytes).ok())
         } else {
@@ -58,6 +77,7 @@ impl BoxingView {
             feedback_color: 0xFFFBBF24,
             rng_state: seed.wrapping_add(12345),
             hero_model,
+            opponent_model,
             rasterizer: RefCell::new(r),
             use_3d: has_model,
         }
@@ -243,9 +263,13 @@ impl BoxingView {
         }
 
         // 3. Render Opponent Mecha Boxer (Center Top, Facing Down)
+        if self.use_3d {
+            self.rasterizer.borrow_mut().clear_depth();
+        }
+
         let opp_base_x = ring_cx;
         let opp_base_y = ring_cy - 50;
-        self.render_opponent_boxer(fb, opp_base_x, opp_base_y);
+        self.render_opponent_boxer(fb, opp_base_x, opp_base_y, w, h);
 
         // 4. Render Player Mecha Boxer (Foreground Bottom, Facing Up)
         let player_base_x = ring_cx + self.engine.player.x_offset_px as i32;
@@ -269,7 +293,52 @@ impl BoxingView {
         }
     }
 
-    fn render_opponent_boxer(&self, fb: &mut FrameBuffer, cx: i32, cy: i32) {
+    fn render_opponent_boxer(&self, fb: &mut FrameBuffer, cx: i32, cy: i32, w: i32, _h: i32) {
+        if self.use_3d {
+            if let Some(model) = &self.opponent_model {
+                let mut r = self.rasterizer.borrow_mut();
+
+                // Opponent faces player (South, BAM 0)
+                let base_rot = Mat4Fixed::from_rotation_y(0);
+
+                // Opponent kinematics pose based on AI state:
+                let opp_pose = if self.engine.opponent.action.kind == ActionKind::Down {
+                    MechaPose3D::down()
+                } else if self.engine.opponent.action.kind == ActionKind::HitStagger {
+                    MechaPose3D::hit_stagger()
+                } else if self.engine.ai_phase == AiPhase::Telegraph {
+                    let mut p = MechaPose3D::default();
+                    p.arm_r_offset = Vec3Fixed::from_f32(0.0, 0.1, -0.2);
+                    p.torso_yaw_y = 12;
+                    p
+                } else if self.engine.opponent.action.kind == ActionKind::Jab {
+                    MechaPose3D::jab(500)
+                } else if self.engine.opponent.action.kind == ActionKind::Cross
+                    || self.engine.opponent.action.kind == ActionKind::Hook
+                {
+                    MechaPose3D::cross(500)
+                } else {
+                    MechaPose3D::idle(self.engine.tick)
+                };
+
+                let transforms = evaluate_forward_kinematics(&opp_pose, true);
+
+                // Positioned deeper into the ring (+0.75m Z)
+                let trans_mat = Mat4Fixed::from_translation(Vec3Fixed::from_f32(
+                    (cx - w / 2) as f32 * 0.003,
+                    0.05,
+                    0.75,
+                ));
+
+                let world_mat = base_rot.mul_mat(&trans_mat);
+                let cam_dist = Fixed::from_raw((2.4 * 65536.0) as i64);
+                let focal_length = 520;
+
+                r.render_model_posed(fb, model, &transforms, &world_mat, cam_dist, focal_length);
+                return;
+            }
+        }
+
         let is_telegraph = self.engine.ai_phase == AiPhase::Telegraph;
         let is_hit = self.engine.opponent.action.kind == ActionKind::HitStagger;
         let is_down = self.engine.opponent.action.kind == ActionKind::Down;
@@ -315,20 +384,35 @@ impl BoxingView {
         if self.use_3d {
             if let Some(model) = &self.hero_model {
                 let mut r = self.rasterizer.borrow_mut();
-                r.clear_depth();
 
                 // 3D Player transform:
                 // Base rotation: 128 BAM (180 deg) so player faces into the ring away from camera
                 let base_rot = Mat4Fixed::from_rotation_y(128);
 
-                // Action rotations & tilt:
-                let action_rot = match self.engine.player.action.kind {
-                    ActionKind::SlipLeft => Mat4Fixed::from_rotation_z(12),
-                    ActionKind::SlipRight => Mat4Fixed::from_rotation_z(244),
-                    ActionKind::Guard => Mat4Fixed::from_rotation_x(8),
-                    _ => Mat4Fixed::IDENTITY,
+                // Player kinematics pose:
+                let player_pose = if self.engine.player.action.kind == ActionKind::Down {
+                    MechaPose3D::down()
+                } else if self.engine.player.action.kind == ActionKind::HitStagger {
+                    MechaPose3D::hit_stagger()
+                } else if self.engine.player.action.kind == ActionKind::Guard {
+                    MechaPose3D::guard()
+                } else if self.engine.player.action.kind == ActionKind::SlipLeft {
+                    MechaPose3D::slip(true)
+                } else if self.engine.player.action.kind == ActionKind::SlipRight {
+                    MechaPose3D::slip(false)
+                } else if self.engine.player.action.kind == ActionKind::Jab {
+                    MechaPose3D::jab(500)
+                } else if self.engine.player.action.kind == ActionKind::Cross
+                    || self.engine.player.action.kind == ActionKind::Finisher
+                {
+                    MechaPose3D::cross(500)
+                } else if self.engine.player.action.kind == ActionKind::Hook {
+                    MechaPose3D::hook(500)
+                } else {
+                    MechaPose3D::idle(self.engine.tick)
                 };
-                let rot_mat = base_rot.mul_mat(&action_rot);
+
+                let transforms = evaluate_forward_kinematics(&player_pose, false);
 
                 // Translation: offset by player horizontal slip
                 let slip_m = (cx - w / 2) as f32 * 0.0035;
@@ -338,13 +422,13 @@ impl BoxingView {
                     -0.38
                 };
                 let trans_mat =
-                    Mat4Fixed::from_translation(Vec3Fixed::from_f32(slip_m, drop_y, 0.0));
+                    Mat4Fixed::from_translation(Vec3Fixed::from_f32(slip_m, drop_y, -0.2));
 
-                let world_mat = rot_mat.mul_mat(&trans_mat);
-                let cam_dist = Fixed::from_raw((1.85 * 65536.0) as i64); // 1.85m close shoulder camera
+                let world_mat = base_rot.mul_mat(&trans_mat);
+                let cam_dist = Fixed::from_raw((1.85 * 65536.0) as i64);
                 let focal_length = 520;
 
-                r.render_model(fb, model, &world_mat, cam_dist, focal_length);
+                r.render_model_posed(fb, model, &transforms, &world_mat, cam_dist, focal_length);
                 return;
             }
         }

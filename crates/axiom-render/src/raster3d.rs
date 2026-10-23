@@ -100,19 +100,42 @@ impl Rasterizer3D {
         cam_dist: Fixed,
         focal_length: i64,
     ) {
+        let default_transforms = crate::kinematics3d::PartTransformTable::default();
+        self.render_model_posed(
+            fb,
+            model,
+            &default_transforms,
+            world_mat,
+            cam_dist,
+            focal_length,
+        );
+    }
+
+    /// Renders a complete `MechaModel3D` with individual part kinematics transforms.
+    pub fn render_model_posed(
+        &mut self,
+        fb: &mut FrameBuffer,
+        model: &MechaModel3D,
+        transforms: &crate::kinematics3d::PartTransformTable,
+        world_mat: &Mat4Fixed,
+        cam_dist: Fixed,
+        focal_length: i64,
+    ) {
         let cx = (self.width / 2) as i64;
         let cy = (self.height / 2) as i64;
 
         for part in &model.parts {
             let palette = CelShadingPalette::for_part(&part.name);
+            let part_mat = crate::kinematics3d::get_part_matrix(transforms, &part.name);
+            let effective_world = world_mat.mul_mat(&part_mat);
 
             // Transform vertices to view space
             let mut view_verts: Vec<(i64, i64, i32, Vec3Fixed)> =
                 Vec::with_capacity(part.vertices.len());
 
             for v in &part.vertices {
-                let p_world = world_mat.transform_point(v.pos);
-                let n_world = world_mat.transform_vector(v.norm);
+                let p_world = effective_world.transform_point(v.pos);
+                let n_world = effective_world.transform_vector(v.norm);
 
                 let vz = (p_world.z + cam_dist).raw();
 
