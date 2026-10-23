@@ -12,5 +12,6 @@ crate-type = ["cdylib", "rlib"]
 axiom-core = { path = "../axiom-core" }
 axiom-render = { path = "../axiom-render" }
 axiom-game = { path = "../axiom-game" }
+axiom-net = { path = "../axiom-net" }
 
 [dev-dependencies]

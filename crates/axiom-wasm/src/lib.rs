@@ -5028,6 +5028,163 @@ pub extern "C" fn axiom_voxel_bench_simd_fluid(steps: u32, out_stats: *mut u32) 
     iterations
 }
 
+#[no_mangle]
+pub extern "C" fn axiom_net_bench_rollback(
+    frames: u32,
+    loss_permille: u32,
+    latency_frames: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_net::{DistributedRollbackSession, NetworkLossSimulator};
+
+    let iters = frames.clamp(10, 500);
+    let mut peers: alloc::vec::Vec<DistributedRollbackSession<64>> = (0..16)
+        .map(|id| DistributedRollbackSession::<64>::with_expected_peers(id, 0xFFFF))
+        .collect();
+
+    let mut sim = NetworkLossSimulator::new(loss_permille.min(400), latency_frames.clamp(1, 8), 99991);
+
+    let sim_func = |frame: u32, inputs: &[u16; 16]| -> u64 {
+        let mut h: u64 = 0xCBF2_9CE4_8422_2325 ^ (frame as u64);
+        for (p, &inp) in inputs.iter().enumerate() {
+            h ^= ((inp as u64) | ((p as u64) << 16)).wrapping_mul(0x100_0000_01B3);
+        }
+        h
+    };
+
+    let mut total_packets = 0u32;
+
+    for f in 0..iters {
+        for src in 0..16 {
+            let inp = ((src as u16 + 1) * 37) ^ (f as u16);
+            let pkt = peers[src].submit_local_input(inp);
+            peers[src].advance_frame(sim_func);
+
+            for dst in 0..16 {
+                if src != dst {
+                    sim.send_to(dst, pkt, f);
+                    total_packets += 1;
+                }
+            }
+        }
+
+        let arrivals = sim.poll_deliveries(f);
+        for (dst, pkt) in arrivals {
+            if let Ok(Some(from_frame)) = peers[dst].receive_remote_packet(&pkt) {
+                peers[dst].rollback_and_resimulate(from_frame, sim_func);
+            }
+            let _ = peers[dst].verify_remote_consensus(&pkt);
+        }
+    }
+
+    // Flush redundant packets
+    for f in iters..(iters + 12) {
+        for src in 0..16 {
+            let pkt = peers[src].submit_local_input(0);
+            peers[src].advance_frame(sim_func);
+            for dst in 0..16 {
+                if src != dst {
+                    sim.send_to(dst, pkt, f);
+                    total_packets += 1;
+                }
+            }
+        }
+        let arrivals = sim.poll_deliveries(f);
+        for (dst, pkt) in arrivals {
+            if let Ok(Some(from_frame)) = peers[dst].receive_remote_packet(&pkt) {
+                peers[dst].rollback_and_resimulate(from_frame, sim_func);
+            }
+            let _ = peers[dst].verify_remote_consensus(&pkt);
+        }
+    }
+
+    // Drain remaining
+    for f in (iters + 12)..(iters + 25) {
+        let arrivals = sim.poll_deliveries(f);
+        for (dst, pkt) in arrivals {
+            if let Ok(Some(from_frame)) = peers[dst].receive_remote_packet(&pkt) {
+                peers[dst].rollback_and_resimulate(from_frame, sim_func);
+            }
+            let _ = peers[dst].verify_remote_consensus(&pkt);
+        }
+    }
+
+    let mut total_resim = 0u32;
+    let mut total_rollbacks = 0u32;
+    let mut total_desyncs = 0u32;
+    for p in &peers {
+        total_resim += p.telemetry.total_resimulated_frames as u32;
+        total_rollbacks += p.telemetry.total_rollbacks_triggered as u32;
+        total_desyncs += p.telemetry.total_desyncs as u32;
+    }
+
+    let check_frame = iters.saturating_sub(1);
+    let slot = (check_frame as usize) % 64;
+    let consensus_hash = peers[0].state_hashes[slot];
+    let mut matched_peers = 0u32;
+    for p in 0..16 {
+        if peers[p].state_hashes[slot] == consensus_hash {
+            matched_peers += 1;
+        }
+    }
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = iters;
+            *out_stats.add(1) = total_resim;
+            *out_stats.add(2) = total_rollbacks;
+            *out_stats.add(3) = total_desyncs;
+            *out_stats.add(4) = matched_peers;
+            *out_stats.add(5) = (consensus_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(6) = (consensus_hash >> 32) as u32;
+            *out_stats.add(7) = total_packets;
+        }
+    }
+
+    iters
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_gpu_bench_compute(
+    width: u32,
+    height: u32,
+    backend_id: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_render::gpu_backend::{GpuBackendKind, VoxelComputeDispatch64};
+
+    let backend = match backend_id {
+        1 => GpuBackendKind::Vulkan,
+        2 => GpuBackendKind::DirectX12,
+        3 => GpuBackendKind::Metal,
+        4 => GpuBackendKind::WebGpu,
+        _ => GpuBackendKind::SoftwareCpu,
+    };
+
+    let mut dispatch = VoxelComputeDispatch64 {
+        backend,
+        ..Default::default()
+    };
+
+    let us = dispatch.dispatch(width.clamp(64, 4096) as u16, height.clamp(64, 4096) as u16);
+    let total_workgroups = (dispatch.dispatch_x as u32)
+        * (dispatch.dispatch_y as u32)
+        * (dispatch.dispatch_z as u32);
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = dispatch.dispatch_x as u32;
+            *out_stats.add(1) = dispatch.dispatch_y as u32;
+            *out_stats.add(2) = dispatch.dispatch_z as u32;
+            *out_stats.add(3) = us;
+            *out_stats.add(4) = total_workgroups;
+            *out_stats.add(5) = dispatch.total_dispatches as u32;
+        }
+    }
+
+    us
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5901,5 +6058,27 @@ mod tests {
         assert_eq!(bench_ticks, 50);
         assert_eq!(simd_stats[0], 50);
         assert!(simd_stats[5] != 0 || simd_stats[6] != 0, "SIMD fluid hash must be non-zero");
+    }
+
+    #[test]
+    fn test_wasm_net_and_gpu_compute_bindings() {
+        // 1. Rollback Netcode Benchmark (20 frames, 15% loss, 4-frame latency)
+        let mut net_stats = [0u32; 8];
+        let ticks = axiom_net_bench_rollback(20, 150, 4, net_stats.as_mut_ptr());
+        assert_eq!(ticks, 20);
+        assert_eq!(net_stats[0], 20); // iters
+        assert_eq!(net_stats[3], 0);  // desyncs == 0
+        assert_eq!(net_stats[4], 16); // 16/16 peers agreed!
+        assert!(net_stats[5] != 0 || net_stats[6] != 0, "Consensus hash must be non-zero");
+
+        // 2. GPU Compute Dispatch (WebGPU backend)
+        let mut gpu_stats = [0u32; 6];
+        let us = axiom_gpu_bench_compute(704, 544, 4, gpu_stats.as_mut_ptr());
+        assert!(us > 0);
+        assert_eq!(gpu_stats[0], 88); // 704 / 8
+        assert_eq!(gpu_stats[1], 68); // 544 / 8
+        assert_eq!(gpu_stats[2], 1);
+        assert_eq!(gpu_stats[3], 320); // 320 us WebGPU compute
+        assert_eq!(gpu_stats[4], 88 * 68);
     }
 }
