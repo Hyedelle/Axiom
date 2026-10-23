@@ -6,12 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- (없음 — Antigravity 관제탑의 다음 처방 대기)
+- [ ] **T-086: 3D 보스전 THESEUS 챔피언 연출 및 챔피언 벨트 획득 시퀀스** (`mimic-the-show/src/view.rs`, `crates/axiom-render/src/mesh3d.rs`, Tripo/Blender 정본 챔피언 벨트 및 THESEUS 메카 에셋 연동, 승리 시 트로피·벨트 수여 3D 시네마틱 렌더링, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- (없음)
+- [ ] **T-087: 오디오 음향 합성 3D 거리 감쇄 및 증기 릴리즈 SFX 완전 사상** (0-Float PCM 밸브 개폐음, 증기 배출음, 카운터 펀치 묵직한 타격음)
+
+---
+
+## 📜 [COMPLETED]
+- [x] **T-085: 메카 부위별 내구도 손상(Part Durability Breakdown), 3D 국소 피격 연출 및 전 화면 캐논 UI 완성** (`mimic-the-show/src/part.rs`, `mimic-the-show/src/robot.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`, Head/Core/Arm 부위별 독립 내구도 0..100(정상/손상/위험/파손) 실장, 코어 과열/손상 시 등 보일러 3D 고밀도 증기 분출, 헤드/암 파손 시 스파크 누출, 전투 HUD 및 정비고 부위별 컨디션 칩 렌더링, 단위 테스트 100% 통과, 커밋 `a771fde`)
 
 ---
 
