@@ -9,6 +9,7 @@
 use axiom_core::thermal_stress::ThermalStressField16;
 use axiom_core::voxel_collapse::DynamicCollapseSystem;
 use axiom_core::voxel_destruct::{VoxelVolume16, VOXEL_STONE};
+use axiom_core::voxel_fluid::VoxelFluidField16;
 use axiom_core::voxel_shard::VoxelShardPool;
 use axiom_core::neural_ai::NeuralAiWeights;
 use crate::boxing::{ActionKind, BoxingEvent, BoxingRingEngine};
@@ -46,9 +47,11 @@ pub struct VoxelChampionshipTelemetry {
     pub max_temperature: u16,
     pub thermal_transitions: u16,
 
+    pub active_fluid_cells: u16,
+    pub total_fluid_units: u16,
     pub final_score_a: u16,
     pub final_score_b: u16,
-    pub _pad: [u8; 12],
+    pub _pad: [u8; 8],
 }
 
 const _: () = assert!(core::mem::size_of::<VoxelChampionshipTelemetry>() == 64);
@@ -59,6 +62,7 @@ pub struct VoxelChampionshipDirector {
     pub ring: BoxingRingEngine,
     pub arena: VoxelVolume16,
     pub thermal: ThermalStressField16,
+    pub fluid: VoxelFluidField16,
     pub shards: VoxelShardPool<128>,
     pub collapse: DynamicCollapseSystem<16>,
     pub expansion: ExpansionTracker,
@@ -86,6 +90,7 @@ impl VoxelChampionshipDirector {
         let ring = BoxingRingEngine::new(seed);
         let arena = VoxelVolume16::new_solid(VOXEL_STONE);
         let thermal = ThermalStressField16::new();
+        let fluid = VoxelFluidField16::new();
         let shards = VoxelShardPool::new(seed);
         let collapse = DynamicCollapseSystem::new(seed);
         let expansion = ExpansionTracker::new(0x0041_584D, 1);
@@ -100,6 +105,7 @@ impl VoxelChampionshipDirector {
             ring,
             arena,
             thermal,
+            fluid,
             shards,
             collapse,
             expansion,
@@ -119,6 +125,11 @@ impl VoxelChampionshipDirector {
     pub fn with_expansion(mut self, expansion: ExpansionTracker) -> Self {
         self.expansion = expansion;
         self
+    }
+
+    /// Injects coolant fluid into the voxel ring arena.
+    pub fn inject_ring_coolant(&mut self, x: usize, z: usize, amount: u8) {
+        self.fluid.inject_fluid(&mut self.arena, x.min(15), 14, z.min(15), amount);
     }
 
     /// Unlocks an expansion boss license.
@@ -179,6 +190,9 @@ impl VoxelChampionshipDirector {
                     [0, -45000, 0],
                     2048,
                 );
+
+                // Advance 3D fluid dynamics and rock infiltration / evaporation
+                self.fluid.step_fluid(&mut self.arena, Some(&self.thermal), 20);
 
                 // 3. Dynamic Terrain Cratering on heavy combat strikes
                 let mut crater_event = false;
@@ -300,6 +314,10 @@ impl VoxelChampionshipDirector {
         hash ^= thermal_hash;
         hash = hash.wrapping_mul(0x100_0000_01B3);
 
+        let fluid_hash = self.fluid.compute_consensus_hash();
+        hash ^= fluid_hash;
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
         let exp_hash = self.expansion.dlc_state.signature_hash;
         hash ^= exp_hash;
         hash = hash.wrapping_mul(0x100_0000_01B3);
@@ -335,9 +353,11 @@ impl VoxelChampionshipDirector {
             spectator_count: self.spectator_count,
             max_temperature: self.thermal.max_temp(),
             thermal_transitions: self.thermal.phase_transitions.min(65535) as u16,
+            active_fluid_cells: self.fluid.active_fluid_cells,
+            total_fluid_units: self.fluid.total_fluid_units.min(65535) as u16,
             final_score_a: self.ring.player.hp.max(0) as u16,
             final_score_b: self.ring.opponent.hp.max(0) as u16,
-            _pad: [0u8; 12],
+            _pad: [0u8; 8],
         }
     }
 }
