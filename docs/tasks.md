@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-094: 챔피언십 풀 리그 4인 대전 3D 전광판 브로드캐스트 하이라이트 뷰** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/season.rs`, 리그 순위표 옆 3D 메카 미니 하이라이트 투영, `tools/guard.ps1` 통과)
+- [ ] **T-095: 3D 메카 피격 시 림 라이팅(Rim Lighting) 및 오라클 아이(Single Eye) 발광 오버레이** (`crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, 피격 및 카운터 시 실루엣 외곽선 림 라이팅 골드 플래시, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-095: 3D 메카 피격 시 림 라이팅(Rim Lighting) 및 오라클 아이(Single Eye) 발광 오버레이** (`crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, 피격 및 카운터 시 실루엣 외곽선 림 라이팅 골드 플래시)
+- [ ] **T-096: 사운드 피치 시프트 및 3D 공간 잔향(Reverb) 절차적 버퍼 합성** (`mimic-the-show/src/sound.rs`, `crates/axiom-cli/src/sound.rs`, 링 코너 및 보스 타격 시 공간감 있는 금속성 잔향 연출)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-094: 챔피언십 풀 리그 4인 대전 3D 전광판 브로드캐스트 하이라이트 뷰** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/bin/capture_screens.rs`, 플레이오프 디사이더 및 챔피언십 결승전 진입 시 듀얼 3D 메카 실시간 페이스오프 전광판, 중앙 VS 브라스 엠블럼, 스포트라이트 조명, 파이터 전력 분석 카드 및 4팀 스탠딩 티커 브로드캐스트 완성, `tools/guard.ps1` 통과, 커밋 `11f0eab`)
 - [x] **T-093: 3D 관중석 조명 플래시 반응 및 챔피언 라운드 스팀 배출 축제 효과 연출** (`crates/axiom-render/src/particles3d.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_camera_particles_3d.rs`, Q16.16 고정소수점 방향성 `spawn_steam_jet` 4개 링 코너 턴버클 축제 증기 분출, `flash_storm_timer` 기반 70인 관중석 다중 카메라 플래시 버스트 및 앰비언트 노출 글래어, 챔피언 트로피 수여 씬 3D 스팀·폭죽 동기화, `tools/guard.ps1` 통과, 커밋 `adad9c9`, `b40b253`)
 - [x] **T-092: 경기 후 3D 시네마틱 신문 1면 승리/패배 호외 래스터라이징 고도화** (`crates/axiom-render/src/newspaper.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_newspaper_gravure.rs`, 64B L1 캐시 정렬 `NewspaperGravureConfig`, 3대 신문사별(철판일보 모노크롬/불꽃스포츠 세피아 망점/주간하역장 풀컬러 셀) 0-Float 빈티지 그라비아 인쇄 필터, 2-칼럼 조판 및 브라스 리벳 프레임 144x114 3D 메카 스냅샷 서브뷰포트 래스터라이징, `tools/guard.ps1` 통과, 커밋 `fc850af`, `eb0612b`)
 - [x] **T-091: 3D 링 코너 샷 및 동적 피격 카메라 셰이크 연출 강화** (`crates/axiom-render/src/camera3d.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_camera_particles_3d.rs`, 64B L1 캐시 정렬 `Camera3D` 및 `CameraShot` 5대 프리셋(BroadcastCenter, PlayerCorner, OpponentCorner, ImpactCloseUp, KnockdownLowAngle), 고정소수점 회전 뷰 행렬 `compute_view_matrix`를 통한 메카 및 3D 파티클 동시 회전 투영, 타격 강도별 셰이크 및 스프링 펀치 줌 연동, `tools/guard.ps1` 통과, 커밋 `b44c028`, `ba825d5`)
