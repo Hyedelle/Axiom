@@ -311,6 +311,7 @@ pub fn run_voxel_suite(args: &[String]) {
         "bench-fluid" => {
             let mut steps = 5000usize;
             let mut seed = 0x160_FEED_CAFEu64;
+            let mut use_simd = false;
 
             let mut i = 3;
             while i < args.len() {
@@ -323,14 +324,20 @@ pub fn run_voxel_suite(args: &[String]) {
                         seed = args[i + 1].parse().unwrap_or(0x160_FEED_CAFE);
                         i += 2;
                     }
+                    "--simd" => {
+                        use_simd = true;
+                        i += 1;
+                    }
                     _ => i += 1,
                 }
             }
 
             println!("💧 [Axiom Voxel] Running 3D Fluid Dynamics & Pore Stress Relaxation Benchmark...");
+            println!("  Engine Mode: {}", if use_simd { "SIMD / 3D Red-Black Checkerboard" } else { "Sequential Iterative" });
             println!("  Steps:       {} integration ticks", steps);
             println!("  Seed:        0x{:016X}", seed);
 
+            let mut simd = axiom_core::voxel_fluid_simd::SimdFluidEngine::new();
             let mut fluid = axiom_core::voxel_fluid::VoxelFluidField16::new();
             let mut thermal = axiom_core::thermal_stress::ThermalStressField16::new();
             let mut volume = axiom_core::voxel_destruct::VoxelVolume16::new_solid(axiom_core::voxel_destruct::VOXEL_STONE);
@@ -361,7 +368,11 @@ pub fn run_voxel_suite(args: &[String]) {
                 total_quenched += q_temp;
                 total_relaxed += r_stress;
 
-                let _ = fluid.step_fluid(&mut volume, Some(&mut thermal), 25);
+                if use_simd {
+                    let _ = simd.step_fluid_simd(&mut fluid, &mut volume, Some(&mut thermal), 25);
+                } else {
+                    let _ = fluid.step_fluid(&mut volume, Some(&mut thermal), 25);
+                }
 
                 let thermal_res = thermal.step_thermal_and_collapse_advanced(
                     &mut volume,
@@ -382,6 +393,10 @@ pub fn run_voxel_suite(args: &[String]) {
             let tps = (steps as f64 / elapsed.as_secs_f64()) as u64;
 
             let mut hash: u64 = 0xCBF2_9CE4_8422_2325;
+            if use_simd {
+                hash ^= simd.compute_consensus_hash();
+                hash = hash.wrapping_mul(0x100_0000_01B3);
+            }
             hash ^= fluid.compute_consensus_hash();
             hash = hash.wrapping_mul(0x100_0000_01B3);
             hash ^= thermal.compute_consensus_hash();
@@ -394,6 +409,9 @@ pub fn run_voxel_suite(args: &[String]) {
             println!("🏁 Fluid Physics Benchmark Completed:");
             println!("  Total Time:          {:?}", elapsed);
             println!("  Throughput:          {} TPS ({:.2} µs/step)", tps, us_per_tick);
+            if use_simd {
+                println!("  Sleep Slices Saved:  {} slice cycles", simd.sleep_cycles_saved);
+            }
             println!("  Total Infiltrated:   {} fluid units", fluid.total_infiltrated);
             println!("  Total Evaporated:    {} fluid units", fluid.total_evaporated);
             println!("  Heat Quenched:       {} temp units", total_quenched);
@@ -415,5 +433,5 @@ fn print_voxel_help() {
     println!("  axiom voxel inspect <file.axvm>");
     println!("  axiom voxel bench [--preset <preset>] [--ticks <n>]");
     println!("  axiom voxel bench-extreme [--steps <10000>] [--seed <num>]");
-    println!("  axiom voxel bench-fluid [--steps <5000>] [--seed <num>]");
+    println!("  axiom voxel bench-fluid [--steps <5000>] [--seed <num>] [--simd]");
 }

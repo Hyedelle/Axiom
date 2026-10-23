@@ -44,10 +44,12 @@ pub mod time_machine;
 pub mod voxel_collapse;
 pub mod voxel_destruct;
 pub mod voxel_fluid;
+pub mod voxel_fluid_simd;
 pub mod voxel_shard;
 pub mod world_time_machine;
 
 pub use voxel_fluid::{FluidStepResult, VoxelFluidField16, FLUID_MAX_LEVEL};
+pub use voxel_fluid_simd::{SimdFluidEngine, SimdFluidStepResult};
 pub use thermal_stress::{
     ThermalCollapseResult, ThermalStressField16, TEMP_AMBIENT, TEMP_INCANDESCENT_THRESHOLD,
     TEMP_PHASE_MELT_THRESHOLD, TEMP_WARM_THRESHOLD, STRESS_FRACTURE_THRESHOLD,

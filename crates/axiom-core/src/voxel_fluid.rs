@@ -252,7 +252,7 @@ impl VoxelFluidField16 {
 
                             if n_mat == VOXEL_AIR || n_mat == VOXEL_WATER {
                                 let n_level = next_level[n_idx];
-                                if cur_fluid > n_level + 1 {
+                                if cur_fluid > n_level.saturating_add(1) {
                                     let diff = cur_fluid - n_level;
                                     let flow = (diff / 4).max(1).min(cur_fluid);
 
