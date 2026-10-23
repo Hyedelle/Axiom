@@ -11,10 +11,12 @@ use std::path::Path;
 use axiom_core::Fixed;
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_game::card::DeckState;
+use axiom_render::camera3d::Camera3D;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::kinematics3d::{evaluate_forward_kinematics, MechaPose3D};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D};
+use axiom_render::particles3d::ParticleSystem3D;
 use axiom_render::raster3d::Rasterizer3D;
 use axiom_render::FrameBuffer;
 
@@ -33,6 +35,8 @@ pub struct BoxingView {
     pub hero_model: Option<MechaModel3D>,
     pub opponent_model: Option<MechaModel3D>,
     pub rasterizer: RefCell<Rasterizer3D>,
+    pub camera: Camera3D,
+    pub particles: RefCell<ParticleSystem3D<128>>,
     pub use_3d: bool,
 }
 
@@ -79,6 +83,8 @@ impl BoxingView {
             hero_model,
             opponent_model,
             rasterizer: RefCell::new(r),
+            camera: Camera3D::default(),
+            particles: RefCell::new(ParticleSystem3D::new(seed.wrapping_add(98765))),
             use_3d: has_model,
         }
     }
@@ -164,10 +170,16 @@ impl BoxingView {
         // Advance simulation
         let event = self.engine.step(input);
 
+        // Step 3D camera and particle kinematics
+        self.camera.step_kinematics();
+        self.particles.borrow_mut().step_kinematics();
+
         // Process audio & visual events
         match event {
             BoxingEvent::PlayerPunched { damage: _, is_counter } => {
                 sound::play_sound(SoundKind::Hit);
+                self.camera.trigger_punch_zoom(Fixed::from_raw((0.20 * 65536.0) as i64));
+                self.particles.borrow_mut().spawn_sparks(Vec3Fixed::from_f32(0.0, 0.1, 0.4), 16);
                 if is_counter {
                     self.set_feedback("COUNTER CRITICAL! [150% DMG]", 0xFFF97316);
                 } else {
@@ -176,6 +188,7 @@ impl BoxingView {
             }
             BoxingEvent::PlayerEvaded => {
                 sound::play_sound(SoundKind::Shoot);
+                self.particles.borrow_mut().spawn_steam(Vec3Fixed::from_f32(0.0, -0.1, -0.3), 8);
                 self.set_feedback("SLIP EVADED! COUNTER NOW!", 0xFF38BDF8);
             }
             BoxingEvent::PlayerBlocked { chip: _ } => {
@@ -275,6 +288,20 @@ impl BoxingView {
         let player_base_x = ring_cx + self.engine.player.x_offset_px as i32;
         let player_base_y = ring_cy + 110;
         self.render_player_boxer(fb, player_base_x, player_base_y, w, h);
+
+        // 4.5. Render 3D Sparks & Steam Particles
+        if self.use_3d {
+            let mut r = self.rasterizer.borrow_mut();
+            let cam_dist = self.camera.effective_distance();
+            let focal_length = self.camera.effective_focal_length();
+            self.particles.borrow().render(
+                fb,
+                &mut r.depth_buffer,
+                &Mat4Fixed::IDENTITY,
+                cam_dist,
+                focal_length,
+            );
+        }
 
         // 5. Render HUD Elements
         self.render_hud(fb, w, h);

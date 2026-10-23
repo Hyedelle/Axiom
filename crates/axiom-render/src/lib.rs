@@ -3,14 +3,17 @@
 //! Ultra-lightweight, headless-first rendering layer for the Axiom Engine.
 //! Decoupled from `axiom-core` to keep the simulation 100% deterministic and pure.
 
+pub mod camera3d;
 pub mod cutin;
 pub mod framebuffer;
 pub mod kinematics3d;
 pub mod math3d;
 pub mod mesh3d;
+pub mod particles3d;
 pub mod raster3d;
 pub mod sprites;
 
+pub use camera3d::Camera3D;
 pub use cutin::{render_cutin_overlay, CutinKind};
 pub use framebuffer::{upscale_nearest_2x, FrameBuffer};
 pub use kinematics3d::{
@@ -18,5 +21,6 @@ pub use kinematics3d::{
 };
 pub use math3d::{cos_bams, sin_bams, Mat4Fixed, Vec3Fixed};
 pub use mesh3d::{parse_glb, MechaModel3D, PartMesh, Vertex3D};
+pub use particles3d::{Particle3D, ParticleSystem3D};
 pub use raster3d::{CelShadingPalette, Rasterizer3D};
 pub use sprites::*;

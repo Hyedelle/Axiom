@@ -71,6 +71,7 @@ pub struct Rasterizer3D {
     pub depth_buffer: Vec<i32>,
     pub light_dir: Vec3Fixed,
     pub cull_backfaces: bool,
+    pub custom_palette: Option<CelShadingPalette>,
 }
 
 impl Rasterizer3D {
@@ -83,6 +84,7 @@ impl Rasterizer3D {
             depth_buffer: vec![i32::MIN; width * height],
             light_dir: light,
             cull_backfaces: false,
+            custom_palette: None,
         }
     }
 
@@ -125,7 +127,9 @@ impl Rasterizer3D {
         let cy = (self.height / 2) as i64;
 
         for part in &model.parts {
-            let palette = CelShadingPalette::for_part(&part.name);
+            let palette = self
+                .custom_palette
+                .unwrap_or_else(|| CelShadingPalette::for_part(&part.name));
             let part_mat = crate::kinematics3d::get_part_matrix(transforms, &part.name);
             let effective_world = world_mat.mul_mat(&part_mat);
 
