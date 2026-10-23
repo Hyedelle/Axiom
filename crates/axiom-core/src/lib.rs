@@ -47,6 +47,7 @@ pub mod voxel_destruct;
 pub mod voxel_fluid;
 pub mod voxel_fluid_simd;
 pub mod voxel_shard;
+pub mod worker_pool;
 pub mod world_time_machine;
 
 pub use voxel_fluid::{FluidStepResult, VoxelFluidField16, FLUID_MAX_LEVEL};
@@ -58,6 +59,9 @@ pub use thermal_stress::{
 pub use job_system::{
     JobContext, JobDescriptor64, JobFn, JobHandle, JobPriority, JobStatus, JobSystem,
     DEFAULT_JOB_CAPACITY,
+};
+pub use worker_pool::{
+    WorkStealingDeque, WorkerPoolCoordinator, WorkerTelemetry64, DEQUE_CAPACITY,
 };
 
 pub use audio::{

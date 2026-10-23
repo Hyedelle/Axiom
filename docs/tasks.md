@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-177: Axiom 잡 시스템 워커 스레드 풀 및 무잠금 워크 스틸링 큐 구현** (`crates/axiom-core/src/worker_pool.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-178: Axiom 복셀 유체 및 물리 적분 비동기 잡 병렬 디스패치 파이프라인 연동** (`crates/axiom-core/src/voxel_fluid_simd.rs`, `crates/axiom-game/src/network.rs`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-179: Axiom 200대 멀티스레드 잡 시스템 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `web/index.html`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-177: Axiom 잡 시스템 워커 스레드 풀 및 무잠금 워크 스틸링 큐 구현** (`crates/axiom-core/src/worker_pool.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_worker_pool.rs`, 0-Float 64B L1 캐시 정렬 무잠금 Chase-Lev 워크 스틸링 덱 `WorkStealingDeque<CAP>` [LIFO owner push/pop, FIFO stealer steal], 64B L1 정렬 워커 텔레메트리 슬랩 `WorkerTelemetry64` [jobs_executed, jobs_stolen, steal_attempts, steal_failures], N-워커 협력 스틸링 코디네이터 `WorkerPoolCoordinator`, 5개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-176: Axiom 200대 멀티스레드 비동기 잡 스케줄러(Job System) 및 워커 풀 기반 연구** (`crates/axiom-core/src/job_system.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_job_system.rs`, 0-Float 64B L1 캐시 정렬 잡 서술자 `JobDescriptor64` [#[repr(C, align(64))], exact 64B slab], 64-bit ABA 방지 잡 핸들 `JobHandle` [slot + generation], 무할당 플랫 어레이 잡 시스템 `JobSystem<CAP>` [부모-자식 DAG 의존성 해소, 원자적 카운터, 후속 지속 잡 체인 `continuation`], 64-bit FNV-1a 결정론 합의 체크섬, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-175: Axiom 190대 차세대 P2P 홀펀칭 & 분산 롤백 넷코드 통합 공식 릴리즈 v3.3.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-113]~[D-116], `docs/audit-report.md` [AUDIT-20261024-v3.3.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 RFC 5389 STUN 및 RFC 8445 ICE 와이어 서술자 `NatCandidate64` & `StunPacket64`, 16-피어 완전 그물망 홀펀칭 코디네이터 `NatTraversalSession`, 무잠금 상태 기계 결합 분산 롤백 넷코드 `DistributedRollbackSession`, WebGL/WASM 🌐 P2P NAT Traversal 인터랙티브 모달 배포, `mimic-the-show` 글로벌 F3 16-인 배틀로얄 P2P 홀펀칭 레이더 텔레메트리 HUD 탑재, 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v3.3.0-unified-milestone.zip` [2.14 MB, SHA-256: 3212A784BF20286F28C76BF6B37215B07CF03F3F3BFACCC2E9EFA0337466024A 검증], 전체 워크스페이스 v3.3.0 공식 판올림 및 Git 태그 `v3.3.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-174: Mimic The Show 16-인 배틀로얄 P2P 홀펀칭 레이더 텔레메트리 HUD 통합** (`mimic-the-show/src/view.rs`, `crates/axiom-game/src/network.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `NetworkMatchDirector` 내 NAT 텔레메트리 헬퍼 `nat_connected_mask`/`nat_probe_counts`/`nat_peer_rtt_micros`/`is_nat_enabled`, 글로벌 F3 [16-PEER DISTRIBUTED ROLLBACK & NAT TRAVERSAL: 16/16 P2P DIRECT] 핫키 및 HUD 카드, 56x56 16-인 원형 레이더 P2P 홀펀칭 상태 표시 [로컬 블루, 미연결 그레이, 연결 레드/앰버, 십자선], 21개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
