@@ -11,11 +11,16 @@
 extern crate alloc;
 
 pub mod loss_sim;
+pub mod nat;
 pub mod packet;
 pub mod rollback;
 pub mod telemetry;
 
 pub use loss_sim::NetworkLossSimulator;
+pub use nat::{
+    NatCandidate64, NatCandidateKind, NatConnectionState, NatTraversalSession, StunMessageType,
+    StunPacket64, STUN_MAGIC_COOKIE,
+};
 pub use packet::{NetPacket64, INPUT_WINDOW_FRAMES, MAX_PEERS, NET_WIRE_MAGIC};
 pub use rollback::{DistributedRollbackSession, NetError, RollbackStepResult, DEFAULT_NET_BUFFER_FRAMES};
 pub use telemetry::NetTelemetry64;
