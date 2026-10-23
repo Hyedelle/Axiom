@@ -18,6 +18,7 @@ pub enum NetError {
     InvalidSenderId,
     BufferOverflow,
     DesyncDetected { frame: u32, local_hash: u64, remote_hash: u64 },
+    NatPunchBlocked { sender_id: u8 },
 }
 
 /// Result metrics returned after a simulation step or packet delivery.
@@ -51,6 +52,7 @@ pub struct DistributedRollbackSession<const BUFFER_FRAMES: usize = DEFAULT_NET_B
     pub state_hashes: [u64; BUFFER_FRAMES],
 
     pub telemetry: NetTelemetry64,
+    pub nat_session: Option<crate::nat::NatTraversalSession<MAX_PEERS>>,
 }
 
 impl<const BUFFER_FRAMES: usize> DistributedRollbackSession<BUFFER_FRAMES> {
@@ -71,6 +73,7 @@ impl<const BUFFER_FRAMES: usize> DistributedRollbackSession<BUFFER_FRAMES> {
             last_confirmed_frames: [0u32; MAX_PEERS],
             state_hashes: [0u64; BUFFER_FRAMES],
             telemetry: NetTelemetry64::default(),
+            nat_session: None,
         };
         session.telemetry.active_peers = 1;
         session
@@ -81,6 +84,20 @@ impl<const BUFFER_FRAMES: usize> DistributedRollbackSession<BUFFER_FRAMES> {
         let mut session = Self::new(local_peer_id);
         session.expected_peers_mask = expected_peers_mask;
         session
+    }
+
+    /// Attaches a NAT traversal session to filter wire packets based on direct hole-punched connectivity.
+    pub fn enable_nat_traversal(&mut self, local_candidate: crate::nat::NatCandidate64) {
+        self.nat_session = Some(crate::nat::NatTraversalSession::new(self.local_peer_id as u8, local_candidate));
+    }
+
+    /// Returns true if direct P2P connectivity with the given peer has been established.
+    pub fn is_peer_p2p_ready(&self, peer_id: usize) -> bool {
+        if let Some(ref nat) = self.nat_session {
+            nat.is_peer_connected(peer_id)
+        } else {
+            true // Direct mode assumes ready
+        }
     }
 
     /// Submits local input for current frame and generates wire packet.
@@ -146,6 +163,12 @@ impl<const BUFFER_FRAMES: usize> DistributedRollbackSession<BUFFER_FRAMES> {
         let sender = pkt.sender_id as usize;
         if sender >= MAX_PEERS || sender == self.local_peer_id {
             return Err(NetError::InvalidSenderId);
+        }
+
+        if let Some(ref nat) = self.nat_session {
+            if !nat.is_peer_connected(sender) {
+                return Err(NetError::NatPunchBlocked { sender_id: pkt.sender_id });
+            }
         }
 
         self.telemetry.total_packets_received += 1;

@@ -476,4 +476,43 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         self.session.verify_remote_consensus(pkt)?;
         Ok(())
     }
+
+    /// Enables NAT traversal and registers local candidate descriptor.
+    pub fn enable_nat_traversal(&mut self, local_candidate: axiom_net::NatCandidate64) {
+        self.session.enable_nat_traversal(local_candidate);
+    }
+
+    /// Registers a remote peer's candidate information into the NAT traversal session.
+    pub fn add_peer_nat_candidate(&mut self, peer_id: usize, candidate: axiom_net::NatCandidate64) {
+        if let Some(ref mut nat) = self.session.nat_session {
+            nat.add_peer_candidate(peer_id, candidate);
+        }
+    }
+
+    /// Ingests an incoming STUN packet and returns an optional response pong.
+    pub fn process_stun_packet(
+        &mut self,
+        pkt: &axiom_net::StunPacket64,
+        now_micros: u32,
+    ) -> Option<axiom_net::StunPacket64> {
+        if let Some(ref mut nat) = self.session.nat_session {
+            nat.process_stun_packet(pkt, now_micros)
+        } else {
+            None
+        }
+    }
+
+    /// Returns true if a peer is ready for wire rollback traffic (hole-punched or direct).
+    pub fn is_peer_ready(&self, peer_id: usize) -> bool {
+        self.session.is_peer_p2p_ready(peer_id)
+    }
+
+    /// Returns true if all active peers have established direct hole-punched P2P connectivity.
+    pub fn all_peers_ready(&self) -> bool {
+        if let Some(ref nat) = self.session.nat_session {
+            nat.all_peers_connected()
+        } else {
+            true
+        }
+    }
 }
