@@ -1,7 +1,7 @@
 # Axiom Engine Architecture Specification (docs/architecture.md)
 
-> **문서 버전:** 1.0.0  
-> **최종 수정일:** 2026-10-22  
+> **문서 버전:** 2.1.0  
+> **최종 수정일:** 2026-10-23  
 > **작성 주체:** Hyedelle (디렉터) & Antigravity (총괄 관제탑)  
 > **위치:** `crates/axiom-core` 및 관련 서브시스템 명세
 
@@ -645,6 +645,50 @@ Axiom Engine v2.0.0은 Valve Steamworks `ISteamUserStats`와 100% 호환되는 6
 2. **2D 텍스처 페인터 ➔ 3D 소프트웨어 래스터라이저 실시간 바인딩**:
    * 유저가 붓질을 하거나 스폰서 로고 데칼을 찍는 즉시 CPU 3D 래스터라이저의 텍스처 버퍼가 갱신되어 360° 턴테이블 메카 표면에 60 FPS로 실시간 투영.
    * 제작한 커스텀 텍스처는 스팀 워크숍 부품 패키징(`.axmod`) 규격과 호환되는 PNG 이미지로 즉각 다운로드 가능.
+
+---
+
+## 23. Steam Lobby, ELO Leaderboard, Cinematic Finisher & 120-Task Unified Milestone (v2.1.0)
+
+Axiom Engine v2.1.0은 T-001부터 T-120까지 120개 누적 태스크를 집대성한 공식 통합 마일스톤입니다. 64-Byte L1 캐시 정렬 스팀 P2P 로비와 결정론 ELO 리더보드, 0-Float 3D 다관절 애니메이션 블렌딩 트리, 4단계 시네마틱 피니셔 시퀀서, 그리고 스팀 덱 인증 단일 실행 파일 패키징을 완성했습니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│      Axiom 120-Task Unified Milestone Release Architecture (v2.1.0)    │
+├────────────────────────────────────────────────────────────────────────┤
+│           64-Byte L1 Cache Steam Lobby & ELO Ranking Engine            │
+│  - LeaderboardEntry (#[repr(C, align(64))]): size_of=64, align_of=64  │
+│  - 0-Float calculate_elo(): K=32 순수 정수 permille 확률 산출 엔진    │
+│  - LeaderboardTable<64>: 무할당 제자리 삽입 정렬 랭킹 테이블           │
+│  - SteamLobby<8>: P1(호스트), P2(도전자), Spectator(1~6) 8인 룸 머신  │
+│  - WASM C-ABI 17개 엔드포인트 ➔ 웹 🥇 Leaderboard & 👥 Lobby 모달      │
+├────────────────────────────────────────────────────────────────────────┤
+│         3D Articulated Bone Blending Tree & Cinematic Finisher         │
+│  - 0-Float lerp_vec3_permille / lerp_bams_permille (최단 호 보간)      │
+│  - AnimBlendTree: 16개 관절 자유도의 부드러운 가중치 트랜지션          │
+│  - CinematicFinisherDirector (#[repr(C, align(64))]): 4단계 시퀀서    │
+│    (1) Windup ➔ (2) NovaStrike ➔ (3) Recoil ➔ (4) VictoryRoar         │
+│  - 카메라 클로즈업/로우앵글 오빗, 화면 셰이크(18), 40개 파편 스파크 폭발 │
+├────────────────────────────────────────────────────────────────────────┤
+│        Unified Standalone & Web Milestone Distribution (dist/)         │
+│  - mimic-the-show.exe (0.84 MB): 60 FPS 네이티브 메카 복싱 로그라이트 │
+│  - axiom.exe (0.82 MB): 팩토리 RPG, 10만 NPC 시뮬레이터, CLI 도구군   │
+│  - web/ (1.08 MB WASM): 7대 통합 웹 플레이어 & WebRTC P2P 롤백 넷코드 │
+│  - docs/steam-store-assets.md: 5대 캡슐 규격 및 Steam Deck 완벽 사상   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 23.1 핵심 구조 및 기술적 특성
+1. **64B L1 캐시 정렬 스팀 로비 및 리더보드 (`SteamLobby`, `LeaderboardTable`)**:
+   - `steam_id`, `rating`, `matches_won/lost`, `kos`, `flawless`, `streaks`, `moniker`를 정확히 64바이트 L1 캐시 라인에 패킹.
+   - 무할당 제자리 삽입 정렬로 실시간 랭킹 산출 시 힙 메모리 할당 0을 달성.
+2. **0-Float 3D 다관절 애니메이션 블렌딩 트리 (`AnimBlendTree`)**:
+   - $Q16.16$ 및 BAMS 최단 호 각도 보간을 통해 로봇 관절의 딱딱한 스냅 현상을 배제하고 부드러운 4틱 가중치 전이를 실현.
+3. **64B L1 캐시 정렬 시네마틱 피니셔 시퀀서 (`CinematicFinisherDirector`)**:
+   - 4단계 연출(코어 과열 차징 ➔ 슈퍼노바 백열 타격 ➔ 상대방 붕괴 ➔ 승리 포효)을 64B 단일 구조체에서 완벽하게 통제.
+4. **120대 누적 마일스톤 단일 실행 파일 패키징**:
+   - `tools/package.ps1`을 통해 0.8MB 미만의 네이티브 단일 바이너리(`mimic-the-show.exe`, `axiom.exe`) 및 웹 플레이어 번들을 원클릭 빌드.
+
 
 
 

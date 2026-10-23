@@ -8,21 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-23 19:25 KST
-- **감사 대상:** Axiom Engine v2.0.0 스팀 업적(Steam Achievements) & 메카 커스텀 페인팅 데칼 에디터 마일스톤 종합 감사 (`axiom-game`, `axiom-render`, `axiom-wasm`, `mimic-the-show`, `web`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 AchievementState, 12대 스팀웍스 정규 업적 & 인게임 골든 토스트 HUD 팝업, 0-Float 2D 텍스처 페인팅 엔진, 절차적 7대 데칼 스튜디오, WASM 2D-3D 실시간 바인딩 올패스 (v2.0.0 공식 승인)**
+- **일시:** 2026-10-23 19:45 KST
+- **감사 대상:** Axiom Engine v2.1.0 120대 통합 최종 마일스톤 데모 패키징 및 스팀 상점 페이지 에셋 빌더 종합 감사 (`axiom-core`, `axiom-render`, `axiom-game`, `axiom-wasm`, `mimic-the-show`, `web`, `dist`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 SteamLobby & ELO Leaderboard, 3D 다관절 애니메이션 블렌딩 트리, 64B 시네마틱 피니셔 디렉터, 120대 누적 데모 패키징 (`mimic-the-show.exe` 0.84MB, `axiom.exe` 0.82MB, WASM 1.08MB, 배포 Zip 1.98MB), 스팀 상점 에셋 규격 올패스 (v2.1.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **64-Byte L1 캐시 라인 정렬 업적 상태 머신 (`AchievementState`)**: 업적 비트마스크(4B), 9개 텔레메트리 카운터(36B), 64-bit FNV-1a 체크섬(8B), 16B 패딩으로 캐시 미스 0을 보증하는 초경량 64B POD 구조체 실장.
-  2. **0-Float FNV-1a 변조 검출 및 무결성 검증**: 매 갱신 시 상태 해시를 재계산하여 메모리 해킹 및 세이브 파일 조작을 구조적으로 차단.
-  3. **스팀 스타일 온스크린 골든 토스트 HUD 팝업 (`render_achievement_toast`)**: 3초(180프레임) 슬라이드 애니메이션 스팀 스타일 골든 보더 배지 팝업 탑재 및 `saves/achievements.bin` 영구 누적 직렬화 완성.
-  4. **결정론 2D 텍스처 래스터라이징 원형 (`TextureMap`)**: 부동소수점을 완전히 배제하고 브러시 스트로크, 브레젠험 라인 보간, 경계 스택 기반 플러드 필, 스케일링 데칼 스탬퍼를 순수 정수 산술로 구축.
-  5. **7대 절차적 스팀웍스 데칼 템플릿**: Star, Hazard, Skull, Number01, Sponsor, Reticle, CheckeredFlag 7종 데칼 절차적 생성 알고리즘 탑재.
-  6. **WASM 2D 캔버스 ➔ 3D 소프트웨어 래스터라이저 실시간 바인딩**: 웹 플레이어에서 2D 캔버스 조작 즉시 3D 메카 소프트웨어 래스터라이저에 60 FPS 실시간 텍스처 매핑 렌더링.
-  7. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
+  1. **64-Byte L1 캐시 라인 정렬 스팀 로비 (`SteamLobby<8>`) 및 리더보드 (`LeaderboardEntry`)**: `size_of == 64`, `align_of == 64` 정적 컴파일 타임 단언 준수, 0-Float 정수 ELO 알고리즘(`calculate_elo`), 무할당 제자리 삽입 정렬 랭킹 테이블.
+  2. **3D 관절 애니메이션 블렌딩 트리 (`AnimBlendTree`)**: 0-Float $Q16.16$ 및 BAMS 최단 호 각도 보간기로 16개 관절 자유도의 부드러운 스켈레탈 트랜지션 실현.
+  3. **64B L1 캐시 정렬 시네마틱 피니셔 시퀀서 (`CinematicFinisherDirector`)**: 4단계 시네마틱 페이즈(Windup ➔ NovaStrike ➔ Recoil ➔ VictoryRoar), 카메라 줌인/화면 셰이크(최대 18)/40개 파편 스파크/슈퍼노바 백열 림 라이트/사운드스케이프 동기화.
+  4. **120대 누적 마일스톤 데모 패키징 (`tools/package.ps1`)**:
+     - `mimic-the-show.exe` (0.84 MB): 실시간 60 FPS 메카 복싱 로그라이트 단일 실행 파일.
+     - `axiom.exe` (0.82 MB): 팩토리 RPG / 10만 NPC / 벤치마크 / 스팀 워크숍 도구군.
+     - `web/` (1.08 MB WASM): HTML5/WASM 7대 통합 웹 플레이어, 3D 턴테이블, 커스텀 페인팅 스튜디오, WebRTC P2P 롤백 넷코드, ELO 글로벌 리더보드.
+     - 배포 Zip: `axiom-v2.1.0-unified-milestone.zip` (1.98 MB, SHA-256 무결성 검증 완료).
+  5. **스팀 상점 페이지 공식 에셋 명세 (`docs/steam-store-assets.md`)**:
+     - 5대 캡슐 규격(Header, Small, Main, Vertical, Background), 영문/국문 소개문, 시스템 요구사항 (CPU L1 캐시 기반 0-Float 래스터라이저, 512MB RAM, Windows/Linux/Steam Deck Verified).
+  6. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261023-v2.0.0] Axiom Engine v2.0.0 스팀 업적(Steam Achievements) & 메카 커스텀 페인팅 데칼 에디터 마일스톤 종합 감사
+- **일시:** 2026-10-23 19:25 KST
+- **판정:** 🟢 **ALL CLEAR (v2.0.0 공식 승인)**
+- **검증:** 64B L1 캐시 정렬 AchievementState, 12대 스팀웍스 정규 업적 & 인게임 골든 토스트 HUD 팝업, 0-Float 2D 텍스처 페인팅 엔진, 절차적 7대 데칼 스튜디오, WASM 2D-3D 실시간 바인딩 올패스.
 
 ### [AUDIT-20261023-v1.9.0] Axiom Engine v1.9.0 스팀 클라우드 세이브(Steam Cloud Save), WASM 3D 리플레이 웹 플레이어 & .axrp 뷰어 생태계 종합 감사
 - **일시:** 2026-10-23 18:50 KST

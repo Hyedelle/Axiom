@@ -821,6 +821,45 @@
   2. 전체 워크스페이스 버전을 v1.9.0에서 **v2.0.0**으로 공식 판올림하고 Git 태그 `v2.0.0`을 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-061] 64B L1 캐시 정렬 스팀 멀티플레이어 로비 & 0-Float ELO 리더보드 (T-118)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 캐시 라인 정렬 리더보드 (`LeaderboardEntry`)**: `steam_id`(8B), `rating`(4B), 6개 전적 필드(24B), 플레이어 닉네임(24B), 4B 패딩으로 캐시 미스 0을 달성하는 초경량 엔트리 구축.
+  2. **0-Float 순수 정수 ELO 레이팅 알고리즘 (`calculate_elo`)**: $K=32$ 가중치와 permille($0..1000$) 기대 승률 산출로 부동소수점 오차 없는 결정론 레이팅 갱신 구현.
+  3. **8인 P2P 룸 상태 머신 (`SteamLobby<8>`) 및 WASM C-ABI**: P1(호스트), P2(도전자), 관전자(1~6) 슬롯 관리, 레디 동기화, 웹 플레이어 실시간 🥇 Leaderboard & 👥 Steam Lobby 모달 연동.
+- **영향:** `crates/axiom-game/src/lobby.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-062] 3D 관절 애니메이션 블렌딩 트리 & 64B 시네마틱 피니셔 디렉터 (T-119)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **0-Float 관절 보간기 (`lerp_vec3_permille`, `lerp_bams_permille`)**: $Q16.16$ 고정소수점 및 최단 호 BAMS 각도 보간기로 16개 관절 자유도의 부드러운 스켈레탈 트랜지션 실현.
+  2. **64-Byte L1 캐시 정렬 시네마틱 피니셔 시퀀서 (`CinematicFinisherDirector`)**: 4단계 시네마틱 페이즈(WindupCharging ➔ NovaStrike ➔ DecapitateRecoil ➔ VictoryRoar) 및 카메라 줌/셰이크(최대 18)/40개 파편 스파크 폭발/슈퍼노바 백열 림 라이트/사운드스케이프 동기화.
+  3. **`mimic-the-show` 3D 뷰포트 연동**: 데스크톱 게임 렌더링 루프에 피니셔 시퀀서와 영웅/적 애니메이션 블렌딩 트리 직결.
+- **영향:** `crates/axiom-render/src/kinematics3d.rs`, `crates/axiom-render/src/lib.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-063] Axiom Engine v2.1.0 120대 통합 최종 마일스톤 데모 패키징 및 스팀 상점 에셋 빌더 (T-120)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **Axiom 120대 누적 마일스톤 (T-001 ~ T-120) 최종 데모 통합 완결**:
+     - `mimic-the-show.exe` (0.84 MB): 3D 래스터라이저, 림 라이팅, 스팀 덱 컨트롤러, 절차적 오디오, 시네마틱 피니셔, 스팀 업적/클라우드/워크숍 인제스터 통합 스탠드얼론 게임.
+     - `axiom.exe` (0.82 MB): 오픈월드 팩토리 RPG, 10만 NPC 군중 시뮬레이터, 벤치마크 러너, 스팀 워크숍 `.axmod` 패커/언패커.
+     - `web/` 번들 (1.08 MB WASM): HTML5/WASM 7대 통합 웹 플레이어, 3D 턴테이블, 커스텀 페인팅 스튜디오, WebRTC P2P 롤백 넷코드, ELO 글로벌 리더보드.
+  2. **스팀 상점 페이지 공식 에셋 명세 (`docs/steam-store-assets.md`)**:
+     - 5대 캡슐 규격(Header, Small, Main, Vertical, Background), 영문/국문 소개문, 시스템 요구사항 (CPU L1 캐시 기반 0-Float 래스터라이저, 512MB RAM, Windows/Linux/Steam Deck Verified).
+  3. **워크스페이스 v2.1.0 공식 판올림 및 Git 태그 `v2.1.0` 발행**:
+     - 전체 워크스페이스 `Cargo.toml` 버전을 v2.0.0에서 **v2.1.0**으로 판올림하고 공식 릴리즈 태그 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`, `tools/package.ps1`.
+
+
 
 
 
