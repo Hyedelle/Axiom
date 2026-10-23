@@ -5566,6 +5566,98 @@ pub extern "C" fn axiom_event_bench_bus(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_spatial_bench_broadphase(
+    entity_count: u32,
+    iterations: u32,
+    cell_size_mm: i32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::spatial_grid::{
+        dispatch_broadphase_with_jobs, emit_collision_pairs_to_event_bus, AabbSlab64,
+        CollisionPair64, SpatialHashGrid, COLLISION_FLAG_DYNAMIC,
+    };
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let count = (entity_count as usize).clamp(4, 128);
+    let iters = (iterations as usize).clamp(1, 20);
+    let cell_size = if cell_size_mm <= 0 { 1000 } else { cell_size_mm };
+
+    let mut slabs = [AabbSlab64::default(); 128];
+    for i in 0..count {
+        // Clustered distribution centered in 3D arena
+        let cx = ((i as i32 * 37) % 2000) - 1000;
+        let cy = ((i as i32 * 53) % 2000) - 1000;
+        let cz = ((i as i32 * 71) % 1000) - 500;
+        let half_ext = 250; // 500mm bounding box
+
+        slabs[i] = AabbSlab64::new(
+            (i + 1) as u32,
+            1,
+            if i % 2 == 0 { 0x01 } else { 0x03 },
+            COLLISION_FLAG_DYNAMIC,
+            (cx - half_ext, cy - half_ext, cz - half_ext),
+            (cx + half_ext, cy + half_ext, cz + half_ext),
+        );
+    }
+
+    let mut grid = Box::new(SpatialHashGrid::<1024, 14>::new(cell_size));
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    let mut pairs_buf = [CollisionPair64::default(); 256];
+    let mut total_pairs = 0usize;
+    let mut total_overflow = 0usize;
+    let mut dispatched_jobs = 0usize;
+
+    for iter in 0..iters {
+        grid.clear();
+        for i in 0..count {
+            if grid.insert(&slabs[i]) == 0 {
+                total_overflow += 1;
+            }
+        }
+
+        let pairs_count = grid.query_all_collision_pairs(&slabs, &mut pairs_buf);
+        total_pairs = pairs_count;
+
+        emit_collision_pairs_to_event_bus(
+            &pairs_buf[0..pairs_count],
+            200 + (iter as u32),
+            &mut bus,
+        );
+
+        dispatched_jobs = dispatch_broadphase_with_jobs(
+            &slabs,
+            4,
+            &mut js,
+            &mut coordinator,
+        );
+    }
+
+    let grid_hash = grid.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = grid_hash ^ (bus_hash.rotate_left(17));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = count as u32;
+            *out_stats.add(1) = total_pairs as u32;
+            *out_stats.add(2) = total_overflow as u32;
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(4) = (combined_hash >> 32) as u32;
+            *out_stats.add(5) = dispatched_jobs as u32;
+            *out_stats.add(6) = cell_size as u32;
+            *out_stats.add(7) = 1024; // Table capacity
+        }
+    }
+
+    total_pairs as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -6572,5 +6664,16 @@ mod tests {
         assert!(event_stats[3] != 0 || event_stats[4] != 0, "Event consensus hash non-zero");
         assert_eq!(event_stats[5], 4, "4 parallel dispatch jobs");
         assert_eq!(event_stats[6], 30, "30 events rewound");
+
+        // 9. Spatial Hashing & Broadphase Collision Acceleration Benchmark (64 entities, 10 iters)
+        let mut spatial_stats = [0u32; 8];
+        let total_pairs = axiom_spatial_bench_broadphase(64, 10, 1000, spatial_stats.as_mut_ptr());
+        assert!(total_pairs > 0, "Expected collision pairs in clustered layout");
+        assert_eq!(spatial_stats[0], 64);
+        assert_eq!(spatial_stats[1], total_pairs);
+        assert!(spatial_stats[3] != 0 || spatial_stats[4] != 0, "Spatial consensus hash non-zero");
+        assert_eq!(spatial_stats[5], 4, "4 parallel dispatch broadphase jobs");
+        assert_eq!(spatial_stats[6], 1000, "1000mm cell size");
+        assert_eq!(spatial_stats[7], 1024, "1024 table capacity");
     }
 }

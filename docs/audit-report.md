@@ -8,25 +8,31 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 06:30 KST
-- **감사 대상:** Axiom Engine 220대 브로드페이즈 충돌 가속 엔진 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-190, `spatial_grid.rs`, `network.rs`, `test_spatial_grid_jobs.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_broadphase_with_jobs` Chase-Lev 워커 풀 N-배치 병렬 디스패치, `emit_collision_pairs_to_event_bus` 롤백 지원 이벤트 버스 발행 (`channel::PHYSICS | EVENT_BROADPHASE_PAIR`), `NetworkMatchDirector::step_broadphase_with_jobs` 16-인 배틀로얄 브로드페이즈 파이프라인 결합, 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 06:40 KST
+- **감사 대상:** Axiom Engine 220대 공간 해싱 & 브로드페이즈 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-191, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `crates/axiom-wasm/index.html`, `axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI `axiom_spatial_bench_broadphase` 무결성 검증, 64-엔티티 3D 공간 클러스터 브로드페이즈 충돌 검출 및 컨센서스 해시 산출, 4-워커 잡 디스패치 및 이벤트 버스 발행 파이프라인 무결성, 웹 스튜디오 🌐 220 Spatial Broadphase 대화형 쇼케이스 연동, 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **멀티스레드 잡 시스템 병렬 디스패치 (`dispatch_broadphase_with_jobs`)**:
-     - 엔티티 슬랩 N-배치 분할 후 `JobSystem`에 `broadphase_batch_job` 디스크립터 할당, `WorkerPoolCoordinator` 워커 덱에 분산.
-     - 4개 워커 풀 협력적 드레인(`coordinator.drain_all`)을 통해 무잠금/무할당으로 완벽 처리.
-  2. **분산 이벤트 버스 연계 (`emit_collision_pairs_to_event_bus`)**:
-     - `EVENT_BROADPHASE_PAIR = 0x0220` 및 `channel::PHYSICS` 채널로 검출된 충돌 쌍 슬랩 즉시 방출.
-     - 40B 인라인 페이로드에 `pair_key`, `entity_a`, `entity_b`를 0-힙 패킹.
-     - GGPO 롤백 지원: 투기적 프레임 오예측 시 `event_bus.rollback_to(confirmed_seq)`로 $O(1)$ 즉시 되감기 및 절단 지원.
-  3. **16-인 배틀로얄 네트워크 매치 결합 (`NetworkMatchDirector::step_broadphase_with_jobs`)**:
-     - 모든 활성 플레이어의 기구학 상태를 64B L1 슬랩으로 사상하고 `SpatialHashGrid`에 적재하여 충돌 쌍을 추출, 이벤트 버스에 실시간 기록.
-  4. **헌법 가드 `tools/guard.ps1` 100% 통과**:
-     - 0-Float 불변식, 10,000-Step 복합 물리 벤치마크, 전체 워크스페이스 단위/통합 테스트 100% 올패스.
+  1. **C-ABI 브로드페이즈 벤치마크 인터페이스 (`axiom_spatial_bench_broadphase`)**:
+     - 4~128개 3D 엔티티 슬랩(`AabbSlab64`)에 대해 Wang 3-Prime 공간 해시 그리드 적재 및 `query_all_collision_pairs` 수행.
+     - `CollisionPair64` 충돌 쌍을 `DeterministicEventBus`에 발행하고 `WorkerPoolCoordinator` 4-워커 잡 디스패치 수행.
+     - 64비트 FNV-1a 그리드 및 이벤트 버스 합성 결정론 체크섬을 `out_stats`에 정확히 반환.
+  2. **WASM 릴리즈 바이너리 무결 컴파일 및 동기화**:
+     - `cargo build --release -p axiom-wasm --target wasm32-unknown-unknown` 완료 (1,299,790 Bytes).
+     - `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, `crates/axiom-wasm/axiom_wasm.wasm` 일체 동기화 완료.
+  3. **웹 스튜디오 대화형 쇼케이스 (`web/index.html`, `crates/axiom-wasm/index.html`)**:
+     - 🌐 **220 Spatial Broadphase (64B Slabs)** 전용 액션 버튼 및 `runSpatialBroadphaseBenchmark` JS 함수 추가.
+     - 엔티티 수, 검출된 활성 충돌 쌍, 초당 엔티티 검사 처리량, 64비트 컨센서스 해시 HUD 알림 연동.
+  4. **인라인 통합 테스트 및 헌법 가드 검증**:
+     - `crates/axiom-wasm` 인라인 테스트 `test_wasm_net_and_gpu_compute_bindings` 9번 항목 완벽 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T190] Axiom Engine 220대 브로드페이즈 충돌 가속 엔진 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 06:30 KST
+- **판정:** 🟢 **ALL CLEAR (구현 승인)**
+- **검증:** 0-Float 헌법 무결성, `dispatch_broadphase_with_jobs` Chase-Lev 워커 풀 N-배치 병렬 디스패치, `emit_collision_pairs_to_event_bus` 롤백 지원 이벤트 버스 발행 (`channel::PHYSICS | EVENT_BROADPHASE_PAIR`), `NetworkMatchDirector::step_broadphase_with_jobs` 16-인 배틀로얄 브로드페이즈 파이프라인 결합, 헌법 가드 100% 올패스.
 
 ### [AUDIT-20261024-T189] Axiom Engine 220대 계층적 공간 그리드 및 AABB 브로드페이즈 충돌 구현
 - **일시:** 2026-10-24 06:20 KST
