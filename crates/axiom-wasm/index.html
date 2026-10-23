@@ -296,6 +296,7 @@
   <div class="controls">
     <button id="btn3D" onclick="switchMode('turntable3d')">🤖 3D Mecha Turntable</button>
     <button id="btnBoxing" class="active" onclick="switchMode('boxing')">🥊 Mecha Boxing (Punch-Out)</button>
+    <button id="btnReplay" onclick="switchMode('replay')">🎞️ 3D Replay (.axrp)</button>
     <button id="btnFactory" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
     <button id="btnCoop" onclick="switchMode('coop')">🌐 P2P Co-op Factory</button>
     <button id="btnRpg" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
@@ -325,7 +326,21 @@
     <button class="action-btn" onclick="sendBoxingInput(7)" style="color: #c084fc; border-color: #7e22ce; font-weight: bold;">⚡ 2D Cut-In (Space)</button>
     <button class="action-btn" id="btnTogglePvp" onclick="toggleNetboxPvp()" style="color: #a855f7; border-color: #9333ea; font-weight: bold;">🌐 P2P Rollback PvP</button>
     <button class="action-btn" id="btnNetboxBroker" onclick="openNetboxRoomModal()" style="display:none; color: #38bdf8; border-color: #0284c7; font-weight: bold;">📡 P2P Room: STS-9021</button>
+    <button class="action-btn" id="btnTournament" onclick="openTournamentModal()" style="display:none; color: #facc15; border-color: #ca8a04; font-weight: bold;">🏆 Tournament</button>
     <button class="action-btn" onclick="switchMode('boxing')" style="color: #94a3b8;">🔄 Rematch</button>
+  </div>
+
+  <div id="replayActionBar" class="action-bar" style="display: none; flex-wrap: wrap; gap: 6px; align-items: center;">
+    <button class="action-btn" id="btnReplayPlayPause" onclick="toggleReplayPlay()" style="color: #4ade80; border-color: #166534; font-weight: bold;">▶ Play</button>
+    <button class="action-btn" onclick="stepReplayBack()">⏮ Step -1</button>
+    <button class="action-btn" onclick="stepReplayForward()">⏭ Step +1</button>
+    <button class="action-btn" onclick="resetReplay()">🔄 Reset (0f)</button>
+    <label class="action-btn" style="cursor: pointer; color: #38bdf8; border-color: #0284c7; font-weight: bold;">
+      📁 Load .axrp <input type="file" id="replayFileInput" accept=".axrp" style="display:none" onchange="handleReplayUpload(event)">
+    </label>
+    <button class="action-btn" id="btnReplaySpeed" onclick="cycleReplaySpeed()" style="color: #facc15; border-color: #854d0e;">⚡ 1x Speed</button>
+    <input type="range" id="replayScrubber" min="0" max="100" value="0" style="flex: 1; min-width: 140px; cursor: pointer;" oninput="onReplayScrub(this.value)">
+    <span id="replayFrameIndicator" style="font-family: monospace; font-size: 12px; color: #38bdf8; white-space: nowrap;">Frame: 0 / 0</span>
   </div>
 
   <div id="factoryActionBar" class="action-bar" style="display: none;">
@@ -491,6 +506,54 @@
     </div>
   </div>
 
+  <!-- Tournament Bracket Modal -->
+  <div id="tournamentModal" class="modal-overlay">
+    <div class="modal" style="max-width: 600px;">
+      <button class="modal-close" onclick="closeTournamentModal()">✕</button>
+      <h2>🏆 Mecha Championship Knockout Bracket</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 14px 0;">
+        Axiom 0-Float 결정론 토너먼트 브래킷 자동 진행 엔진 및 P2P 실시간 관전 릴레이입니다.
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 12px; align-items: center; margin-bottom: 16px;">
+        <!-- Semifinal 1 -->
+        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px;">
+          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px; font-weight: bold;">SEMIFINAL 1 [M0]</div>
+          <div id="tMatch0A" style="font-size: 13px; color: #38bdf8; padding: 4px; border-bottom: 1px dashed #334155;">#1 TINKER</div>
+          <div id="tMatch0B" style="font-size: 13px; color: #f43f5e; padding: 4px;">#4 CIPHER</div>
+          <div id="tMatch0Status" style="font-size: 11px; color: #facc15; margin-top: 6px; font-weight: bold;">READY</div>
+        </div>
+
+        <!-- Grand Final -->
+        <div style="background: #1e1b4b; border: 2px solid #818cf8; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 11px; color: #c7d2fe; margin-bottom: 6px; font-weight: bold;">👑 GRAND FINAL [M2]</div>
+          <div id="tMatch2A" style="font-size: 13px; color: #cbd5e1; padding: 4px; border-bottom: 1px dashed #4338ca;">TBD (M0 Winner)</div>
+          <div id="tMatch2B" style="font-size: 13px; color: #cbd5e1; padding: 4px;">TBD (M1 Winner)</div>
+          <div id="tMatch2Status" style="font-size: 11px; color: #94a3b8; margin-top: 6px; font-weight: bold;">PENDING</div>
+        </div>
+
+        <!-- Semifinal 2 -->
+        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px;">
+          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px; font-weight: bold;">SEMIFINAL 2 [M1]</div>
+          <div id="tMatch1A" style="font-size: 13px; color: #38bdf8; padding: 4px; border-bottom: 1px dashed #334155;">#2 PIKE</div>
+          <div id="tMatch1B" style="font-size: 13px; color: #f43f5e; padding: 4px;">#3 THESEUS</div>
+          <div id="tMatch1Status" style="font-size: 11px; color: #facc15; margin-top: 6px; font-weight: bold;">READY</div>
+        </div>
+      </div>
+
+      <div id="tournamentChampionBanner" style="display: none; background: #064e3b; border: 1px solid #10b981; border-radius: 8px; padding: 10px; text-align: center; margin-bottom: 12px; color: #a7f3d0; font-weight: bold;">
+        🎉 TOURNAMENT CHAMPION: <span id="tChampionName" style="color: #fde047; font-size: 16px;"></span> 🎉
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button class="action-btn" id="btnTourneyBroadcast" onclick="toggleTournamentBroadcast()" style="flex: 2; color: #f43f5e; border-color: #be123c; font-weight: bold;">📡 LIVE 자동 중계 (Broadcast)</button>
+        <button class="action-btn" onclick="advanceTournamentStep()" style="flex: 1; color: #4ade80; border-color: #166534; font-weight: bold;">▶ 스텝</button>
+        <button class="action-btn" onclick="resetTournamentBracket()" style="flex: 1; color: #f87171; border-color: #991b1b;">🔄 리셋</button>
+      </div>
+      <div id="tournamentHashStatus" style="margin-top: 10px; font-size: 11px; color: #64748b; text-align: center; font-family: monospace;">STATE HASH: 0x0000000000000000</div>
+    </div>
+  </div>
+
   <script>
     const width = 640;
     const height = 480;
@@ -519,15 +582,74 @@
     }
 
     let audioCtx = null;
+    let audioWorkletReady = false;
+
     function getAudioContext() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        initAudioWorklet();
+      }
       if (audioCtx.state === 'suspended') audioCtx.resume();
       return audioCtx;
     }
 
-    function playBoxingSfx(code) {
+    async function initAudioWorklet() {
+      if (audioCtx && audioCtx.audioWorklet && !audioWorkletReady) {
+        try {
+          await audioCtx.audioWorklet.addModule('axiom-audio-worklet.js');
+          audioWorkletReady = true;
+          console.log('✅ Axiom 3D Spatial AudioWorklet Node initialized');
+        } catch (e) {
+          console.warn('AudioWorklet module notice:', e);
+        }
+      }
+    }
+
+    function playBoxingSfx(code, panX = 0, panZ = 1000) {
       try {
         const ctx = getAudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+
+        // 1. WASM Zero-Float Procedural Synthesizer & 3-Tap Arena Reverb + 3D Panning
+        if (wasmInstance && wasmInstance.axiom_audio_synthesize && wasmInstance.axiom_audio_get_interleaved_ptr) {
+          let kind = 1;
+          let pitch = 1000;
+          let reverb = 150;
+
+          if (code === 1) { kind = 1; pitch = 1050; reverb = 100; } // Jab: snappy knock
+          else if (code === 2) { kind = 2; pitch = 1000; reverb = 250; } // Cross: frame resonance
+          else if (code === 3) { kind = 3; pitch = 940; reverb = 450; } // Hook: heavy frame reverb
+          else if (code === 4) { kind = 7; pitch = 1000; reverb = 0; } // Slip: whoosh
+          else if (code === 5) { kind = 6; pitch = 1000; reverb = 200; } // Guard: metallic deflection
+          else if (code === 6) { kind = 4; pitch = 900; reverb = 600; } // Counter: sub-bass & bell ring
+          else if (code === 7) { kind = 5; pitch = 820; reverb = 800; } // KO: seismic sub-bass boom
+          else if (code === 8) { kind = 9; pitch = 1000; reverb = 700; } // Bell: brass chime
+          else if (code === 9) { kind = 8; pitch = 1000; reverb = 300; } // Steam: valve latch & hiss
+          else if (code === 10) { kind = 10; pitch = 1000; reverb = 500; } // Fanfare: victory chord
+
+          const frames = wasmInstance.axiom_audio_synthesize(kind, pitch, reverb, panX, panZ);
+          if (frames > 0) {
+            const ptr = wasmInstance.axiom_audio_get_interleaved_ptr();
+            const pcm16 = new Int16Array(wasmInstance.memory.buffer, ptr, frames * 2);
+            const sampleRate = wasmInstance.axiom_audio_sample_rate() || 22050;
+            const audioBuffer = ctx.createBuffer(2, frames, sampleRate);
+            const leftCh = audioBuffer.getChannelData(0);
+            const rightCh = audioBuffer.getChannelData(1);
+
+            for (let i = 0; i < frames; i++) {
+              leftCh[i] = pcm16[i * 2] / 32768.0;
+              rightCh[i] = pcm16[i * 2 + 1] / 32768.0;
+            }
+
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            source.start();
+            return;
+          }
+        }
+
+        // 2. Pure Oscillator Fallback if WASM sound module not yet ready
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -600,7 +722,9 @@
           osc.start(t);
           osc.stop(t + 0.15);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Audio playback skipped:", e);
+      }
     }
 
     let selectedTool = 2; // Default: Mining Drill
@@ -701,6 +825,7 @@
       isBoxingPvp = !isBoxingPvp;
       const btn = document.getElementById('btnTogglePvp');
       const brokerBtn = document.getElementById('btnNetboxBroker');
+      const tourneyBtn = document.getElementById('btnTournament');
       if (isBoxingPvp) {
         if (btn) {
           btn.innerText = '🥊 Single-Player AI';
@@ -710,6 +835,12 @@
         if (brokerBtn) {
           brokerBtn.style.display = 'inline-block';
           brokerBtn.innerText = '📡 P2P Room: ' + netboxRoomId;
+        }
+        if (tourneyBtn) {
+          tourneyBtn.style.display = 'inline-block';
+        }
+        if (wasmInstance && wasmInstance.axiom_tournament_init_4) {
+          wasmInstance.axiom_tournament_init_4(0, 1, 2, 3);
         }
         wasmInstance.axiom_netbox_init(netboxRole, BigInt(12345), width, height);
         document.getElementById('instruction').innerText = '🌐 P2P 롤백 넷코드 대전: 0ms 예측 실행 | 4-프레임 슬라이딩 윈도우 | GGPO TimeSync 클록 동기화!';
@@ -721,6 +852,9 @@
         }
         if (brokerBtn) {
           brokerBtn.style.display = 'none';
+        }
+        if (tourneyBtn) {
+          tourneyBtn.style.display = 'none';
         }
         wasmInstance.axiom_boxing_init(BigInt(Date.now()), width, height);
         document.getElementById('instruction').innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
@@ -747,7 +881,12 @@
       document.getElementById('btnRoleGuest').classList.toggle('active', role === 1);
       document.getElementById('btnRoleSpec').classList.toggle('active', role === 2);
       if (wasmInstance && isBoxingPvp) {
-        wasmInstance.axiom_netbox_init(role, BigInt(12345), width, height);
+        if (role === 2 && wasmInstance.axiom_netbox_spectator_init) {
+          wasmInstance.axiom_netbox_spectator_init(BigInt(12345));
+          document.getElementById('netboxBrokerStatus').innerText = '👁️ Spectator Relay Mode Active (P2P Mesh Tree)';
+        } else {
+          wasmInstance.axiom_netbox_init(role, BigInt(12345), width, height);
+        }
       }
     }
     async function startNetboxP2POffer() {
@@ -812,6 +951,94 @@
       const url = `${window.location.origin}${window.location.pathname}?mode=boxing&pvp=1&room=${room}`;
       navigator.clipboard.writeText(url);
       alert('대전 초대 링크가 복사되었습니다:\n' + url);
+    }
+
+    let isTournamentBroadcasting = false;
+
+    function toggleTournamentBroadcast() {
+      if (!wasmInstance || !wasmInstance.axiom_tournament_broadcast_init_4) return;
+      isTournamentBroadcasting = !isTournamentBroadcasting;
+      const btn = document.getElementById('btnTourneyBroadcast');
+      if (isTournamentBroadcasting) {
+        wasmInstance.axiom_tournament_broadcast_init_4(0, 1, 2, 3);
+        const randomSpecs = Math.floor(Math.random() * 60) + 25;
+        wasmInstance.axiom_tournament_broadcast_set_spectators(randomSpecs);
+        if (btn) btn.innerText = '⏹️ 중계 정지';
+        closeTournamentModal();
+      } else {
+        if (btn) btn.innerText = '📡 LIVE 자동 중계 (Broadcast)';
+      }
+    }
+
+    function openTournamentModal() {
+      document.getElementById('tournamentModal').style.display = 'flex';
+      refreshTournamentUI();
+    }
+    function closeTournamentModal() {
+      document.getElementById('tournamentModal').style.display = 'none';
+    }
+    function resetTournamentBracket() {
+      if (wasmInstance && wasmInstance.axiom_tournament_init_4) {
+        wasmInstance.axiom_tournament_init_4(0, 1, 2, 3);
+        refreshTournamentUI();
+      }
+    }
+    function advanceTournamentStep() {
+      if (!wasmInstance || !wasmInstance.axiom_tournament_record_result) return;
+      for (let m = 0; m < 3; m++) {
+        const status = wasmInstance.axiom_tournament_get_match_status(m);
+        if (status === 1) { // Ready
+          const scoreA = 10;
+          const scoreB = 7 + (m % 3);
+          wasmInstance.axiom_tournament_record_result(m, scoreA, scoreB);
+          break;
+        }
+      }
+      refreshTournamentUI();
+    }
+    function refreshTournamentUI() {
+      if (!wasmInstance || !wasmInstance.axiom_tournament_get_match_status) return;
+      const fighterNames = ['ELPIS', 'TINKER', 'CIPHER', 'THESEUS'];
+      const statusLabels = ['PENDING', 'READY', 'IN_PROGRESS', 'COMPLETED'];
+      const statusColors = ['#94a3b8', '#facc15', '#38bdf8', '#4ade80'];
+
+      for (let m = 0; m < 3; m++) {
+        const st = wasmInstance.axiom_tournament_get_match_status(m);
+        const fA = wasmInstance.axiom_tournament_get_match_fighter_a(m);
+        const fB = wasmInstance.axiom_tournament_get_match_fighter_b(m);
+        const win = wasmInstance.axiom_tournament_get_match_winner(m);
+
+        const elA = document.getElementById(`tMatch${m}A`);
+        const elB = document.getElementById(`tMatch${m}B`);
+        const elSt = document.getElementById(`tMatch${m}Status`);
+
+        if (elA) {
+          elA.innerText = fA === 0xFF ? 'TBD' : `#${fA + 1} ${fighterNames[fA % 4]}`;
+          elA.style.fontWeight = (win !== 0xFF && win === fA) ? 'bold' : 'normal';
+          elA.style.color = (win !== 0xFF && win === fA) ? '#4ade80' : '#38bdf8';
+        }
+        if (elB) {
+          elB.innerText = fB === 0xFF ? 'TBD' : `#${fB + 1} ${fighterNames[fB % 4]}`;
+          elB.style.fontWeight = (win !== 0xFF && win === fB) ? 'bold' : 'normal';
+          elB.style.color = (win !== 0xFF && win === fB) ? '#4ade80' : '#f43f5e';
+        }
+        if (elSt) {
+          elSt.innerText = statusLabels[st] || 'PENDING';
+          elSt.style.color = statusColors[st] || '#94a3b8';
+        }
+      }
+
+      const champ = wasmInstance.axiom_tournament_get_champion();
+      const banner = document.getElementById('tournamentChampionBanner');
+      if (champ !== 0xFF) {
+        banner.style.display = 'block';
+        document.getElementById('tChampionName').innerText = fighterNames[champ % 4];
+      } else {
+        banner.style.display = 'none';
+      }
+
+      const hash = wasmInstance.axiom_tournament_get_hash();
+      document.getElementById('tournamentHashStatus').innerText = 'STATE HASH: 0x' + hash.toString(16).toUpperCase().padStart(16, '0');
     }
 
     function setFactoryTool(toolId) {
@@ -1170,6 +1397,8 @@
       if (btn3D) btn3D.className = mode === 'turntable3d' ? 'active' : '';
       const btnBoxing = document.getElementById('btnBoxing');
       if (btnBoxing) btnBoxing.className = mode === 'boxing' ? 'active' : '';
+      const btnReplay = document.getElementById('btnReplay');
+      if (btnReplay) btnReplay.className = mode === 'replay' ? 'active' : '';
       document.getElementById('btnFactory').className = mode === 'factory' ? 'active' : '';
       const btnCoop = document.getElementById('btnCoop');
       if (btnCoop) btnCoop.className = mode === 'coop' ? 'active' : '';
@@ -1179,6 +1408,7 @@
 
       const turntableBar = document.getElementById('turntable3dActionBar');
       const boxingBar = document.getElementById('boxingActionBar');
+      const replayBar = document.getElementById('replayActionBar');
       const factoryBar = document.getElementById('factoryActionBar');
       const coopBar = document.getElementById('coopActionBar');
       const rpgBar = document.getElementById('rpgActionBar');
@@ -1186,6 +1416,7 @@
 
       if (turntableBar) turntableBar.style.display = 'none';
       if (boxingBar) boxingBar.style.display = 'none';
+      if (replayBar) replayBar.style.display = 'none';
       if (factoryBar) factoryBar.style.display = 'none';
       if (coopBar) coopBar.style.display = 'none';
       if (rpgBar) rpgBar.style.display = 'none';
@@ -1195,6 +1426,11 @@
         instruction.innerText = '🤖 3D 소프트웨어 래스터라이저: 마우스/터치 드래그로 360° 회전 및 휠 줌 | 순수 CPU 정수 래스터라이징 (8x8 Juan Pineda 타일 비닝 / Reversed-Z)';
         wasmInstance.axiom_3d_init(width, height);
         sync3DOptions();
+      } else if (mode === 'replay') {
+        if (replayBar) replayBar.style.display = 'flex';
+        instruction.innerText = '🎞️ 3D 메카 복싱 리플레이 뷰어: .axrp 결정론 바이너리 재생, 타임라인 스크러빙 및 프레임별 상태 해시 검증';
+        wasmInstance.axiom_3d_init(width, height);
+        initDefaultDemoReplay();
       } else if (mode === 'boxing') {
         if (boxingBar) boxingBar.style.display = 'flex';
         instruction.innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
@@ -1443,6 +1679,177 @@
       acceptRtcAnswer();
     }
 
+    // --- 3D Mecha Boxing Deterministic Replay Player Engine (.axrp) ---
+    let replayIsPlaying = false;
+    let replaySpeed = 1;
+    let replayTotalFrames = 0;
+    let replayAccumulator = 0;
+
+    function toggleReplayPlay() {
+      replayIsPlaying = !replayIsPlaying;
+      updateReplayPlayButton();
+    }
+
+    function updateReplayPlayButton() {
+      const btn = document.getElementById('btnReplayPlayPause');
+      if (btn) {
+        if (replayIsPlaying) {
+          btn.innerText = '⏸ Pause';
+          btn.style.color = '#f59e0b';
+          btn.style.borderColor = '#b45309';
+        } else {
+          btn.innerText = '▶ Play';
+          btn.style.color = '#4ade80';
+          btn.style.borderColor = '#166534';
+        }
+      }
+    }
+
+    function stepReplayForward() {
+      replayIsPlaying = false;
+      updateReplayPlayButton();
+      if (wasmInstance) {
+        wasmInstance.axiom_replay_step();
+      }
+    }
+
+    function stepReplayBack() {
+      replayIsPlaying = false;
+      updateReplayPlayButton();
+      if (wasmInstance) {
+        const cur = wasmInstance.axiom_replay_current_frame();
+        if (cur > 0) {
+          wasmInstance.axiom_replay_seek(cur - 1);
+        }
+      }
+    }
+
+    function resetReplay() {
+      replayIsPlaying = false;
+      updateReplayPlayButton();
+      if (wasmInstance) {
+        wasmInstance.axiom_replay_reset();
+      }
+    }
+
+    function cycleReplaySpeed() {
+      if (replaySpeed === 1) replaySpeed = 2;
+      else if (replaySpeed === 2) replaySpeed = 4;
+      else replaySpeed = 1;
+
+      const btn = document.getElementById('btnReplaySpeed');
+      if (btn) {
+        btn.innerText = `⚡ ${replaySpeed}x Speed`;
+      }
+    }
+
+    function onReplayScrub(val) {
+      if (wasmInstance && replayTotalFrames > 0) {
+        replayIsPlaying = false;
+        updateReplayPlayButton();
+        const target = Math.round((val / 100) * replayTotalFrames);
+        wasmInstance.axiom_replay_seek(target);
+      }
+    }
+
+    function updateReplayUi() {
+      if (!wasmInstance) return;
+      const cur = wasmInstance.axiom_replay_current_frame();
+      const total = wasmInstance.axiom_replay_total_frames();
+      replayTotalFrames = total;
+
+      const indicator = document.getElementById('replayFrameIndicator');
+      if (indicator) {
+        indicator.innerText = `Frame: ${cur} / ${total}`;
+      }
+
+      const scrubber = document.getElementById('replayScrubber');
+      if (scrubber && total > 0 && !is3DDragging) {
+        scrubber.value = Math.round((cur / total) * 100);
+      }
+
+      const seed = wasmInstance.axiom_replay_match_seed();
+      const p0hp = wasmInstance.axiom_replay_p0_hp();
+      const p1hp = wasmInstance.axiom_replay_p1_hp();
+      const hash = wasmInstance.axiom_replay_state_hash();
+      const hashHex = hash.toString(16).toUpperCase().padStart(16, '0');
+
+      document.getElementById('hudDetail').innerHTML =
+        `<span class="purple" style="font-weight:bold;">3D REPLAY (.axrp)</span> | ` +
+        `<span class="blue">P0 HP: ${p0hp}</span> vs <span class="red">P1 HP: ${p1hp}</span> | ` +
+        `<span class="gold">Seed: ${seed}</span> | ` +
+        `<span class="green">Hash: 0x${hashHex.slice(0, 8)}...</span>`;
+    }
+
+    function handleReplayUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const arrayBuf = e.target.result;
+        const u8 = new Uint8Array(arrayBuf);
+        loadReplayBuffer(u8);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function loadReplayBuffer(u8) {
+      if (!wasmInstance) return;
+      const ptr = wasmInstance.axiom_alloc(u8.length);
+      const heap = new Uint8Array(wasmInstance.memory.buffer);
+      heap.set(u8, ptr);
+
+      const total = wasmInstance.axiom_replay_load(ptr, u8.length);
+      wasmInstance.axiom_free(ptr, u8.length);
+
+      if (total > 0) {
+        replayTotalFrames = total;
+        replayIsPlaying = true;
+        updateReplayPlayButton();
+        document.getElementById('instruction').innerText =
+          `🎞️ 리플레이 로드 완료: 총 ${total}프레임 (${(total / 60).toFixed(1)}초 대전) | 자동 재생 중...`;
+      } else {
+        alert("❌ 유효하지 않은 .axrp 리플레이 파일이거나 버전 불일치입니다.");
+      }
+    }
+
+    function initDefaultDemoReplay() {
+      if (!wasmInstance) return;
+      if (wasmInstance.axiom_replay_total_frames() > 0) return;
+
+      // Construct a valid synthetic 180-frame (3-sec) AXRP binary package
+      const totalFrames = 180;
+      const buf = new Uint8Array(64 + 4 + 8*3 + 4 + 12*2);
+      const dv = new DataView(buf.buffer);
+      dv.setBigUint64(0, 99991n, true);
+      dv.setBigUint64(8, 0x1234567890ABCDEFn, true);
+      buf[16] = 0x41; buf[17] = 0x58; buf[18] = 0x52; buf[19] = 0x50; // "AXRP"
+      dv.setUint32(20, 1, true); // version 1
+      dv.setUint32(24, totalFrames, true);
+      dv.setUint32(28, totalFrames * 2, true);
+      dv.setUint32(32, 24, true);
+      dv.setUint16(36, 60, true);
+      buf[38] = 0; buf[39] = 1; buf[40] = 0; buf[41] = 10; buf[42] = 5;
+
+      dv.setUint32(64, 3, true);
+      dv.setBigUint64(68, 0x1111n, true);
+      dv.setBigUint64(76, 0x2222n, true);
+      dv.setBigUint64(84, 0x3333n, true);
+
+      dv.setUint32(92, 12, true);
+      let runOffset = 96;
+      for (let r = 0; r < 12; r++) {
+        const p0 = (r % 4 === 1) ? 4 : (r % 4 === 2) ? 5 : (r % 4 === 3) ? 6 : 0;
+        const p1 = (r % 3 === 1) ? 3 : 0;
+        buf[runOffset] = (p0 & 0x0F) | ((p1 & 0x0F) << 4);
+        buf[runOffset + 1] = 15;
+        runOffset += 2;
+      }
+
+      loadReplayBuffer(buf);
+    }
+
     async function init() {
       try {
         const response = await fetch("axiom_wasm.wasm");
@@ -1502,6 +1909,35 @@
           `<span class="blue">${verts.toLocaleString()} Verts</span> | ` +
           `<span class="green">Yaw: ${yawDeg}° Pitch: ${pitchDeg}°</span> | ` +
           `<span class="gold">8x8 Tile Binning L1</span>`;
+      } else if (mode === 'replay') {
+        if (replayIsPlaying && replayTotalFrames > 0) {
+          replayAccumulator += (replaySpeed || 1);
+          while (replayAccumulator >= 1.0) {
+            wasmInstance.axiom_replay_step();
+            replayAccumulator -= 1.0;
+            if (wasmInstance.axiom_replay_is_finished()) {
+              replayIsPlaying = false;
+              updateReplayPlayButton();
+              break;
+            }
+          }
+        }
+
+        let yawDelta = 0;
+        let pitchDelta = 0;
+        if (is3DDragging) {
+          yawDelta = dragDeltaX;
+          pitchDelta = dragDeltaY;
+          dragDeltaX = 0;
+          dragDeltaY = 0;
+        }
+        wasmInstance.axiom_3d_step(yawDelta, pitchDelta);
+        wasmInstance.axiom_3d_render();
+        ptr = wasmInstance.axiom_3d_get_framebuffer_ptr();
+        len = wasmInstance.axiom_3d_get_framebuffer_len();
+        tick = wasmInstance.axiom_replay_current_frame();
+
+        updateReplayUi();
       } else if (mode === 'boxing') {
         let action = boxingPendingAction || 0;
         boxingPendingAction = 0; // consume action
@@ -1602,6 +2038,47 @@
             `<span class="red">Rollbacks: ${rollbacks}</span> | ` +
             `<span class="blue">Resim: ${resim}</span> | ` +
             `<span class="gray">Hash: 0x${hash.toString(16).toUpperCase()}</span>`;
+        } else if (isTournamentBroadcasting && wasmInstance.axiom_tournament_broadcast_step) {
+          const ev = wasmInstance.axiom_tournament_broadcast_step();
+          if (ev === 2) {
+            playBoxingSfx(7); // KO sub-bass boom
+          } else if (ev === 3) {
+            playBoxingSfx(10); // Champion fanfare
+          }
+
+          wasmInstance.axiom_boxing_render();
+          ptr = wasmInstance.axiom_boxing_get_framebuffer_ptr();
+          len = wasmInstance.axiom_boxing_get_framebuffer_len();
+          tick = wasmInstance.axiom_tournament_broadcast_get_active_frame();
+
+          const phase = wasmInstance.axiom_tournament_broadcast_get_phase();
+          const matchIdx = wasmInstance.axiom_tournament_broadcast_get_active_match();
+          const specs = wasmInstance.axiom_tournament_broadcast_get_spectators();
+          const hash = wasmInstance.axiom_tournament_get_hash();
+
+          const fighterNames = ['ELPIS', 'TINKER', 'CIPHER', 'THESEUS'];
+          const fA = wasmInstance.axiom_tournament_get_match_fighter_a(matchIdx);
+          const fB = wasmInstance.axiom_tournament_get_match_fighter_b(matchIdx);
+          const nameA = fighterNames[fA % 4] || 'A';
+          const nameB = fighterNames[fB % 4] || 'B';
+
+          let phaseBadge = '';
+          if (phase === 2) {
+            const winId = wasmInstance.axiom_tournament_broadcast_get_last_winner();
+            const winName = fighterNames[winId % 4] || 'VICTOR';
+            phaseBadge = ` | <span class="gold" style="font-weight:bold;">🥊 ROUND OVER: ${winName} ADVANCES!</span>`;
+          } else if (phase === 3) {
+            const champId = wasmInstance.axiom_tournament_get_champion();
+            const champName = fighterNames[champId % 4] || 'CHAMPION';
+            phaseBadge = ` | <span class="green" style="font-weight:bold;">👑 GRAND CHAMPION: ${champName}!</span>`;
+          }
+
+          document.getElementById('hudDetail').innerHTML =
+            `<span class="purple" style="font-weight:bold;">🏆 LIVE TOURNAMENT [MATCH ${matchIdx + 1}/3: ${nameA} vs ${nameB}]</span> | ` +
+            `<span class="gold">👁️ ${specs} SPECTATORS</span> | ` +
+            `<span class="blue">Frame: ${tick}</span> | ` +
+            `<span class="gray">Hash: 0x${hash.toString(16).toUpperCase()}</span>` +
+            phaseBadge;
         } else {
           const ev = wasmInstance.axiom_boxing_step(action);
           wasmInstance.axiom_boxing_render();

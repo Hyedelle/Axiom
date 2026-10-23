@@ -3356,9 +3356,267 @@ pub extern "C" fn axiom_audio_worklet_active_voices() -> u32 {
     mixer.active_voice_count() as u32
 }
 
+// ---------------------------------------------------------------------------
+// 3D Mecha Boxing Deterministic Replay Player (.axrp)
+// ---------------------------------------------------------------------------
+
+use axiom_core::replay::DeterministicReplay;
+
+pub struct WasmReplayPlayer {
+    pub replay: DeterministicReplay,
+    pub inputs: Vec<(u8, u8)>,
+    pub engine: BoxingRingEngine,
+    pub current_frame: u32,
+    pub p0_action: u8,
+    pub p1_action: u8,
+    pub state_hash: u64,
+}
+
+impl WasmReplayPlayer {
+    pub fn new(replay: DeterministicReplay) -> Self {
+        let inputs = replay.decompress_inputs();
+        let engine = BoxingRingEngine::new(replay.header.match_seed);
+        let state_hash = engine.compute_hash();
+        Self {
+            replay,
+            inputs,
+            engine,
+            current_frame: 0,
+            p0_action: 0,
+            p1_action: 0,
+            state_hash,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.engine = BoxingRingEngine::new(self.replay.header.match_seed);
+        self.current_frame = 0;
+        self.p0_action = 0;
+        self.p1_action = 0;
+        self.state_hash = self.engine.compute_hash();
+    }
+
+    pub fn step(&mut self) -> u32 {
+        if self.current_frame >= self.replay.header.total_frames {
+            return self.current_frame;
+        }
+
+        let (p0, p1) = self.inputs.get(self.current_frame as usize).copied().unwrap_or((0, 0));
+        self.p0_action = p0;
+        self.p1_action = p1;
+
+        let act0 = ActionKind::from_u8(p0);
+        let act1 = ActionKind::from_u8(p1);
+        self.engine.step_pvp(act0, act1);
+        self.current_frame += 1;
+        self.state_hash = self.engine.compute_hash();
+
+        self.current_frame
+    }
+
+    pub fn seek(&mut self, target_frame: u32) -> u32 {
+        let max_frame = self.replay.header.total_frames;
+        let clamped_target = target_frame.min(max_frame);
+
+        if clamped_target < self.current_frame {
+            self.reset();
+        }
+
+        while self.current_frame < clamped_target {
+            self.step();
+        }
+
+        self.current_frame
+    }
+}
+
+static mut REPLAY_PLAYER: Option<WasmReplayPlayer> = None;
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_load(bytes_ptr: *const u8, bytes_len: usize) -> u32 {
+    if bytes_ptr.is_null() || bytes_len < 64 {
+        return 0;
+    }
+    let slice = unsafe { core::slice::from_raw_parts(bytes_ptr, bytes_len) };
+    match DeterministicReplay::deserialize(slice) {
+        Ok(rep) => {
+            let total = rep.header.total_frames;
+            let player = WasmReplayPlayer::new(rep);
+            unsafe {
+                REPLAY_PLAYER = Some(player);
+            }
+            total
+        }
+        Err(_) => 0,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_total_frames() -> u32 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.replay.header.total_frames).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_current_frame() -> u32 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.current_frame).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_match_seed() -> u64 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.replay.header.match_seed).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_winner_id() -> u8 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.replay.header.winner_id).unwrap_or(0xFF)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_p0_score() -> u8 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.replay.header.final_score_p0).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_p1_score() -> u8 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.replay.header.final_score_p1).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_p0_hp() -> i32 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.engine.player.hp).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_p1_hp() -> i32 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.engine.opponent.hp).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_p0_action() -> u8 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.p0_action).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_p1_action() -> u8 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.p1_action).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_state_hash() -> u64 {
+    unsafe {
+        REPLAY_PLAYER.as_ref().map(|p| p.state_hash).unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_is_finished() -> u32 {
+    unsafe {
+        REPLAY_PLAYER.as_ref()
+            .map(|p| if p.current_frame >= p.replay.header.total_frames { 1 } else { 0 })
+            .unwrap_or(1)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_step() -> u32 {
+    unsafe {
+        if let Some(player) = REPLAY_PLAYER.as_mut() {
+            player.step()
+        } else {
+            0
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_seek(target_frame: u32) -> u32 {
+    unsafe {
+        if let Some(player) = REPLAY_PLAYER.as_mut() {
+            player.seek(target_frame)
+        } else {
+            0
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_reset() {
+    unsafe {
+        if let Some(player) = REPLAY_PLAYER.as_mut() {
+            player.reset();
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_replay_free() {
+    unsafe {
+        REPLAY_PLAYER = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_wasm_replay_player() {
+        let mut replay = DeterministicReplay::new(42, 0, 1);
+        for frame in 0..120 {
+            let p0 = if frame % 20 < 5 { 4 } else { 0 }; // Jab
+            let p1 = if frame % 30 < 10 { 3 } else { 0 }; // Guard
+            replay.record_frame(p0, p1, (frame as u64).wrapping_mul(99991));
+        }
+        replay.finalize(0, 10, 5);
+        let serialized = replay.serialize();
+
+        // Load into WASM replay player
+        let total = axiom_replay_load(serialized.as_ptr(), serialized.len());
+        assert_eq!(total, 120);
+        assert_eq!(axiom_replay_total_frames(), 120);
+        assert_eq!(axiom_replay_current_frame(), 0);
+        assert_eq!(axiom_replay_match_seed(), 42);
+        assert_eq!(axiom_replay_winner_id(), 0);
+        assert_eq!(axiom_replay_is_finished(), 0);
+
+        // Step 10 frames
+        for _ in 0..10 {
+            axiom_replay_step();
+        }
+        assert_eq!(axiom_replay_current_frame(), 10);
+        assert!(axiom_replay_state_hash() > 0);
+
+        // Seek to frame 60
+        assert_eq!(axiom_replay_seek(60), 60);
+        assert_eq!(axiom_replay_current_frame(), 60);
+
+        // Reset
+        axiom_replay_reset();
+        assert_eq!(axiom_replay_current_frame(), 0);
+
+        axiom_replay_free();
+        assert_eq!(axiom_replay_total_frames(), 0);
+    }
 
     #[test]
     fn test_audio_synthesis_and_worklet() {

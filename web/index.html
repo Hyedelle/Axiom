@@ -296,6 +296,7 @@
   <div class="controls">
     <button id="btn3D" onclick="switchMode('turntable3d')">🤖 3D Mecha Turntable</button>
     <button id="btnBoxing" class="active" onclick="switchMode('boxing')">🥊 Mecha Boxing (Punch-Out)</button>
+    <button id="btnReplay" onclick="switchMode('replay')">🎞️ 3D Replay (.axrp)</button>
     <button id="btnFactory" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
     <button id="btnCoop" onclick="switchMode('coop')">🌐 P2P Co-op Factory</button>
     <button id="btnRpg" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
@@ -327,6 +328,19 @@
     <button class="action-btn" id="btnNetboxBroker" onclick="openNetboxRoomModal()" style="display:none; color: #38bdf8; border-color: #0284c7; font-weight: bold;">📡 P2P Room: STS-9021</button>
     <button class="action-btn" id="btnTournament" onclick="openTournamentModal()" style="display:none; color: #facc15; border-color: #ca8a04; font-weight: bold;">🏆 Tournament</button>
     <button class="action-btn" onclick="switchMode('boxing')" style="color: #94a3b8;">🔄 Rematch</button>
+  </div>
+
+  <div id="replayActionBar" class="action-bar" style="display: none; flex-wrap: wrap; gap: 6px; align-items: center;">
+    <button class="action-btn" id="btnReplayPlayPause" onclick="toggleReplayPlay()" style="color: #4ade80; border-color: #166534; font-weight: bold;">▶ Play</button>
+    <button class="action-btn" onclick="stepReplayBack()">⏮ Step -1</button>
+    <button class="action-btn" onclick="stepReplayForward()">⏭ Step +1</button>
+    <button class="action-btn" onclick="resetReplay()">🔄 Reset (0f)</button>
+    <label class="action-btn" style="cursor: pointer; color: #38bdf8; border-color: #0284c7; font-weight: bold;">
+      📁 Load .axrp <input type="file" id="replayFileInput" accept=".axrp" style="display:none" onchange="handleReplayUpload(event)">
+    </label>
+    <button class="action-btn" id="btnReplaySpeed" onclick="cycleReplaySpeed()" style="color: #facc15; border-color: #854d0e;">⚡ 1x Speed</button>
+    <input type="range" id="replayScrubber" min="0" max="100" value="0" style="flex: 1; min-width: 140px; cursor: pointer;" oninput="onReplayScrub(this.value)">
+    <span id="replayFrameIndicator" style="font-family: monospace; font-size: 12px; color: #38bdf8; white-space: nowrap;">Frame: 0 / 0</span>
   </div>
 
   <div id="factoryActionBar" class="action-bar" style="display: none;">
@@ -1383,6 +1397,8 @@
       if (btn3D) btn3D.className = mode === 'turntable3d' ? 'active' : '';
       const btnBoxing = document.getElementById('btnBoxing');
       if (btnBoxing) btnBoxing.className = mode === 'boxing' ? 'active' : '';
+      const btnReplay = document.getElementById('btnReplay');
+      if (btnReplay) btnReplay.className = mode === 'replay' ? 'active' : '';
       document.getElementById('btnFactory').className = mode === 'factory' ? 'active' : '';
       const btnCoop = document.getElementById('btnCoop');
       if (btnCoop) btnCoop.className = mode === 'coop' ? 'active' : '';
@@ -1392,6 +1408,7 @@
 
       const turntableBar = document.getElementById('turntable3dActionBar');
       const boxingBar = document.getElementById('boxingActionBar');
+      const replayBar = document.getElementById('replayActionBar');
       const factoryBar = document.getElementById('factoryActionBar');
       const coopBar = document.getElementById('coopActionBar');
       const rpgBar = document.getElementById('rpgActionBar');
@@ -1399,6 +1416,7 @@
 
       if (turntableBar) turntableBar.style.display = 'none';
       if (boxingBar) boxingBar.style.display = 'none';
+      if (replayBar) replayBar.style.display = 'none';
       if (factoryBar) factoryBar.style.display = 'none';
       if (coopBar) coopBar.style.display = 'none';
       if (rpgBar) rpgBar.style.display = 'none';
@@ -1408,6 +1426,11 @@
         instruction.innerText = '🤖 3D 소프트웨어 래스터라이저: 마우스/터치 드래그로 360° 회전 및 휠 줌 | 순수 CPU 정수 래스터라이징 (8x8 Juan Pineda 타일 비닝 / Reversed-Z)';
         wasmInstance.axiom_3d_init(width, height);
         sync3DOptions();
+      } else if (mode === 'replay') {
+        if (replayBar) replayBar.style.display = 'flex';
+        instruction.innerText = '🎞️ 3D 메카 복싱 리플레이 뷰어: .axrp 결정론 바이너리 재생, 타임라인 스크러빙 및 프레임별 상태 해시 검증';
+        wasmInstance.axiom_3d_init(width, height);
+        initDefaultDemoReplay();
       } else if (mode === 'boxing') {
         if (boxingBar) boxingBar.style.display = 'flex';
         instruction.innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
@@ -1656,6 +1679,177 @@
       acceptRtcAnswer();
     }
 
+    // --- 3D Mecha Boxing Deterministic Replay Player Engine (.axrp) ---
+    let replayIsPlaying = false;
+    let replaySpeed = 1;
+    let replayTotalFrames = 0;
+    let replayAccumulator = 0;
+
+    function toggleReplayPlay() {
+      replayIsPlaying = !replayIsPlaying;
+      updateReplayPlayButton();
+    }
+
+    function updateReplayPlayButton() {
+      const btn = document.getElementById('btnReplayPlayPause');
+      if (btn) {
+        if (replayIsPlaying) {
+          btn.innerText = '⏸ Pause';
+          btn.style.color = '#f59e0b';
+          btn.style.borderColor = '#b45309';
+        } else {
+          btn.innerText = '▶ Play';
+          btn.style.color = '#4ade80';
+          btn.style.borderColor = '#166534';
+        }
+      }
+    }
+
+    function stepReplayForward() {
+      replayIsPlaying = false;
+      updateReplayPlayButton();
+      if (wasmInstance) {
+        wasmInstance.axiom_replay_step();
+      }
+    }
+
+    function stepReplayBack() {
+      replayIsPlaying = false;
+      updateReplayPlayButton();
+      if (wasmInstance) {
+        const cur = wasmInstance.axiom_replay_current_frame();
+        if (cur > 0) {
+          wasmInstance.axiom_replay_seek(cur - 1);
+        }
+      }
+    }
+
+    function resetReplay() {
+      replayIsPlaying = false;
+      updateReplayPlayButton();
+      if (wasmInstance) {
+        wasmInstance.axiom_replay_reset();
+      }
+    }
+
+    function cycleReplaySpeed() {
+      if (replaySpeed === 1) replaySpeed = 2;
+      else if (replaySpeed === 2) replaySpeed = 4;
+      else replaySpeed = 1;
+
+      const btn = document.getElementById('btnReplaySpeed');
+      if (btn) {
+        btn.innerText = `⚡ ${replaySpeed}x Speed`;
+      }
+    }
+
+    function onReplayScrub(val) {
+      if (wasmInstance && replayTotalFrames > 0) {
+        replayIsPlaying = false;
+        updateReplayPlayButton();
+        const target = Math.round((val / 100) * replayTotalFrames);
+        wasmInstance.axiom_replay_seek(target);
+      }
+    }
+
+    function updateReplayUi() {
+      if (!wasmInstance) return;
+      const cur = wasmInstance.axiom_replay_current_frame();
+      const total = wasmInstance.axiom_replay_total_frames();
+      replayTotalFrames = total;
+
+      const indicator = document.getElementById('replayFrameIndicator');
+      if (indicator) {
+        indicator.innerText = `Frame: ${cur} / ${total}`;
+      }
+
+      const scrubber = document.getElementById('replayScrubber');
+      if (scrubber && total > 0 && !is3DDragging) {
+        scrubber.value = Math.round((cur / total) * 100);
+      }
+
+      const seed = wasmInstance.axiom_replay_match_seed();
+      const p0hp = wasmInstance.axiom_replay_p0_hp();
+      const p1hp = wasmInstance.axiom_replay_p1_hp();
+      const hash = wasmInstance.axiom_replay_state_hash();
+      const hashHex = hash.toString(16).toUpperCase().padStart(16, '0');
+
+      document.getElementById('hudDetail').innerHTML =
+        `<span class="purple" style="font-weight:bold;">3D REPLAY (.axrp)</span> | ` +
+        `<span class="blue">P0 HP: ${p0hp}</span> vs <span class="red">P1 HP: ${p1hp}</span> | ` +
+        `<span class="gold">Seed: ${seed}</span> | ` +
+        `<span class="green">Hash: 0x${hashHex.slice(0, 8)}...</span>`;
+    }
+
+    function handleReplayUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const arrayBuf = e.target.result;
+        const u8 = new Uint8Array(arrayBuf);
+        loadReplayBuffer(u8);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function loadReplayBuffer(u8) {
+      if (!wasmInstance) return;
+      const ptr = wasmInstance.axiom_alloc(u8.length);
+      const heap = new Uint8Array(wasmInstance.memory.buffer);
+      heap.set(u8, ptr);
+
+      const total = wasmInstance.axiom_replay_load(ptr, u8.length);
+      wasmInstance.axiom_free(ptr, u8.length);
+
+      if (total > 0) {
+        replayTotalFrames = total;
+        replayIsPlaying = true;
+        updateReplayPlayButton();
+        document.getElementById('instruction').innerText =
+          `🎞️ 리플레이 로드 완료: 총 ${total}프레임 (${(total / 60).toFixed(1)}초 대전) | 자동 재생 중...`;
+      } else {
+        alert("❌ 유효하지 않은 .axrp 리플레이 파일이거나 버전 불일치입니다.");
+      }
+    }
+
+    function initDefaultDemoReplay() {
+      if (!wasmInstance) return;
+      if (wasmInstance.axiom_replay_total_frames() > 0) return;
+
+      // Construct a valid synthetic 180-frame (3-sec) AXRP binary package
+      const totalFrames = 180;
+      const buf = new Uint8Array(64 + 4 + 8*3 + 4 + 12*2);
+      const dv = new DataView(buf.buffer);
+      dv.setBigUint64(0, 99991n, true);
+      dv.setBigUint64(8, 0x1234567890ABCDEFn, true);
+      buf[16] = 0x41; buf[17] = 0x58; buf[18] = 0x52; buf[19] = 0x50; // "AXRP"
+      dv.setUint32(20, 1, true); // version 1
+      dv.setUint32(24, totalFrames, true);
+      dv.setUint32(28, totalFrames * 2, true);
+      dv.setUint32(32, 24, true);
+      dv.setUint16(36, 60, true);
+      buf[38] = 0; buf[39] = 1; buf[40] = 0; buf[41] = 10; buf[42] = 5;
+
+      dv.setUint32(64, 3, true);
+      dv.setBigUint64(68, 0x1111n, true);
+      dv.setBigUint64(76, 0x2222n, true);
+      dv.setBigUint64(84, 0x3333n, true);
+
+      dv.setUint32(92, 12, true);
+      let runOffset = 96;
+      for (let r = 0; r < 12; r++) {
+        const p0 = (r % 4 === 1) ? 4 : (r % 4 === 2) ? 5 : (r % 4 === 3) ? 6 : 0;
+        const p1 = (r % 3 === 1) ? 3 : 0;
+        buf[runOffset] = (p0 & 0x0F) | ((p1 & 0x0F) << 4);
+        buf[runOffset + 1] = 15;
+        runOffset += 2;
+      }
+
+      loadReplayBuffer(buf);
+    }
+
     async function init() {
       try {
         const response = await fetch("axiom_wasm.wasm");
@@ -1715,6 +1909,35 @@
           `<span class="blue">${verts.toLocaleString()} Verts</span> | ` +
           `<span class="green">Yaw: ${yawDeg}° Pitch: ${pitchDeg}°</span> | ` +
           `<span class="gold">8x8 Tile Binning L1</span>`;
+      } else if (mode === 'replay') {
+        if (replayIsPlaying && replayTotalFrames > 0) {
+          replayAccumulator += (replaySpeed || 1);
+          while (replayAccumulator >= 1.0) {
+            wasmInstance.axiom_replay_step();
+            replayAccumulator -= 1.0;
+            if (wasmInstance.axiom_replay_is_finished()) {
+              replayIsPlaying = false;
+              updateReplayPlayButton();
+              break;
+            }
+          }
+        }
+
+        let yawDelta = 0;
+        let pitchDelta = 0;
+        if (is3DDragging) {
+          yawDelta = dragDeltaX;
+          pitchDelta = dragDeltaY;
+          dragDeltaX = 0;
+          dragDeltaY = 0;
+        }
+        wasmInstance.axiom_3d_step(yawDelta, pitchDelta);
+        wasmInstance.axiom_3d_render();
+        ptr = wasmInstance.axiom_3d_get_framebuffer_ptr();
+        len = wasmInstance.axiom_3d_get_framebuffer_len();
+        tick = wasmInstance.axiom_replay_current_frame();
+
+        updateReplayUi();
       } else if (mode === 'boxing') {
         let action = boxingPendingAction || 0;
         boxingPendingAction = 0; // consume action

@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-113: 메카 복싱 3D 리플레이 웹 플레이어 임베딩 및 커스텀 .axrp 뷰어** (`crates/axiom-wasm`, `web/`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-114: Axiom Engine v1.9.0 클라우드 세이브 & 리플레이 웹 생태계 공식 릴리즈** (`Cargo.toml`, `docs/`, 워크스페이스 판올림 및 Git 태그)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-115: 스팀 업적(Steam Achievements) 및 인게임 메타 챌린지 트래커** (`crates/axiom-game`, `mimic-the-show`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-113: 메카 복싱 3D 리플레이 웹 플레이어 임베딩 및 커스텀 .axrp 뷰어** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom_wasm.wasm`, `WasmReplayPlayer` 상태 머신, WASM C-ABI 16개 엔드포인트 [`axiom_replay_load`, `step`, `seek`, `reset`, `state_hash`, `p0/p1_hp`, `action`, `is_finished`], 웹 플레이어 🎞️ 3D Replay (.axrp) 뷰어 모드, 재생/일시정지/프레임 단위 스텝/타임라인 슬라이더 스크러빙/1x~4x 배속 조절, 커스텀 `.axrp` 파일 드래그 앤 드롭 업로더, 데모 리플레이 즉시 시연, 17개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-112: 스팀 클라우드 세이브(Steam Cloud Save) 및 런타임 저장소 동기화** (`crates/axiom-core/src/cloud_save.rs`, `crates/axiom-cli/src/cloud_sync.rs`, `crates/axiom-cli/src/main.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `CloudSaveHeader` [#[repr(C, align(64))]], 64-bit FNV-1a 무결성 체크섬, 이산 유닉스 에포크 타임스탬프 기반 양방향 충돌 해결기 `resolve_sync_conflict`, Steam Auto-Cloud 양방향 동기화 매니저 `CloudSyncManager`, `axiom save list / backup / restore / sync` CLI 도구군, `mimic-the-show` 원자적 퀵세이브(F5)/퀵로드(F9)/클라우드 수동 동기화(F8) 핫키 및 HUD 연동 완성, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-111: Axiom Engine v1.8.0 스팀 워크숍 & 토너먼트 넷코드 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-050]~[D-054], `docs/audit-report.md` [AUDIT-20261023-v1.8.0], 스팀 워크숍 모딩 생태계 및 UGC 클라우드 퍼블리셔 파이프라인, 독립형 `.axmod` 바이너리 컨테이너, 0-Float 4-비트 패킹 결정론 리플레이(`.axrp`), Web Audio AudioWorklet 3D 공간 음향, WebRTC 4인 토너먼트 자동 중계 & 스펙테이터 릴레이 통합 승인, 워크스페이스 v1.8.0 공식 판올림 및 Git 태그 `v1.8.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-110: 스팀 워크숍 클라우드 UGC 업로드 & 원클릭 모드 퍼블리셔 파이프라인** (`crates/axiom-render/src/modding.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-cli/src/main.rs`, `crates/axiom-render/tests/test_workshop_publisher.rs`, `tools/publish_mod.ps1`, Steam UGC VDF 구성 생성기 `generate_steam_vdf`, 무손실 독립형 `.axmod` 바이너리 컨테이너 패커/언패커 `pack_axmod` / `unpack_axmod`, 모드 무결성 자동 검사기 `validate_mod` [슬롯/JSON/바이너리 glTF 매직/프리뷰 이미지/용량 한도 판정], `axiom mod validate / pack / publish` CLI 도구군 및 `tools/publish_mod.ps1` 파이프라인 완성, 4개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
