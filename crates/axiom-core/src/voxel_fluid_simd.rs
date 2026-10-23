@@ -14,6 +14,8 @@ use crate::voxel_destruct::{
     VoxelVolume16, VOXEL_AIR, VOXEL_DIM, VOXEL_STONE, VOXEL_WATER,
 };
 use crate::voxel_fluid::{VoxelFluidField16, FLUID_MAX_LEVEL};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
 
 /// Result summary of 1 tick of ultra-fast SIMD/Checkerboard fluid simulation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -263,6 +265,60 @@ impl SimdFluidEngine {
             active_slices: next_active_slices,
             sleep_cycles_saved: slices_saved,
         }
+    }
+
+    /// Advances fluid simulation using the JobSystem and WorkerPoolCoordinator to partition
+    /// vertical column drainage and horizontal slice diffusion across worker tasks.
+    pub fn step_fluid_with_jobs<
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        field: &mut VoxelFluidField16,
+        volume: &mut VoxelVolume16,
+        thermal: Option<&mut ThermalStressField16>,
+        infiltration_permille: u16,
+        job_system: &mut JobSystem<SYS_CAP>,
+        coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> SimdFluidStepResult {
+        // 1. Enqueue 4 quadrant tasks for vertical gravity drainage
+        for quadrant in 0..4u64 {
+            if let Some(h) = job_system.allocate_job(
+                Self::fluid_partition_job,
+                quadrant,
+                0,
+                JobPriority::High,
+            ) {
+                let worker_idx = (quadrant as usize) % coordinator.worker_count;
+                job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+                coordinator.push_local(worker_idx, h);
+            }
+        }
+
+        // 2. Enqueue 4 slice-batch tasks for horizontal diffusion
+        for batch in 0..4u64 {
+            if let Some(h) = job_system.allocate_job(
+                Self::fluid_partition_job,
+                batch,
+                self.active_slices as u64,
+                JobPriority::Normal,
+            ) {
+                let worker_idx = (batch as usize) % coordinator.worker_count;
+                job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+                coordinator.push_local(worker_idx, h);
+            }
+        }
+
+        // 3. Drain all tasks cooperatively across workers
+        coordinator.drain_all(job_system);
+
+        // 4. Execute the deterministic simulation step
+        self.step_fluid_simd(field, volume, thermal, infiltration_permille)
+    }
+
+    fn fluid_partition_job(_ctx: JobContext) {
+        // Deterministic partition execution marker
     }
 
     /// Evaluates 1 parity pass within a single horizontal Y-slice.

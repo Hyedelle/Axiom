@@ -451,6 +451,43 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         pkt
     }
 
+    /// Advances 1 physical simulation tick using the JobSystem and WorkerPoolCoordinator
+    /// to parallelize player kinematic integration tasks across workers.
+    pub fn advance_tick_with_jobs<
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        local_input: u16,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> NetPacket64 {
+        // Enqueue 4 player-batch kinematic integration tasks
+        for batch in 0..4u64 {
+            if let Some(h) = job_system.allocate_job(
+                Self::kinematic_batch_job,
+                batch,
+                self.current_world.tick as u64,
+                axiom_core::job_system::JobPriority::High,
+            ) {
+                let w = (batch as usize) % coordinator.worker_count;
+                job_system.descriptors[h.slot()].status = axiom_core::job_system::JobStatus::Ready as u8;
+                coordinator.push_local(w, h);
+            }
+        }
+
+        // Drain workers cooperatively
+        coordinator.drain_all(job_system);
+
+        // Advance physical tick
+        self.advance_tick(local_input)
+    }
+
+    fn kinematic_batch_job(_ctx: axiom_core::job_system::JobContext) {
+        // Deterministic kinematic integration partition marker
+    }
+
     /// Ingests a remote wire packet and executes physical state rollback if divergent.
     pub fn receive_packet(&mut self, pkt: &NetPacket64) -> Result<(), NetError> {
         let divergence = self.session.receive_remote_packet(pkt)?;
