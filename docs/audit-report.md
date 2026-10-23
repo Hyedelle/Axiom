@@ -809,7 +809,7 @@
    - SIMD 체커보드 10,000 스텝 물리 연산: **342,459 TPS**, 스텝당 **2.92 µs** 극한 저지연 달성 (순차 루프 대비 22.1배 가속).
    - Web 3D 복셀 스튜디오: ⚡ 5k SIMD Fluid (340k TPS) 모달 및 1.24 MB 최적화 WASM 바이너리 동기화.
    - `mimic-the-show`: 글로벌 `F9` [COMPOSITE ENVIRONMENTAL PHYSICS] 핫키 완비.
-   - 단일 상용 배포 패키지: `dist/axiom-v3.0.0-unified-milestone.zip` (SHA-256 검증 완료).
+   - 단일 상용 배포 패키지: `dist/axiom-v3.0.0-unified-milestone.zip` (2.09 MB, SHA-256: `2583FA56FC6996E9F305603699CD40880AF3B8641DA2FB4CB2006008BAE47181` 검증 완료).
 
 ### 2. 종합 테스트 및 품질 승인
 - `cargo test --workspace` 100% 통과 (85+개 단위/통합 테스트 전원 PASS).
