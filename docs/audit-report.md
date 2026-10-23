@@ -8,24 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 07:52 KST
-- **감사 대상:** Axiom Engine 230대 CCD 히트박스 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-197, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_ccd_bench_hitbox` 무결성 검증, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 30 m/s 고속 펀치 스윕 충돌 감지, 서브프레임 TOI 정규화 산출 및 64-bit FNV-1a 상태 합의 검증, 웹 3D 복셀 스튜디오 🥊 **230 CCD Hitbox (64B Slabs)** 대화형 모달 연동, 1.31 MB 최적화 WASM 바이너리 동기화, 26개 WASM 테스트 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 07:58 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 CCD 나이트메어 복싱 히트박스 판정 및 HUD 텔레메트리 연동 (T-198, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `step_ccd_pipeline` 연속 충돌 감지 파이프라인 결합, 싱글플레이어 500~600 mm/tick 고속 펀치 및 나이트메어 반격 스윕 교차 판정, 16-인 배틀로얄 `step_ccd_with_jobs` 워커 풀 분할 및 이벤트 버스 방출, F3 HUD 카드 `CCD: {} Hits | TOI: {:.2} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 충돌 경고 인디케이터, 하단 `[CCD: {}H]` 상시 모니터링 연동, 25개 게임 단위/통합 테스트 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **WASM C-ABI 엔드포인트 (`axiom_ccd_bench_hitbox`)**:
-     - 4~64개 히트박스 슬랩 생성, 30 m/s (500 mm/tick) 변위 스윕 평가, Chase-Lev 4-워커 잡 디스패치 및 `EVENT_CCD_HIT (0x0230)` 이벤트 버스 발행 파이프라인 무결성.
-     - 8-uint32 텔레메트리 슬랩(`out_stats`): `count`, `total_hits`, `earliest_toi`, `hash_lo/hi`, `dispatched_jobs`, `disp_mm_per_tick`, `bus_events` 완비.
-  2. **웹 인터랙티브 쇼케이스 (`web/index.html`, `crates/axiom-wasm/index.html`)**:
-     - 🥊 **230 CCD Hitbox (64B Slabs)** 버튼 추가 및 `runCcdHitboxBenchmark()` 자바스크립트 엔진 결합.
-     - 서브프레임 TOI, 로켓 펀치 관통 방지율 100%, 초당 CCD 연산량 텔레메트리 출력.
-  3. **WASM 바이너리 최적화 및 3중 동기화**:
-     - 1,311,232 Bytes 컴파일 바이너리를 `crates/axiom-wasm/` 및 `web/` 경로에 100% 동기화.
-  4. **단위 테스트 및 헌법 가드 검증**:
-     - 26개 WASM 단위 테스트 및 `tools/guard.ps1` 100% 통과 (0-Float 불변식 전역 유지).
+  1. **데스크톱 게임 뷰 연속 충돌 감지 (`step_ccd_pipeline`)**:
+     - `ccd_hits_count` 및 `ccd_earliest_toi_q16` 필드 탑재.
+     - 싱글플레이어 재브/크로스/훅 스윕 히트박스(`HitboxSlab64`) 및 나이트메어 AI 반격 허트박스 연속 감지.
+     - 16-인 배틀로얄 분산 롤백 넷코드 시 `dir.step_ccd_with_jobs` (4-워커 Chase-Lev 스틸링) 또는 `dir.step_ccd()` 동기화 분기.
+  2. **HUD 및 레이더 텔레메트리 시각화**:
+     - F3 전술 HUD 카드 높이 182px 확장 및 `CCD: {} Hits | TOI: {:.2} | 64B` 텔레메트리 출력.
+     - 56x56 미니 레이더 좌측 상단 붉은색 타격 접촉 경고 인디케이터(`0xFFF43F5E`) 연동.
+     - 하단 컨트롤 힌트 바 `[CCD: {}H]` 실시간 노출.
+  3. **단위 테스트 및 헌법 가드 검증**:
+     - `test_view_ccd_nightmare_hitbox_and_hud_telemetry` 통과 (25개 게임 단위/통합 테스트 100% 통과).
+     - `tools/guard.ps1` 100% 통과 (0-Float 불변식 전역 유지).
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T197] Axiom Engine 230대 CCD 히트박스 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 07:52 KST
+- **판정:** 🟢 **ALL CLEAR (쇼케이스 승인)**
+- **검증:** 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_ccd_bench_hitbox` 무결성 검증, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 30 m/s 고속 펀치 스윕 충돌 감지, 서브프레임 TOI 정규화 산출 및 64-bit FNV-1a 상태 합의 검증, 웹 3D 복셀 스튜디오 🥊 **230 CCD Hitbox (64B Slabs)** 대화형 모달 연동, 1.31 MB 최적화 WASM 바이너리 동기화, 26개 WASM 테스트 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T196] Axiom Engine CCD 히트박스 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 07:45 KST
