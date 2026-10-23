@@ -4444,6 +4444,139 @@ pub extern "C" fn axiom_voxel_spawn_shard_storm(count: u32) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_voxel_set_gravity(gravity_q16: i32) {
+    if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
+        eng.shards.gravity_q16 = gravity_q16;
+        eng.collapse.gravity_q16 = gravity_q16;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_set_drag(drag_permille: u32) {
+    if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
+        let drag = (drag_permille as u16).clamp(800, 1000);
+        eng.shards.drag_permille = drag;
+        eng.collapse.drag_permille = drag;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_reset_physics() {
+    if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
+        eng.shards = VoxelShardPool::new(12345);
+        eng.shards.floor_y_q16 = 0;
+        eng.collapse = DynamicCollapseSystem::new(12345);
+        eng.collapse.floor_y_q16 = 0;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_detonate_meteor(cx: i32, cz: i32, radius: i32, shards: u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+    let depth = (radius + 1).min(6);
+    let carved = eng.volume.carve_crater_with_shards(
+        cx as i16,
+        cz as i16,
+        depth as i16,
+        radius as i16,
+        &mut eng.shards,
+        [-16384, 0, -16384],
+        2048,
+    );
+    let impact_pos = [
+        -16384 + (cx * 2048),
+        24576,
+        -16384 + (cz * 2048),
+    ];
+    eng.shards.spawn_burst(impact_pos, 3, (shards as usize).min(128), 3000);
+
+    let _ = eng.collapse.detect_and_collapse(
+        &mut eng.volume,
+        0,
+        [-16384, 0, -16384],
+        2048,
+    );
+
+    let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+    eng.last_triangles = mesh.triangle_count() as u32;
+    eng.extracted_mesh = Some(mesh);
+
+    carved
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_bench_collapse(iterations: u32, out_stats: *mut u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let mut volume = generate_voxel_preset(VoxelPreset::MonolithRuins, 42);
+    let mut collapse = DynamicCollapseSystem::<16>::new(42);
+    let mut shards = VoxelShardPool::<128>::new(42);
+    collapse.floor_y_q16 = 0;
+    shards.floor_y_q16 = 0;
+
+    let mut total_collapsed = 0u32;
+    let mut total_shattered = 0u32;
+    let mut total_rendered = 0u32;
+
+    let view_mat = Mat4Fixed::IDENTITY;
+    let cam_dist = Fixed::from_raw(262144);
+    let focal = 220;
+
+    for step_idx in 0..iterations {
+        if step_idx % 5 == 0 {
+            let cx = ((step_idx * 3) % 10 + 3) as i16;
+            let cz = ((step_idx * 7) % 10 + 3) as i16;
+            volume.carve_crater_with_shards(cx, cz, 2, 3, &mut shards, [-16384, 0, -16384], 2048);
+            let c = collapse.detect_and_collapse(&mut volume, 0, [-16384, 0, -16384], 2048);
+            total_collapsed = total_collapsed.saturating_add(c as u32);
+        }
+        let (_b, sh) = collapse.step(Some(&mut shards));
+        total_shattered = total_shattered.saturating_add(sh);
+        shards.step();
+
+        eng.rasterizer.clear_depth();
+        let rc = render_dynamic_collapse_chunks(
+            &mut eng.framebuffer,
+            &mut eng.rasterizer.depth_buffer,
+            &collapse,
+            &view_mat,
+            cam_dist,
+            focal,
+        );
+        let rs = render_voxel_shards(
+            &mut eng.framebuffer,
+            &mut eng.rasterizer.depth_buffer,
+            &shards,
+            &view_mat,
+            cam_dist,
+            focal,
+        );
+        total_rendered = total_rendered.saturating_add((rc + rs) as u32);
+    }
+
+    let consensus_hash = collapse.compute_consensus_hash() ^ shards.compute_consensus_hash();
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = total_collapsed;
+            *out_stats.add(1) = total_shattered;
+            *out_stats.add(2) = shards.active_count as u32;
+            *out_stats.add(3) = (consensus_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(4) = ((consensus_hash >> 32) & 0xFFFF_FFFF) as u32;
+            *out_stats.add(5) = total_rendered;
+        }
+    }
+
+    iterations
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_voxel_export_axvm(out_ptr: *mut u8, max_len: u32) -> u32 {
     let eng = match unsafe { VOXEL_ENGINE.as_ref() } {
         Some(e) => e,
@@ -5222,6 +5355,24 @@ mod tests {
         // 4.5 Render scene with Reversed-Z depth buffer containing mesh, chunks, shards
         let post_tris = axiom_voxel_render();
         assert!(post_tris > 0);
+
+        // 4.6 Meteor Detonation and Physics Controls (T-138)
+        axiom_voxel_set_gravity(240);
+        axiom_voxel_set_drag(970);
+        let meteor_carved = axiom_voxel_detonate_meteor(4, 12, 3, 32);
+        assert!(meteor_carved > 0);
+        assert!(axiom_voxel_get_shard_count() > 0);
+
+        // 4.7 Dynamic Collapse 10-Iteration Benchmark
+        let mut collapse_stats = [0u32; 6];
+        let bench_ticks = axiom_voxel_bench_collapse(10, collapse_stats.as_mut_ptr());
+        assert_eq!(bench_ticks, 10);
+        assert!(collapse_stats[5] > 0, "Benchmark should render dynamic elements");
+
+        // 4.8 Reset Physics
+        axiom_voxel_reset_physics();
+        assert_eq!(axiom_voxel_get_shard_count(), 0);
+        assert_eq!(axiom_voxel_get_collapsed_chunk_count(), 0);
 
         // 5. Run benchmark
         let bench_result = axiom_voxel_benchmark(5);
