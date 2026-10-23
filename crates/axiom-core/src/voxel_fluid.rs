@@ -97,6 +97,9 @@ impl VoxelFluidField16 {
         let new_level = cur.saturating_add(amount);
         let added = new_level - cur;
 
+        if cur == 0 && new_level > 0 {
+            self.active_fluid_cells = self.active_fluid_cells.saturating_add(1);
+        }
         self.level[idx] = new_level;
         self.total_fluid_units = self.total_fluid_units.saturating_add(added as u32);
 

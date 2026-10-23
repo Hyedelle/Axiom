@@ -5,6 +5,7 @@
 
 pub mod camera3d;
 pub mod cutin;
+pub mod fluid_render;
 pub mod framebuffer;
 pub mod gpu_backend;
 pub mod kinematics3d;
@@ -24,6 +25,7 @@ pub mod voxel_shard_render;
 
 pub use camera3d::{Camera3D, CameraShot};
 pub use cutin::{render_cutin_overlay, CutinKind};
+pub use fluid_render::{render_voxel_fluid, sample_fluid_color, sample_infiltrated_color};
 pub use framebuffer::{upscale_nearest_2x, FrameBuffer};
 pub use gpu_backend::{
     GpuBackendKind, GpuPresenter, GpuPresenterConfig, PresentStats, ScalingMode, ViewportRect,

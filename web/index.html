@@ -448,6 +448,8 @@
       <span id="voxDragVal" style="color: #a78bfa; font-family: monospace; width: 44px;">985‰</span>
     </div>
     <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+      <button class="action-btn" style="color: #38bdf8; border-color: #0284c7; font-size: 11px; padding: 4px 8px;" onclick="injectVoxelFluid()">💧 Inject Water</button>
+      <button class="action-btn" style="color: #60a5fa; border-color: #3b82f6; font-size: 11px; padding: 4px 8px;" onclick="stepVoxelFluid()">🌊 Step Fluid</button>
       <button class="action-btn" style="color: #f97316; border-color: #ea580c; font-size: 11px; padding: 4px 8px;" onclick="detonateVoxelMeteor()">☄️ Meteor Blast</button>
       <button class="action-btn" style="color: #ef4444; border-color: #dc2626; font-size: 11px; padding: 4px 8px;" onclick="applyVoxelThermalBlast()">🔥 Thermal Blast (950°C)</button>
       <button class="action-btn" style="color: #f59e0b; border-color: #d97706; font-size: 11px; padding: 4px 8px;" onclick="stepVoxelThermal()">♨️ Step Thermal</button>
@@ -2686,6 +2688,9 @@
         const chunks = wasmInstance.axiom_voxel_get_collapsed_chunk_count ? wasmInstance.axiom_voxel_get_collapsed_chunk_count() : 0;
         const maxTemp = wasmInstance.axiom_voxel_get_max_temperature ? wasmInstance.axiom_voxel_get_max_temperature() : 20;
         const molten = wasmInstance.axiom_voxel_get_thermal_transitions ? wasmInstance.axiom_voxel_get_thermal_transitions() : 0;
+        const fluidUnits = wasmInstance.axiom_voxel_get_fluid_units ? wasmInstance.axiom_voxel_get_fluid_units() : 0;
+        const activeFluid = wasmInstance.axiom_voxel_get_active_fluid_cells ? wasmInstance.axiom_voxel_get_active_fluid_cells() : 0;
+        const infiltrated = wasmInstance.axiom_voxel_get_infiltrated_units ? wasmInstance.axiom_voxel_get_infiltrated_units() : 0;
 
         document.getElementById('hudDetail').innerHTML =
           `<span class="blue">Solid:</span> <span class="blue">${solid}</span> | ` +
@@ -2694,6 +2699,8 @@
           `<span style="color:#c084fc">Shards:</span> <span style="color:#c084fc">${shards}</span> | ` +
           `<span style="color:#f97316">Temp:</span> <span style="color:#f97316">${maxTemp}°C</span> | ` +
           `<span style="color:#ef4444">Molten:</span> <span style="color:#ef4444">${molten}</span> | ` +
+          `<span style="color:#38bdf8">Fluid:</span> <span style="color:#38bdf8">${fluidUnits} (${activeFluid}c)</span> | ` +
+          `<span style="color:#0284c7">Inf:</span> <span style="color:#0284c7">${infiltrated}</span> | ` +
           `<span class="gold">Tris:</span> <span class="gold">${tris.toLocaleString()}</span> | ` +
           `<span class="green">Render:</span> <span class="green">${renderMs}ms</span>`;
       }
@@ -3065,9 +3072,31 @@
       }
     }
 
+    function injectVoxelFluid() {
+      if (wasmInstance && wasmInstance.axiom_voxel_inject_fluid) {
+        // Inject a dynamic water column at top center (x=8, y=14, z=8)
+        wasmInstance.axiom_voxel_inject_fluid(8, 14, 8, 240);
+        wasmInstance.axiom_voxel_inject_fluid(7, 14, 8, 200);
+        wasmInstance.axiom_voxel_inject_fluid(8, 14, 7, 200);
+        playVoxelDebrisSfx(8, 14, 2);
+      }
+    }
+
+    function stepVoxelFluid() {
+      if (wasmInstance && wasmInstance.axiom_voxel_step_fluid) {
+        wasmInstance.axiom_voxel_step_fluid(25);
+      }
+    }
+
     function resetVoxelPhysics() {
       if (wasmInstance && wasmInstance.axiom_voxel_reset_physics) {
         wasmInstance.axiom_voxel_reset_physics();
+        if (wasmInstance.axiom_voxel_reset_thermal) {
+          wasmInstance.axiom_voxel_reset_thermal();
+        }
+        if (wasmInstance.axiom_voxel_reset_fluid) {
+          wasmInstance.axiom_voxel_reset_fluid();
+        }
         playVoxelBlastSfx(8, 8, 2);
       }
     }

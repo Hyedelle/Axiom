@@ -34,8 +34,10 @@ use axiom_game::tournament::{
 };
 use axiom_core::voxel_collapse::DynamicCollapseSystem;
 use axiom_core::voxel_destruct::VoxelVolume16;
+use axiom_core::voxel_fluid::VoxelFluidField16;
 use axiom_core::voxel_shard::VoxelShardPool;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
+use axiom_render::fluid_render::render_voxel_fluid;
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D, PartMesh};
 use axiom_render::raster3d::{CelShadingPalette, Rasterizer3D};
@@ -4100,6 +4102,7 @@ struct WasmVoxelEngine {
     shards: VoxelShardPool<128>,
     collapse: DynamicCollapseSystem<16>,
     thermal: ThermalStressField16,
+    fluid: VoxelFluidField16,
 }
 
 #[allow(static_mut_refs)]
@@ -4108,7 +4111,10 @@ static mut VOXEL_ENGINE: Option<WasmVoxelEngine> = None;
 #[cfg(test)]
 fn voxel_engine_lock() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    LOCK.lock().unwrap()
+    match LOCK.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
 }
 
 #[no_mangle]
@@ -4152,6 +4158,7 @@ pub extern "C" fn axiom_voxel_init(width: u32, height: u32, preset_id: u32, seed
         shards,
         collapse,
         thermal: ThermalStressField16::new(),
+        fluid: VoxelFluidField16::new(),
     };
 
     unsafe {
@@ -4299,6 +4306,15 @@ pub extern "C" fn axiom_voxel_render() -> u32 {
         &mut eng.rasterizer.depth_buffer,
         &world_mat,
         &eng.thermal,
+        voxel_scale,
+        world_origin,
+    );
+
+    render_voxel_fluid(
+        &mut eng.framebuffer,
+        &mut eng.rasterizer.depth_buffer,
+        &world_mat,
+        &eng.fluid,
         voxel_scale,
         world_origin,
     );
@@ -4720,6 +4736,88 @@ pub extern "C" fn axiom_voxel_get_thermal_fractures() -> u32 {
 pub extern "C" fn axiom_voxel_reset_thermal() {
     if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
         eng.thermal = ThermalStressField16::new();
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_inject_fluid(x: i32, y: i32, z: i32, amount: u32) -> u32 {
+    if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
+        if x >= 0 && x < 16 && y >= 0 && y < 16 && z >= 0 && z < 16 {
+            eng.fluid.inject_fluid(
+                &mut eng.volume,
+                x as usize,
+                y as usize,
+                z as usize,
+                amount.min(255) as u8,
+            );
+            let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+            eng.last_triangles = mesh.triangle_count() as u32;
+            eng.extracted_mesh = Some(mesh);
+            return eng.fluid.total_fluid_units;
+        }
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_step_fluid(infiltration_permille: u32) -> u32 {
+    if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
+        let inf = infiltration_permille.min(1000) as u16;
+        let res = eng.fluid.step_fluid(&mut eng.volume, Some(&eng.thermal), inf);
+        let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+        eng.last_triangles = mesh.triangle_count() as u32;
+        eng.extracted_mesh = Some(mesh);
+        return (res.units_moved as u32) | ((res.units_evaporated as u32) << 16);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_fluid_units() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.fluid.total_fluid_units)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_infiltrated_units() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.fluid.total_infiltrated)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_active_fluid_cells() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.fluid.active_fluid_cells as u32)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_reset_fluid() {
+    if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
+        eng.fluid = VoxelFluidField16::new();
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    if eng.volume.get(x, y, z) == axiom_core::voxel_destruct::VOXEL_WATER {
+                        eng.volume.set(x, y, z, axiom_core::voxel_destruct::VOXEL_AIR);
+                    }
+                }
+            }
+        }
+        let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+        eng.last_triangles = mesh.triangle_count() as u32;
+        eng.extracted_mesh = Some(mesh);
     }
 }
 
@@ -5619,5 +5717,37 @@ mod tests {
         assert_eq!(bench_ticks, 50);
         assert_eq!(extreme_stats[0], 50);
         assert!(extreme_stats[5] != 0 || extreme_stats[6] != 0, "Consensus hash must be non-zero");
+    }
+
+    #[test]
+    fn test_wasm_voxel_fluid_dynamics_bindings() {
+        let _g = voxel_engine_lock();
+
+        // 1. Init Crater Scene
+        axiom_voxel_init(128, 128, 1, 999);
+        assert_eq!(axiom_voxel_get_fluid_units(), 0);
+        assert_eq!(axiom_voxel_get_infiltrated_units(), 0);
+        assert_eq!(axiom_voxel_get_active_fluid_cells(), 0);
+
+        // 2. Inject fluid into crater
+        let total_units = axiom_voxel_inject_fluid(8, 8, 8, 200);
+        assert_eq!(total_units, 200);
+        assert_eq!(axiom_voxel_get_fluid_units(), 200);
+        assert_eq!(axiom_voxel_get_active_fluid_cells(), 1);
+
+        // 3. Step fluid simulation
+        let step_res = axiom_voxel_step_fluid(10);
+        let _moved = step_res & 0xFFFF;
+        let _evaporated = (step_res >> 16) & 0xFFFF;
+        assert!(axiom_voxel_get_fluid_units() > 0);
+
+        // 4. Render with fluid rasterizer
+        let rendered_tris = axiom_voxel_render();
+        assert!(rendered_tris > 0);
+
+        // 5. Reset fluid
+        axiom_voxel_reset_fluid();
+        assert_eq!(axiom_voxel_get_fluid_units(), 0);
+        assert_eq!(axiom_voxel_get_active_fluid_cells(), 0);
     }
 }
