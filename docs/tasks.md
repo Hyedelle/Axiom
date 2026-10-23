@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-096: 사운드 피치 시프트 및 3D 공간 잔향(Reverb) 절차적 버퍼 합성** (`mimic-the-show/src/sound.rs`, `crates/axiom-cli/src/sound.rs`, 링 코너 및 보스 타격 시 공간감 있는 금속성 잔향 연출, `tools/guard.ps1` 통과)
+- [ ] **T-097: Axiom Engine v1.6.0 3D 렌더링 & 미믹 더 쇼 상용 완성도 종합 감사 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, 0-Float 3D GLB 파이프라인/8x8 타일 비닝/64B L1 캐시 정렬/시네마틱 카메라/빈티지 신문 그라비아/공간 오디오 통합 승인 및 판올림, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-097: Axiom Engine v1.6.0 3D 렌더링 & 미믹 더 쇼 상용 완성도 종합 감사 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`)
+- [ ] **T-098: WebGL/WASM 3D 소프트웨어 래스터라이저 웹 플레이어 빌드 및 라이브 데모 배포** (`crates/axiom-wasm`, `web/`, 캔버스 3D 턴테이블 및 웹 복싱 배포)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-096: 사운드 피치 시프트 및 3D 공간 잔향(Reverb) 절차적 버퍼 합성** (`mimic-the-show/src/sound.rs`, `crates/axiom-cli/src/sound.rs`, 0-Float 선형 보간 피치 시프트 `apply_pitch_shift` 및 3-탭 금속성 지하실 빗살 공간 잔향기 `apply_arena_reverb`, 보스 THESEUS 중저음 묵직한 타격감(850 피치 다운) 및 TINKER 경량기 고속 잽(1140 피치 업) 사운드스케이프 차등화, 단위 테스트 통과, `tools/guard.ps1` 통과, 커밋 `f1482ba`, `d82adb7`)
 - [x] **T-095: 3D 메카 피격 시 림 라이팅(Rim Lighting) 및 오라클 아이(Single Eye) 발광 오버레이** (`crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_outline_and_colors.rs`, 0-Float 스침각(|Nz| < 16000) 실루엣 림 에지 검출, 헤비 펀치 골든 림 오라, 노바 피니셔 백열 림, 상대 텔레그래프 경고 오렌지 림 및 KO 순백 림 사상, 오라클 단안 바이저 발광 부스트, `tools/guard.ps1` 통과, 커밋 `588293c`, `2208a62`)
 - [x] **T-094: 챔피언십 풀 리그 4인 대전 3D 전광판 브로드캐스트 하이라이트 뷰** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/bin/capture_screens.rs`, 플레이오프 디사이더 및 챔피언십 결승전 진입 시 듀얼 3D 메카 실시간 페이스오프 전광판, 중앙 VS 브라스 엠블럼, 스포트라이트 조명, 파이터 전력 분석 카드 및 4팀 스탠딩 티커 브로드캐스트 완성, `tools/guard.ps1` 통과, 커밋 `11f0eab`)
 - [x] **T-093: 3D 관중석 조명 플래시 반응 및 챔피언 라운드 스팀 배출 축제 효과 연출** (`crates/axiom-render/src/particles3d.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_camera_particles_3d.rs`, Q16.16 고정소수점 방향성 `spawn_steam_jet` 4개 링 코너 턴버클 축제 증기 분출, `flash_storm_timer` 기반 70인 관중석 다중 카메라 플래시 버스트 및 앰비언트 노출 글래어, 챔피언 트로피 수여 씬 3D 스팀·폭죽 동기화, `tools/guard.ps1` 통과, 커밋 `adad9c9`, `b40b253`)
