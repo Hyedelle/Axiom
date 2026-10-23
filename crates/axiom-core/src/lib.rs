@@ -40,6 +40,7 @@ pub mod storage;
 pub mod tick;
 pub mod tile_entity;
 pub mod time_machine;
+pub mod voxel_destruct;
 pub mod world_time_machine;
 
 pub use audio::{
@@ -139,6 +140,10 @@ pub use grid_netcode::{
     DEFAULT_GRID_NETCODE_BUFFER_SIZE, MAX_SUPPORTED_GRID_PLAYERS,
 };
 pub use time_machine::{RollbackError, TimeMachine};
+pub use voxel_destruct::{
+    SeverancePlane, VoxelVolume16, VOXEL_AIR, VOXEL_ARMOR, VOXEL_DIM, VOXEL_METAL, VOXEL_MOLTEN,
+    VOXEL_STONE, VOXEL_TOTAL,
+};
 pub use world_time_machine::{
     WorldSnapshot, WorldTimeMachine, DEFAULT_WORLD_ROLLBACK_CAPACITY,
 };

@@ -16,6 +16,7 @@ pub mod particles3d;
 pub mod raster3d;
 pub mod sprites;
 pub mod texture;
+pub mod voxel_mesh;
 
 pub use camera3d::{Camera3D, CameraShot};
 pub use cutin::{render_cutin_overlay, CutinKind};
@@ -41,3 +42,4 @@ pub use particles3d::{Particle3D, ParticleSystem3D};
 pub use raster3d::{CelShadingPalette, Rasterizer3D};
 pub use sprites::*;
 pub use texture::{blend_alpha, blend_decal, modulate_color, DecalKind, TextureMap, TextureWrapMode};
+pub use voxel_mesh::{extract_voxel_mesh, sever_part_mesh};
