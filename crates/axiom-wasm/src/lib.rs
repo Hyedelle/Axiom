@@ -5074,6 +5074,80 @@ pub extern "C" fn axiom_voxel_bench_simd_fluid(steps: u32, out_stats: *mut u32) 
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_voxel_bench_raymarch(
+    frames: u32,
+    tile_scale: u32,
+    cast_shadows: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let iterations = frames.clamp(1, 1000);
+    let mut total_fragments = 0u64;
+    let mut hash = 0xCBF1_CCE4_80CB_9716u64;
+
+    let rot_y = Mat4Fixed::from_rotation_y(eng.yaw_bam);
+    let rot_x = Mat4Fixed::from_rotation_x(eng.pitch_bam);
+    let trans = Mat4Fixed::from_translation(Vec3Fixed::from_raw(0, 0, 15000));
+    let world_mat = trans.mul_mat(&rot_x.mul_mat(&rot_y));
+
+    let voxel_scale = Fixed::from_raw(2048);
+    let world_origin = Vec3Fixed::new(
+        Fixed::from_raw(-16384),
+        Fixed::ZERO,
+        Fixed::from_raw(-16384),
+    );
+
+    let config = VoxelRaymarchRenderConfig {
+        max_steps: 48,
+        cast_shadows: cast_shadows != 0,
+        light_dir: [577, 577, -577],
+        tile_scale: tile_scale.clamp(1, 4) as u8,
+    };
+
+    for frame in 0..iterations {
+        eng.framebuffer.clear(0xFF0F172A);
+        eng.rasterizer.clear_depth();
+
+        let fragments = render_voxel_raymarch(
+            &mut eng.framebuffer,
+            &mut eng.rasterizer.depth_buffer,
+            &eng.volume,
+            &world_mat,
+            &config,
+            world_origin,
+            voxel_scale,
+        );
+
+        total_fragments += fragments as u64;
+
+        let sample_idx = (eng.framebuffer.height / 2) * eng.framebuffer.width + (eng.framebuffer.width / 2);
+        let sample_val = eng.framebuffer.pixels.get(sample_idx).copied().unwrap_or(0);
+        hash ^= sample_val as u64;
+        hash = hash.wrapping_mul(0x100_0000_01B3u64);
+        hash ^= (fragments as u64).wrapping_add(frame as u64);
+        hash = hash.wrapping_mul(0x100_0000_01B3u64);
+    }
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = iterations;
+            *out_stats.add(1) = (total_fragments & 0xFFFF_FFFF) as u32;
+            *out_stats.add(2) = (total_fragments / iterations as u64) as u32;
+            *out_stats.add(3) = eng.volume.total_solid as u32;
+            *out_stats.add(4) = config.tile_scale as u32;
+            *out_stats.add(5) = (hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(6) = (hash >> 32) as u32;
+        }
+    }
+
+    iterations
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_net_bench_rollback(
     frames: u32,
     loss_permille: u32,
@@ -6158,5 +6232,13 @@ mod tests {
         axiom_voxel_init(64, 64, 0, 12345);
         let fragments = axiom_voxel_render_raymarch(1, 1);
         assert!(fragments > 0, "Raymarcher must produce fragments for solid preset");
+
+        // 5. Voxel Raymarch Benchmark (20 frames, 2x tile scale)
+        let mut bench_stats = [0u32; 7];
+        let bench_frames = axiom_voxel_bench_raymarch(20, 2, 1, bench_stats.as_mut_ptr());
+        assert_eq!(bench_frames, 20);
+        assert_eq!(bench_stats[0], 20);
+        assert!(bench_stats[1] > 0, "Total fragments > 0");
+        assert!(bench_stats[5] != 0 || bench_stats[6] != 0, "Consensus hash must be non-zero");
     }
 }
