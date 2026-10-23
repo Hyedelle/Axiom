@@ -16,6 +16,7 @@ pub mod lobby;
 pub mod neural_fighter;
 pub mod schema_catalog;
 pub mod tournament;
+pub mod voxel_tournament;
 pub mod world_factory;
 pub mod worker;
 
@@ -40,6 +41,7 @@ pub use tournament::{
     TournamentEngine, TournamentFighter, TournamentMatch, MAX_TOURNAMENT_MATCHES,
     NO_NEXT_MATCH,
 };
+pub use voxel_tournament::{VoxelChampionshipDirector, VoxelChampionshipTelemetry};
 
 pub use factory::{
     Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, FilterInserter,

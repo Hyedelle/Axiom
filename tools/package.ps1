@@ -3,7 +3,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools/package.ps1 [-Version "2.1.0"] [-Clean]
 
 param (
-    [string]$Version = "2.1.0",
+    [string]$Version = "2.2.0",
     [switch]$Clean
 )
 
@@ -25,7 +25,7 @@ $ZipFile = Join-Path $DistRoot "$BundleName.zip"
 $BuildLog = Join-Path $TmpDir "cargo_package.log"
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " 📦 Axiom & Mimic The Show — 120-Task Unified Packager v$Version" -ForegroundColor Cyan
+Write-Host " 📦 Axiom & Mimic The Show — 130-Task Unified Packager v$Version" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
 if ($Clean -and (Test-Path $DistRoot)) {
@@ -88,11 +88,13 @@ New-Item -ItemType Directory -Path $BundleDir -Force | Out-Null
 $BinDir = Join-Path $BundleDir "bin"
 $SavesDir = Join-Path $BundleDir "saves"
 $ModsDir = Join-Path $BundleDir "mods"
+$MapsDir = Join-Path $BundleDir "maps"
 $WebDir = Join-Path $BundleDir "web"
 
 New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
 New-Item -ItemType Directory -Path $SavesDir -Force | Out-Null
 New-Item -ItemType Directory -Path $ModsDir -Force | Out-Null
+New-Item -ItemType Directory -Path $MapsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $WebDir -Force | Out-Null
 
 New-Item -ItemType File -Path (Join-Path $SavesDir ".gitkeep") -Force | Out-Null
@@ -116,30 +118,44 @@ $MimicSize = (Get-Item $MimicDstExe).Length
 Write-Host "[OK] Staged axiom.exe: $([math]::Round($AxiomSize / 1MB, 2)) MB ($([math]::Round($AxiomSize / 1KB, 0)) KB)" -ForegroundColor Green
 Write-Host "[OK] Staged mimic-the-show.exe: $([math]::Round($MimicSize / 1MB, 2)) MB ($([math]::Round($MimicSize / 1KB, 0)) KB)" -ForegroundColor Green
 
-# 6. Copy Web Player Bundle
+# 6. Generate Procedural 3D Voxel Maps (.axvm)
+Write-Host "--> [Voxel] Exporting procedural 3D destructible voxel maps..." -ForegroundColor Cyan
+& $AxiomDstExe voxel export --preset flat --out (Join-Path $MapsDir "flat_arena.axvm")
+& $AxiomDstExe voxel export --preset crater --out (Join-Path $MapsDir "cratered_arena.axvm")
+& $AxiomDstExe voxel export --preset bunker --out (Join-Path $MapsDir "fortified_bunker.axvm")
+& $AxiomDstExe voxel export --preset ruins --out (Join-Path $MapsDir "monolith_ruins.axvm")
+& $AxiomDstExe voxel export --preset volcanic --out (Join-Path $MapsDir "volcanic_vent.axvm")
+Write-Host "[OK] Staged 5 procedural .axvm arena maps." -ForegroundColor Green
+
+# 7. Copy Web Player Bundle
 $WebSrcDir = Join-Path $ProjectRoot "web"
 Get-ChildItem -Path $WebSrcDir | Copy-Item -Destination $WebDir -Recurse -Force
-Write-Host "[OK] Staged web player suite (HTML5/WASM/GLB)." -ForegroundColor Green
+Write-Host "[OK] Staged web player suite (HTML5/WASM/GLB/AudioWorklet)." -ForegroundColor Green
 
-# 7. Generate Comprehensive Player Guide (README.txt)
+# 8. Generate Comprehensive Player Guide (README.txt)
 $ReadmePath = Join-Path $BundleDir "README.txt"
 $ReadmeContent = @"
 ================================================================================
-     AXIOM ENGINE v$Version & MIMIC THE SHOW v1.0 - UNIFIED RELEASE
+     AXIOM ENGINE v$Version & MIMIC THE SHOW v1.0 - UNIFIED MILESTONE
 ================================================================================
 Copyright (c) 2026 Hyedelle <hyedelle@dreamhub.engine>. All rights reserved.
 Engine Architecture: 100% Deterministic Pure Integer Math (0 Floats) | 64B L1 Cache DOD
 
 [1. INCLUDED ARTIFACTS]
-1. bin/mimic-the-show.exe (0.76 MB)
+1. bin/mimic-the-show.exe (0.84 MB)
    - Real-time 60 FPS Mecha Boxing Roguelite running on native 3D software rasterizer.
-   - Full Steam Deck controller prompts, 3D rim lighting, procedural audio synthesis,
+   - 3D destructible voxel ring floor, dynamic NovaStrike crater carving, mecha limb severance,
+     full Steam Deck controller prompts, 3D rim lighting, procedural audio synthesis,
      Steam achievements, crash-free atomic cloud saves, and cinematic finisher staging.
-2. bin/axiom.exe (0.70 MB)
+2. bin/axiom.exe (0.82 MB)
    - Axiom Studio CLI: Factory base defense RPG, 100k NPC crowds, benchmark suites,
-     and Steam Workshop .axmod compiler.
-3. web/ (HTML5 / WebAssembly 60 FPS Web Player)
-   - 3D Mecha Turntable, Decal Studio, WebRTC P2P rollback PvP, and ELO Leaderboards.
+     Steam Workshop .axmod compiler, and 3D voxel map editor/inspector.
+3. maps/ (3D Destructible Voxel Arenas: .axvm format)
+   - flat_arena.axvm, cratered_arena.axvm, fortified_bunker.axvm,
+     monolith_ruins.axvm, volcanic_vent.axvm
+4. web/ (HTML5 / WebAssembly 60 FPS Web Player)
+   - 💥 3D Voxel Destruction Studio, 360° Turntable, Decal Studio, WebRTC P2P
+     rollback PvP, ELO Leaderboards, and AudioWorklet 3D Spatial Audio.
 
 [2. SYSTEM REQUIREMENTS]
 - OS: Windows 10 / 11 64-bit, SteamOS 3.0+, or Linux via Proton
@@ -170,6 +186,7 @@ Engine Architecture: 100% Deterministic Pure Integer Math (0 Floats) | 64B L1 Ca
 [4. STEAM STORE & MODDING]
 - See 'docs/steam-store-assets.md' for official Steam store page copy & capsule specs.
 - Drop community '.axmod' packages into 'mods/' for instant zero-restart ingestion!
+- Load custom '.axvm' arenas via Axiom CLI or Web Voxel Studio!
 ================================================================================
 "@
 Set-Content -Path $ReadmePath -Value $ReadmeContent -Encoding UTF8
@@ -187,7 +204,7 @@ $MimicHash = (Get-FileHash -Path $MimicDstExe -Algorithm SHA256).Hash
 $BuildDate = (Get-Date).ToString("yyyy-MM-ddTHH:mm:sszzz")
 
 $ManifestObj = [PSCustomObject]@{
-    milestone = "Axiom 120-Task Unified Milestone (T-001 ~ T-120)"
+    milestone = "Axiom 130-Task Unified Milestone (T-001 ~ T-130)"
     engine_version = "v$Version"
     game_version = "v1.0.0"
     target_platform = "windows-x64-steam-deck-verified"
@@ -206,6 +223,12 @@ $ManifestObj = [PSCustomObject]@{
             sha256 = $AxiomHash
         },
         [PSCustomObject]@{
+            name = "voxel_maps"
+            role = "3d_destructible_voxel_arena_presets"
+            directory = "maps"
+            format = "axvm_binary_container"
+        },
+        [PSCustomObject]@{
             name = "web_suite"
             role = "html5_wasm_webrtc_web_player"
             wasm_binary = "web/axiom-wasm.wasm"
@@ -216,6 +239,8 @@ $ManifestObj = [PSCustomObject]@{
         l1_cache_alignment = "64_bytes"
         rasterizer = "8x8_juan_pineda_tile_binning_reversed_z"
         audio = "procedural_pcm_synthesis_22050hz"
+        destruction = "3d_voxel_cratering_and_mesh_severance"
+        ai = "int8_quantized_neural_forward_inference"
     }
 }
 $ManifestJson = $ManifestObj | ConvertTo-Json -Depth 5
