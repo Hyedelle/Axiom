@@ -1083,6 +1083,51 @@
   2. 전체 워크스페이스 버전을 v2.4.0에서 **v2.5.0**으로 공식 판올림하고 Git 태그 `v2.5.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-085] Mimic The Show 챔피언십 복셀 파괴 & 메카 잔해 물리 사후 확장팩 연동 (T-141)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `VoxelChampionshipDirector` 내 64B L1 캐시 정렬 `DynamicCollapseSystem<16>` 및 `ExpansionTracker` 탑재.
+  2. `mimic-the-show` 내 Steamworks DLC 보스 2종(`Kronos` 180 HP 타이탄 몰든 크레이터 붕괴, `Aether` 140 HP 페이즈 스트라이커) 및 6대 신규 DLC 부품(`EyeTitan`, `EyeVoid`, `CoreJuggernaut`, `CorePhase`, `ArmTitanSmasher`, `ArmVoidRipper`) 연동.
+  3. 피니셔 사지 절단(`sever_part_mesh`) 시 보스별 고속 파편 비산, F8 스팀 클라우드 & DLC 라이선스 동적 해금, 빅토리 씬 사후 확장팩 챌린지 핫키(K/P) 완비.
+- **영향:** `crates/axiom-game/src/voxel_tournament.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-086] 0-Float 64B L1 캐시 정렬 3D 열전도-응력장 파쇄 시스템 및 백열 발광 래스터라이저 (T-142)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 0-Float 64-Byte L1 캐시 라인 정렬 `ThermalStressField16` (`#[repr(C, align(64))]`, 정확히 16,448-byte slab) 구현: 16x16x16 4,096-셀 온도 및 전단 응력 격자, 6-이웃 정수 라플라시안 확산 및 대기 냉각 감쇠.
+  2. 고온 임계치($T \ge 750$) 도달 시 `VOXEL_STONE` ➔ `VOXEL_MOLTEN` 실시간 물질 상변이 및 취성 암석 응력 파쇄.
+  3. 3D 열 방출 백열 발광(Incandescent Emissive) 래스터라이저 `render_thermal_glow` 구현 (Reversed-Z 깊이 버퍼 판정, 정수 가산 블렌딩, 3단 컬러 그라데이션).
+- **영향:** `crates/axiom-core/src/thermal_stress.rs`, `crates/axiom-render/src/thermal_render.rs`.
+
+---
+
+### [D-087] Mimic The Show 챔피언십 AI 난이도 밸런싱 및 3D 컷씬 오버레이 강화 (T-143)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `BoxingRingEngine` 4-캐시라인 256-바이트 메모리 지오메트리를 보존하며 `pub difficulty: AiDifficulty` (`#[repr(u8)]`) 및 `_pad1: [u8; 29]` 통합.
+  2. 난이도별(Normal 100%, Hard 75%, Nightmare 50%) 텔레그래프 및 회복 윈도우 스케일링 적용 및 64-bit 합의 해시에 상태 바인딩.
+  3. `CutinKind` 3종 추가: `ClimaxNova` (마젠타 슈퍼노바 피니셔), `CounterStrike` (크림슨 크로스 카운터), `BossEncounter` (앰버 보스 인카운터).
+  4. `mimic-the-show` 글로벌 F2 난이도 순환 토글, 보스 피니셔/카운터/보스 개막 시 컷인 오버레이 발동, 전투 HUD 및 차고 난이도 배지 연동.
+- **영향:** `crates/axiom-game/src/boxing.rs`, `crates/axiom-render/src/cutin.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-088] Axiom Engine v2.6.0 차세대 3D 복셀 메카 파괴 엔진 마일스톤 공식 릴리즈 (T-144)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 144대 누적 과제 총망라: 3D 열전도-응력장 파쇄 시뮬레이터(`ThermalStressField16`), 백열 발광 3D 소프트웨어 래스터라이저, 256B 챔피언십 AI 난이도 밸런싱(`AiDifficulty`), 3D 코믹 컷인 오버레이 3종, Mimic The Show 사후 확장팩 연동 완결 종합 승인.
+  2. 전체 워크스페이스 버전을 v2.5.0에서 **v2.6.0**으로 공식 판올림하고 Git 태그 `v2.6.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
 

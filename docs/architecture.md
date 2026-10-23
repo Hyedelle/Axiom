@@ -862,6 +862,59 @@ Axiom Engine v2.5.0은 WebGL/WASM 브라우저 환경에서 100% CPU 소프트�
 3. **고다공성 복셀 메쉬 추출기 사전 할당 최적화 (`axiom-render`)**:
    - `total_solid` 기반으로 `Vertex3D`/인덱스 버퍼를 사전 용량 할당하여 동적 힙 재할당 0회 소거, 248 µs/op 초고속 파이프라인 구현.
 
+---
+
+## 28. 차세대 3D 복셀 열전도-응력장 파쇄 및 챔피언십 AI 난이도/코믹 컷인 아키텍처 (v2.6.0)
+
+Axiom Engine v2.6.0은 0-Float 64-Byte L1 캐시 라인 정렬 3D 열전도 및 기계적 응력장 파쇄 시뮬레이터(`ThermalStressField16`), 백열 발광(Incandescent Emissive) 3D 소프트웨어 래스터라이저, 256-바이트 고정 메모리 지오메트리를 보존하는 챔피언십 AI 3단 난이도 밸런싱 시스템(`AiDifficulty`), 그리고 코믹북 스타일 3D/2D 컷인 오버레이 3종(`ClimaxNova`, `CounterStrike`, `BossEncounter`)을 결합한 상용화 마일스톤입니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Axiom Engine v2.6.0 Architectural Map                │
+├────────────────────────────────────────────────────────────────────────┤
+│ 1. [3D Thermal Stress Field & Phase Transformation]                    │
+│    - ThermalStressField16: 64B L1 Aligned (exact 16,448-byte slab)     │
+│    - 16x16x16 4,096-Cell Temp [0..1000] & Shear Stress [0..10000]      │
+│    - 6-Neighbor Integer Laplacian Thermal Diffusion & Radiation Cool   │
+│    - Real-time Phase Transformation: VOXEL_STONE -> VOXEL_MOLTEN (T>=750)│
+│    - Brittle Rock Mechanical Spallation & Cratering                    │
+│    - 64-bit FNV-1a Consensus Hash for Deterministic Thermal Sync       │
+├────────────────────────────────────────────────────────────────────────┤
+│ 2. [Incandescent Emissive 3D Software Rasterizer]                      │
+│    - render_thermal_glow: 3D Reversed-Z Depth Testing Integration      │
+│    - Integer Additive Blending (0-Float Saturation)                    │
+│    - 3-Stage Heat Color Gradient: Cherry Red -> Orange Gold -> White   │
+├────────────────────────────────────────────────────────────────────────┤
+│ 3. [Championship AI Difficulty Balancing & Memory Geometry]            │
+│    - BoxingRingEngine: Exact 256-byte 4-Cacheline Alignment Preserved  │
+│    - AiDifficulty: Normal (100%), Hard (75%), Nightmare (50% window)   │
+│    - Deterministic Telegraph, Recovery, and Idle Scaling               │
+│    - Global F2 Hot-swap Dynamic Difficulty Cycling in Mimic The Show    │
+├────────────────────────────────────────────────────────────────────────┤
+│ 4. [Expanded Comic Cut-in Overlays & DLC Championship Bosses]          │
+│    - CutinKind Extension: ClimaxNova (4), CounterStrike (5), Boss (6)  │
+│    - Boss Finisher -> Climax Nova Super Finisher Cutin                 │
+│    - Cross Counter Punch -> Crimson Counter Strike Cutin               │
+│    - Title / DLC Boss Match Launch -> Amber Boss Contender Cutin       │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 28.1 핵심 구조 및 기술적 특성
+1. **0-Float 64B L1 캐시 정렬 3D 열전도-응력장 (`crates/axiom-core/src/thermal_stress.rs`)**:
+   - `ThermalStressField16`은 `#[repr(C, align(64))]` 구조체로 정확히 16,448바이트 연속 슬랩으로 메모리에 상주합니다.
+   - 4,096개 셀의 온도 및 전단 응력 격자를 6-이웃 정수 라플라시안 확산 알고리즘으로 계산하며, 매 틱 정수 복사 냉각 감쇠를 적용합니다.
+   - 온도가 $T \ge 750$에 도달하면 `VOXEL_STONE` 복셀이 실시간으로 `VOXEL_MOLTEN` 물질로 상변이하여 용융 풀을 형성하고, 기계적 파쇄 한계 초과 시 복셀을 폭쇄합니다.
+2. **3D 백열 발광(Incandescent Emissive) 래스터라이저 (`crates/axiom-render/src/thermal_render.rs`)**:
+   - `render_thermal_glow`는 16x16x16 열전도 응력장의 고온 복셀 격자를 3D 투영하고 메카 및 지형 메쉬와 동일한 Reversed-Z 깊이 버퍼를 테스트하여 정확한 깊이 차폐를 구현합니다.
+   - 3단계 열 발광 컬러 샘플링(`sample_thermal_glow_color`)과 정수 채도 포화 가산 블렌딩을 통해 부동소수점 없이 강렬한 고온 용융 시각 효과를 렌더링합니다.
+3. **256-바이트 고정 메모리 지오메트리 보존 AI 난이도 시스템 (`crates/axiom-game/src/boxing.rs`)**:
+   - `BoxingRingEngine`의 30바이트 패딩을 `pub difficulty: AiDifficulty` (1바이트)와 `_pad1: [u8; 29]`로 재편하여 정확히 256바이트(4 캐시 라인) 크기를 보존합니다.
+   - `AiDifficulty` 단계(Normal, Hard, Nightmare)에 따라 텔레그래프 경고 프레임과 공격 후딜레이 회복 프레임을 각각 100%, 75%, 50%로 가속 스케일링합니다.
+4. **코믹 컷인 오버레이 3종 및 Mimic The Show 연동 (`crates/axiom-render/src/cutin.rs`, `mimic-the-show`)**:
+   - `CutinKind`에 `ClimaxNova`(자주/마젠타 슈퍼노바 피니셔), `CounterStrike`(크림슨 크로스 카운터), `BossEncounter`(앰버 보스 인카운터)를 추가.
+   - 인게임 전투에서 보스전 피니셔, 공격 중 카운터 펀치 적중, 타이틀 및 DLC 보스전 개막 시 각 연출이 트리거되며, 상단 HUD 및 차고에 실시간 난이도 배지가 노출됩니다.
+
+
 
 
 
