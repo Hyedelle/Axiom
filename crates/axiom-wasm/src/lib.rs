@@ -4969,6 +4969,65 @@ pub extern "C" fn axiom_voxel_bench_fluid(steps: u32, out_stats: *mut u32) -> u3
     iterations
 }
 
+#[no_mangle]
+pub extern "C" fn axiom_voxel_bench_simd_fluid(steps: u32, out_stats: *mut u32) -> u32 {
+    use axiom_core::voxel_fluid_simd::SimdFluidEngine;
+
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let iterations = steps.clamp(1, 10_000);
+    let mut simd_eng = SimdFluidEngine::new();
+    let mut total_moved = 0u32;
+    let mut total_quenched = 0u32;
+    let mut total_relaxed = 0u32;
+
+    for step in 0..iterations {
+        if step % 50 == 0 {
+            let cx = ((step * 7) % 16) as usize;
+            let cz = ((step * 11) % 16) as usize;
+            let peak_t = 800 + ((step % 200) as u16);
+            let peak_s = 700 + ((step % 250) as u16);
+            eng.thermal.inject_thermal_pulse(cx, 2, cz, 2, peak_t, peak_s);
+        }
+
+        if step % 25 == 0 {
+            let fx = ((step * 7) % 16) as usize;
+            let fz = ((step * 11) % 16) as usize;
+            eng.fluid.inject_fluid(&mut eng.volume, fx, 2, fz, 220);
+        }
+
+        let (q_temp, r_stress) = eng.fluid.relax_thermal_and_stress(&mut eng.thermal);
+        total_quenched += q_temp;
+        total_relaxed += r_stress;
+
+        let res = simd_eng.step_fluid_simd(&mut eng.fluid, &mut eng.volume, Some(&mut eng.thermal), 25);
+        total_moved += res.units_moved;
+    }
+
+    let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+    eng.last_triangles = mesh.triangle_count() as u32;
+    eng.extracted_mesh = Some(mesh);
+
+    let hash = eng.fluid.compute_consensus_hash();
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = iterations;
+            *out_stats.add(1) = total_moved;
+            *out_stats.add(2) = simd_eng.sleep_cycles_saved;
+            *out_stats.add(3) = simd_eng.active_slices as u32;
+            *out_stats.add(4) = eng.fluid.total_fluid_units;
+            *out_stats.add(5) = (hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(6) = (hash >> 32) as u32;
+        }
+    }
+
+    iterations
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5835,5 +5894,12 @@ mod tests {
         axiom_voxel_reset_fluid();
         assert_eq!(axiom_voxel_get_fluid_units(), 0);
         assert_eq!(axiom_voxel_get_active_fluid_cells(), 0);
+
+        // 6. SIMD / Checkerboard Fluid Benchmark
+        let mut simd_stats = [0u32; 7];
+        let bench_ticks = axiom_voxel_bench_simd_fluid(50, simd_stats.as_mut_ptr());
+        assert_eq!(bench_ticks, 50);
+        assert_eq!(simd_stats[0], 50);
+        assert!(simd_stats[5] != 0 || simd_stats[6] != 0, "SIMD fluid hash must be non-zero");
     }
 }
