@@ -6,6 +6,7 @@
 #![no_std]
 
 pub mod boxing;
+pub mod boxing_netcode;
 pub mod card;
 pub mod defense;
 pub mod factory;
@@ -14,6 +15,10 @@ pub mod world_factory;
 pub mod worker;
 
 pub use boxing::{ActionKind, AiPhase, BoxerAction, BoxerState, BoxingEvent, BoxingRingEngine};
+pub use boxing_netcode::{
+    BoxingFrameStats, BoxingInputQueue, BoxingRollbackSession, DEFAULT_BOXING_BUFFER_SIZE,
+    MAX_SUPPORTED_BOXING_PLAYERS,
+};
 pub use card::{CardKind, DeckState, TacticalCard};
 
 pub use factory::{

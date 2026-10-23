@@ -242,7 +242,7 @@ pub enum BoxingEvent {
 
 /// 64-byte aligned Boxing Ring Simulation Engine (256 bytes total).
 #[repr(C, align(64))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoxingRingEngine {
     pub tick: u64,
     pub _pad0: [u8; 8],
@@ -597,6 +597,189 @@ impl BoxingRingEngine {
                 damage: final_dmg,
                 is_counter,
             };
+        }
+    }
+
+    /// Advances the simulation by 1 discrete frame in 2-player P2P multiplayer mode.
+    /// Evaluates simultaneous actions for Player 0 (player) and Player 1 (opponent).
+    pub fn step_pvp(
+        &mut self,
+        p0_input: ActionKind,
+        p1_input: ActionKind,
+    ) -> (BoxingEvent, BoxingEvent) {
+        self.tick += 1;
+        let mut ev0 = BoxingEvent::None;
+        let mut ev1 = BoxingEvent::None;
+
+        if self.hit_stop_frames > 0 {
+            self.hit_stop_frames -= 1;
+            return (BoxingEvent::None, BoxingEvent::None);
+        }
+
+        if self.camera_shake > 0 {
+            self.camera_shake -= 1;
+        }
+
+        // KO check: if either is Down, tick down animation and return
+        if !self.player.is_alive() || !self.opponent.is_alive() {
+            if self.player.action.kind == ActionKind::Down {
+                self.player.action.frame = self.player.action.frame.saturating_add(1);
+            }
+            if self.opponent.action.kind == ActionKind::Down {
+                self.opponent.action.frame = self.opponent.action.frame.saturating_add(1);
+            }
+            return (BoxingEvent::None, BoxingEvent::None);
+        }
+
+        // Natural heat dissipation every 10 frames
+        if self.tick % 10 == 0 {
+            if self.player.heat > 0 {
+                self.player.heat = self.player.heat.saturating_sub(1);
+            }
+            if self.opponent.heat > 0 {
+                self.opponent.heat = self.opponent.heat.saturating_sub(1);
+            }
+        }
+
+        // Process inputs
+        Self::apply_boxer_input(&mut self.player, p0_input);
+        Self::apply_boxer_input(&mut self.opponent, p1_input);
+
+        // Check contact frames
+        let p0_contact = self.player.action.kind.is_attack()
+            && self.player.action.frame == (self.player.action.max_frame / 2);
+        let p1_contact = self.opponent.action.kind.is_attack()
+            && self.opponent.action.frame == (self.opponent.action.max_frame / 2);
+
+        // Resolve P0 attacking P1
+        if p0_contact {
+            ev0 = self.resolve_pvp_strike(0);
+        }
+
+        // Resolve P1 attacking P0
+        if p1_contact {
+            ev1 = self.resolve_pvp_strike(1);
+        }
+
+        // Advance animation frames for ongoing actions
+        Self::advance_boxer_action(&mut self.player);
+        Self::advance_boxer_action(&mut self.opponent);
+
+        (ev0, ev1)
+    }
+
+    fn resolve_pvp_strike(&mut self, attacker_idx: usize) -> BoxingEvent {
+        let (attacker_action, defender_action_kind, is_defender_alive) = if attacker_idx == 0 {
+            (self.player.action, self.opponent.action.kind, self.opponent.is_alive())
+        } else {
+            (self.opponent.action, self.player.action.kind, self.player.is_alive())
+        };
+
+        if !is_defender_alive {
+            return BoxingEvent::None;
+        }
+
+        let full_dmg = attacker_action.damage;
+
+        // 1. Evasion / Slip
+        if defender_action_kind.is_evasion() {
+            return BoxingEvent::PlayerEvaded;
+        }
+
+        // 2. Guard
+        if defender_action_kind == ActionKind::Guard {
+            let chip = (full_dmg * (100 - self.guard_absorption as u16) / 100).max(2);
+            self.hit_stop_frames = 3;
+            self.camera_shake = 2;
+
+            if attacker_idx == 0 {
+                self.opponent.hp = (self.opponent.hp - chip as i32).max(0);
+                if self.opponent.hp == 0 {
+                    self.opponent.action = BoxerAction::from_kind(ActionKind::Down);
+                    return BoxingEvent::OpponentDowned;
+                }
+            } else {
+                self.player.hp = (self.player.hp - chip as i32).max(0);
+                if self.player.hp == 0 {
+                    self.player.action = BoxerAction::from_kind(ActionKind::Down);
+                    return BoxingEvent::PlayerDowned;
+                }
+            }
+            return BoxingEvent::PlayerBlocked { chip };
+        }
+
+        // 3. Counter Hit or Clean Hit
+        let is_counter = defender_action_kind.is_attack();
+        let dmg = if is_counter {
+            (full_dmg * self.counter_mult) / 100
+        } else {
+            full_dmg
+        };
+
+        self.hit_stop_frames = if is_counter { 6 } else { 4 };
+        self.camera_shake = if is_counter { 5 } else { 3 };
+
+        if attacker_idx == 0 {
+            self.opponent.hp = (self.opponent.hp - dmg as i32).max(0);
+            if self.opponent.hp == 0 {
+                self.opponent.action = BoxerAction::from_kind(ActionKind::Down);
+                BoxingEvent::OpponentDowned
+            } else {
+                self.opponent.action = BoxerAction::from_kind(ActionKind::HitStagger);
+                BoxingEvent::PlayerPunched { damage: dmg, is_counter }
+            }
+        } else {
+            self.player.hp = (self.player.hp - dmg as i32).max(0);
+            if self.player.hp == 0 {
+                self.player.action = BoxerAction::from_kind(ActionKind::Down);
+                BoxingEvent::PlayerDowned
+            } else {
+                self.player.action = BoxerAction::from_kind(ActionKind::HitStagger);
+                BoxingEvent::PlayerStruck { damage: dmg }
+            }
+        }
+    }
+
+    fn apply_boxer_input(boxer: &mut BoxerState, input: ActionKind) {
+        if boxer.action.kind != ActionKind::Idle && boxer.action.kind != ActionKind::Guard {
+            return;
+        }
+
+        match input {
+            ActionKind::Guard => {
+                boxer.action = BoxerAction::from_kind(ActionKind::Guard);
+                boxer.x_offset_px = 0;
+            }
+            ActionKind::SlipLeft => {
+                boxer.action = BoxerAction::from_kind(ActionKind::SlipLeft);
+                boxer.x_offset_px = -24;
+            }
+            ActionKind::SlipRight => {
+                boxer.action = BoxerAction::from_kind(ActionKind::SlipRight);
+                boxer.x_offset_px = 24;
+            }
+            ActionKind::Jab | ActionKind::Cross | ActionKind::Hook | ActionKind::Finisher => {
+                if boxer.heat + input.heat_cost() <= boxer.max_heat + 20 {
+                    boxer.action = BoxerAction::from_kind(input);
+                    boxer.heat = (boxer.heat + input.heat_cost()).min(boxer.max_heat);
+                    boxer.x_offset_px = 0;
+                }
+            }
+            _ => {
+                if boxer.action.kind == ActionKind::Guard && input == ActionKind::Idle {
+                    boxer.action = BoxerAction::idle();
+                }
+            }
+        }
+    }
+
+    fn advance_boxer_action(boxer: &mut BoxerState) {
+        if boxer.action.kind != ActionKind::Idle && boxer.action.kind != ActionKind::Guard {
+            boxer.action.frame += 1;
+            if boxer.action.frame >= boxer.action.max_frame {
+                boxer.action = BoxerAction::idle();
+                boxer.x_offset_px = 0;
+            }
         }
     }
 

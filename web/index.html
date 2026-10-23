@@ -323,6 +323,7 @@
     <button class="action-btn" onclick="sendBoxingInput(2)" style="color: #f59e0b; border-color: #b45309;">💥 Cross (K)</button>
     <button class="action-btn" onclick="sendBoxingInput(3)" style="color: #ef4444; border-color: #b91c1c;">🔥 Hook (L)</button>
     <button class="action-btn" onclick="sendBoxingInput(7)" style="color: #c084fc; border-color: #7e22ce; font-weight: bold;">⚡ 2D Cut-In (Space)</button>
+    <button class="action-btn" id="btnTogglePvp" onclick="toggleNetboxPvp()" style="color: #a855f7; border-color: #9333ea; font-weight: bold;">🌐 P2P Rollback PvP</button>
     <button class="action-btn" onclick="switchMode('boxing')" style="color: #94a3b8;">🔄 Rematch</button>
   </div>
 
@@ -628,6 +629,31 @@
     function updateNetDrop(val) {
       netDropRate = parseInt(val);
       document.getElementById('dropVal').innerText = val + '%';
+    }
+
+    let isBoxingPvp = false;
+    let netboxPacketPipe = [];
+
+    function toggleNetboxPvp() {
+      isBoxingPvp = !isBoxingPvp;
+      const btn = document.getElementById('btnTogglePvp');
+      if (isBoxingPvp) {
+        if (btn) {
+          btn.innerText = '🥊 Single-Player AI';
+          btn.style.color = '#38bdf8';
+          btn.style.borderColor = '#0284c7';
+        }
+        wasmInstance.axiom_netbox_init(0, BigInt(12345), width, height);
+        document.getElementById('instruction').innerText = '🌐 P2P 롤백 넷코드 대전: 0ms 예측 실행 | P0(레드)/P1(블루) 실시간 공방 | 100ms 지연 패킷 수신 시 자동 롤백 재시뮬레이션!';
+      } else {
+        if (btn) {
+          btn.innerText = '🌐 P2P Rollback PvP';
+          btn.style.color = '#a855f7';
+          btn.style.borderColor = '#9333ea';
+        }
+        wasmInstance.axiom_boxing_init(BigInt(Date.now()), width, height);
+        document.getElementById('instruction').innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
+      }
     }
 
     function setFactoryTool(toolId) {
@@ -1288,37 +1314,84 @@
           action = 4; // hold guard
         }
 
-        const ev = wasmInstance.axiom_boxing_step(action);
-        wasmInstance.axiom_boxing_render();
-        ptr = wasmInstance.axiom_boxing_get_framebuffer_ptr();
-        len = wasmInstance.axiom_boxing_get_framebuffer_len();
-        tick = wasmInstance.axiom_boxing_get_tick();
+        if (isBoxingPvp) {
+          // Process simulated delayed packets from remote peer P1
+          const nowMs = performance.now();
+          const pending = [];
+          for (const p of netboxPacketPipe) {
+            if (nowMs >= p.deliverAt) {
+              wasmInstance.axiom_netbox_receive_remote(1, BigInt(p.frame), p.action);
+            } else {
+              pending.push(p);
+            }
+          }
+          netboxPacketPipe = pending;
 
-        const playerHp = wasmInstance.axiom_boxing_get_player_hp();
-        const playerHeat = wasmInstance.axiom_boxing_get_player_heat();
-        const oppHp = wasmInstance.axiom_boxing_get_opponent_hp();
-        const score = wasmInstance.axiom_boxing_get_score();
-        const phase = wasmInstance.axiom_boxing_get_phase();
-        const stage = wasmInstance.axiom_boxing_get_stage();
-        const pwr = wasmInstance.axiom_boxing_get_bonus_power();
+          const currentFrame = wasmInstance.axiom_netbox_get_frame();
+          wasmInstance.axiom_netbox_advance_frame(action);
 
-        if (ev > 0) playBoxingSfx(ev);
+          // Simulated remote peer AI inputs through 100ms latency pipe
+          const p1Action = (Math.random() < 0.12)
+            ? (Math.floor(Math.random() * 4) + 1)
+            : 0;
+          netboxPacketPipe.push({
+            deliverAt: performance.now() + 100,
+            frame: Number(currentFrame),
+            action: p1Action
+          });
 
-        let phaseBadge = '';
-        if (phase === 1) {
-          phaseBadge = ' | <span class="gold" style="font-weight:bold;">★ DRAFTING UPGRADE (PRESS 1, 2, 3)</span>';
-        } else if (phase === 3) {
-          phaseBadge = ' | <span class="red" style="font-weight:bold;">💀 MECHA DOWN (PRESS SPACE)</span>';
+          wasmInstance.axiom_netbox_render();
+          ptr = wasmInstance.axiom_netbox_get_framebuffer_ptr();
+          len = wasmInstance.axiom_netbox_get_framebuffer_len();
+          tick = wasmInstance.axiom_netbox_get_frame();
+
+          const p0Hp = wasmInstance.axiom_netbox_get_p0_hp();
+          const p1Hp = wasmInstance.axiom_netbox_get_p1_hp();
+          const rollbacks = wasmInstance.axiom_netbox_get_total_rollbacks();
+          const resim = wasmInstance.axiom_netbox_get_total_resimulated();
+          const hash = wasmInstance.axiom_netbox_get_hash();
+
+          document.getElementById('hudDetail').innerHTML =
+            `<span class="purple" style="font-weight:bold;">P2P ROLLBACK PVP</span> | ` +
+            `<span class="red">P0 HP: ${p0Hp}</span> | ` +
+            `<span class="blue">P1 HP: ${p1Hp}</span> | ` +
+            `<span class="gold">Frame: ${tick}</span> | ` +
+            `<span class="red">Rollbacks: ${rollbacks}</span> | ` +
+            `<span class="blue">Resim: ${resim}</span> | ` +
+            `<span class="gray">Hash: 0x${hash.toString(16).toUpperCase()}</span>`;
+        } else {
+          const ev = wasmInstance.axiom_boxing_step(action);
+          wasmInstance.axiom_boxing_render();
+          ptr = wasmInstance.axiom_boxing_get_framebuffer_ptr();
+          len = wasmInstance.axiom_boxing_get_framebuffer_len();
+          tick = wasmInstance.axiom_boxing_get_tick();
+
+          const playerHp = wasmInstance.axiom_boxing_get_player_hp();
+          const playerHeat = wasmInstance.axiom_boxing_get_player_heat();
+          const oppHp = wasmInstance.axiom_boxing_get_opponent_hp();
+          const score = wasmInstance.axiom_boxing_get_score();
+          const phase = wasmInstance.axiom_boxing_get_phase();
+          const stage = wasmInstance.axiom_boxing_get_stage();
+          const pwr = wasmInstance.axiom_boxing_get_bonus_power();
+
+          if (ev > 0) playBoxingSfx(ev);
+
+          let phaseBadge = '';
+          if (phase === 1) {
+            phaseBadge = ' | <span class="gold" style="font-weight:bold;">★ DRAFTING UPGRADE (PRESS 1, 2, 3)</span>';
+          } else if (phase === 3) {
+            phaseBadge = ' | <span class="red" style="font-weight:bold;">💀 MECHA DOWN (PRESS SPACE)</span>';
+          }
+
+          document.getElementById('hudDetail').innerHTML =
+            `<span class="purple" style="font-weight:bold;">STAGE ${stage}</span> | ` +
+            `<span class="green">HP:</span> ${playerHp} | ` +
+            `<span class="gold">Heat:</span> ${playerHeat}/100 | ` +
+            `<span class="red">Boss HP:</span> ${oppHp} | ` +
+            `<span class="blue">Power:</span> +${pwr} | ` +
+            `<span class="gold">Score:</span> ${score}` +
+            phaseBadge;
         }
-
-        document.getElementById('hudDetail').innerHTML =
-          `<span class="purple" style="font-weight:bold;">STAGE ${stage}</span> | ` +
-          `<span class="green">HP:</span> ${playerHp} | ` +
-          `<span class="gold">Heat:</span> ${playerHeat}/100 | ` +
-          `<span class="red">Boss HP:</span> ${oppHp} | ` +
-          `<span class="blue">Power:</span> +${pwr} | ` +
-          `<span class="gold">Score:</span> ${score}` +
-          phaseBadge;
       } else if (mode === 'factory') {
         let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
         let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);

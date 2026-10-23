@@ -23,6 +23,7 @@ use axiom_core::state::TickState;
 pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
+use axiom_game::boxing_netcode::BoxingRollbackSession;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D};
@@ -2809,6 +2810,185 @@ pub extern "C" fn axiom_3d_get_tick() -> u64 {
     wasm_3d_engine().map(|e| e.tick).unwrap_or(0)
 }
 
+// ============================================================================
+// Track 4: P2P Multiplayer Boxing Rollback Netcode C-ABI Bridge
+// ============================================================================
+
+#[allow(static_mut_refs)]
+struct NetboxWasmEngine {
+    session: BoxingRollbackSession<64>,
+    framebuffer: FrameBuffer,
+}
+
+static mut NETBOX: Option<Box<NetboxWasmEngine>> = None;
+
+#[inline(always)]
+fn netbox_engine() -> Option<&'static mut NetboxWasmEngine> {
+    unsafe { (*core::ptr::addr_of_mut!(NETBOX)).as_deref_mut() }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_init(local_player_id: u32, seed: u64, width: u32, height: u32) {
+    let initial_ring = BoxingRingEngine::new(seed);
+    let session = BoxingRollbackSession::new(local_player_id as usize, initial_ring);
+    let framebuffer = FrameBuffer::new(width as usize, height as usize);
+    unsafe {
+        NETBOX = Some(Box::new(NetboxWasmEngine {
+            session,
+            framebuffer,
+        }));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_advance_frame(local_input: u32) -> u64 {
+    let engine = match netbox_engine() {
+        Some(e) => e,
+        None => return 0,
+    };
+    let action = match local_input {
+        1 => ActionKind::Jab,
+        2 => ActionKind::Cross,
+        3 => ActionKind::Hook,
+        4 => ActionKind::Guard,
+        5 => ActionKind::SlipLeft,
+        6 => ActionKind::SlipRight,
+        7 => ActionKind::Finisher,
+        _ => ActionKind::Idle,
+    };
+    let stats = engine.session.advance_frame(action);
+    stats.state_hash
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_receive_remote(remote_player_id: u32, frame: u64, input: u32) -> bool {
+    let engine = match netbox_engine() {
+        Some(e) => e,
+        None => return false,
+    };
+    let action = match input {
+        1 => ActionKind::Jab,
+        2 => ActionKind::Cross,
+        3 => ActionKind::Hook,
+        4 => ActionKind::Guard,
+        5 => ActionKind::SlipLeft,
+        6 => ActionKind::SlipRight,
+        7 => ActionKind::Finisher,
+        _ => ActionKind::Idle,
+    };
+    engine.session.receive_remote_input(remote_player_id as usize, frame, action)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_frame() -> u64 {
+    netbox_engine().map(|e| e.session.current_frame).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_confirmed_frame() -> u64 {
+    netbox_engine().map(|e| e.session.confirmed_frame).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_total_rollbacks() -> u64 {
+    netbox_engine().map(|e| e.session.total_rollbacks).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_total_resimulated() -> u64 {
+    netbox_engine().map(|e| e.session.total_frames_resimulated).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_hash() -> u64 {
+    netbox_engine().map(|e| e.session.current_state.compute_hash()).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_p0_hp() -> u32 {
+    netbox_engine().map(|e| e.session.current_state.player.hp as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_p1_hp() -> u32 {
+    netbox_engine().map(|e| e.session.current_state.opponent.hp as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_p0_heat() -> u32 {
+    netbox_engine().map(|e| e.session.current_state.player.heat as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_p1_heat() -> u32 {
+    netbox_engine().map(|e| e.session.current_state.opponent.heat as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_render() {
+    let engine = match netbox_engine() {
+        Some(e) => e,
+        None => return,
+    };
+    let fb = &mut engine.framebuffer;
+    let w = fb.width as i32;
+    let h = fb.height as i32;
+
+    fb.clear(0xFF090D16);
+
+    let ring_cx = w / 2;
+    let ring_cy = h / 2 + 35;
+
+    // Ring canvas floor
+    for y in (ring_cy - 120)..(ring_cy + 120) {
+        let dy = y - (ring_cy - 120);
+        let half_span = 140 + (dy * 90) / 240;
+        for x in (ring_cx - half_span)..(ring_cx + half_span) {
+            let checker = ((x / 32) + (y / 16)) % 2 == 0;
+            let col = if checker { 0xFF141923 } else { 0xFF181F2C };
+            fb.set_pixel(x, y, col);
+        }
+        fb.set_pixel(ring_cx - half_span, y, 0xFF0A0D14);
+        fb.set_pixel(ring_cx + half_span, y, 0xFF0A0D14);
+    }
+
+    // Ring Ropes
+    for &ry in &[ring_cy - 70, ring_cy - 30, ring_cy + 10] {
+        fb.draw_rect(ring_cx - 220, ry, 440, 3, 0xFFDC2626);
+        fb.draw_rect(ring_cx - 220, ry + 1, 440, 1, 0xFFFCA5A5);
+    }
+
+    let ring = &engine.session.current_state;
+
+    // P1 Mecha (Opponent / Blue Corner)
+    let p1_x = ring_cx + ring.opponent.x_offset_px as i32;
+    let p1_y = ring_cy - 50;
+    let p1_col = if ring.opponent.action.kind == ActionKind::HitStagger { 0xFFFFFFFF } else { 0xFF38BDF8 };
+    fb.draw_rect(p1_x - 24, p1_y - 40, 48, 40, 0xFF0F172A);
+    fb.draw_rect(p1_x - 22, p1_y - 38, 44, 36, p1_col);
+    fb.draw_rect(p1_x - 14, p1_y - 60, 28, 20, 0xFF64748B);
+    fb.draw_rect(p1_x - 8, p1_y - 54, 16, 6, 0xFFFF0000);
+
+    // P0 Mecha (Local / Red Corner)
+    let p0_x = ring_cx + ring.player.x_offset_px as i32;
+    let p0_y = ring_cy + 100;
+    let p0_col = if ring.player.action.kind == ActionKind::HitStagger { 0xFFFFFFFF } else { 0xFFDC2626 };
+    fb.draw_rect(p0_x - 30, p0_y - 50, 60, 50, 0xFF0F172A);
+    fb.draw_rect(p0_x - 27, p0_y - 47, 54, 44, p0_col);
+    fb.draw_rect(p0_x - 16, p0_y - 72, 32, 22, 0xFF475569);
+    fb.draw_rect(p0_x - 10, p0_y - 66, 20, 6, 0xFF00FFCC);
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_framebuffer_ptr() -> *const u32 {
+    netbox_engine().map(|e| e.framebuffer.pixels.as_ptr()).unwrap_or(core::ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_get_framebuffer_len() -> u32 {
+    netbox_engine().map(|e| e.framebuffer.pixels.len() as u32).unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2858,6 +3038,29 @@ mod tests {
         assert!(!stage_ptr.is_null());
         // Invalid GLB in buffer returns 0
         assert_eq!(axiom_3d_parse_staged_glb(), 0);
+    }
+
+    #[test]
+    fn test_netbox_wasm_lifecycle() {
+        axiom_netbox_init(0, 1001, 320, 240);
+        assert_eq!(axiom_netbox_get_frame(), 0);
+        assert_eq!(axiom_netbox_get_p0_hp(), 100);
+        assert_eq!(axiom_netbox_get_p1_hp(), 120);
+
+        // Advance 5 frames locally
+        for _ in 0..5 {
+            axiom_netbox_advance_frame(0);
+        }
+        assert_eq!(axiom_netbox_get_frame(), 5);
+
+        // Receive delayed remote packet from frame 2 (P1 cross)
+        let rolled = axiom_netbox_receive_remote(1, 2, 2);
+        assert!(rolled, "delayed remote strike must trigger rollback");
+        assert_eq!(axiom_netbox_get_total_rollbacks(), 1);
+
+        axiom_netbox_render();
+        assert!(!axiom_netbox_get_framebuffer_ptr().is_null());
+        assert_eq!(axiom_netbox_get_framebuffer_len(), 320 * 240);
     }
 
     #[test]
