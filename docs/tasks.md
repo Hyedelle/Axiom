@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-123: AI 대전 파이터 인공지능 강화학습 모델 추론 엔진 통합** (`crates/axiom-core`, `crates/axiom-game`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-124: Axiom 차세대 3D 복셀 메카 지형 파괴 및 물리 절단 엔진** (`crates/axiom-core`, `crates/axiom-render`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-125: Mimic The Show 절단 파츠 파편 비산 및 3D 링 바닥 크레이터 연출 통합** (`mimic-the-show`, `crates/axiom-render`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-123: AI 대전 파이터 인공지능 강화학습 모델 추론 엔진 통합** (`crates/axiom-core/src/neural_ai.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_neural_ai.rs`, `crates/axiom-game/src/neural_fighter.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_neural_fighter.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `NeuralAiWeights` [#[repr(C, align(64))], exact 320-byte 5-cacheline slab, INT8 weights, INT16 biases, model_version, checksum], 8차원 전투 관측 벡터 `CombatObservation` [rel_distance, player_hp_pct, opponent_hp_pct, player_heat_pct, player_action, opponent_action, player_combo_streak, opponent_telegraph_rem], 순수 정수 양자화(INT8 x INT8 ➔ i32 누산 ➔ Quantized ReLU / 64) 다층 퍼셉트론 순방향 추론기 `infer_action`, 64B L1 캐시 정렬 인게임 컨트롤러 `NeuralFighterController` [#[repr(C, align(64))], exact 384-byte 6-cacheline slab], 복싱 링 `BoxingRingEngine` 실시간 관측 추출 및 `ActionKind` 자동 의사결정/시뮬레이션 연동 `step_player`, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-122: 크로스 플랫폼 Vulkan/DirectX 12 선택적 백엔드 및 모바일 타겟 검증** (`crates/axiom-render/src/gpu_backend.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_gpu_backend.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `GpuPresenterConfig` [#[repr(C, align(64))], backend, scaling, vsync, triple_buffering, target_fps, viewport_w/h, safe_area_inset], 64B L1 정렬 `PresentStats` 텔레메트리, 5대 프레젠테이션 백엔드 [`SoftwareCpu`, `Vulkan`, `DirectX12`, `Metal`, `WebGpu`], 4대 정수배/레터박스 스케일러 [`Nearest1x`, `Integer2x`, `Integer4x`, `FitAspectLetterbox`] 16:9/16:10 디스플레이 자동 센터링, 3개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-121: 스팀 클라우드 & 워크숍 통합 사후 확장팩 (Steam DLC / Next Frontier)** (`crates/axiom-core/src/dlc.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_dlc.rs`, `crates/axiom-game/src/expansion.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_expansion.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `DlcState` [#[repr(C, align(64))], owned_mask, active_mask, steam_app_id, build_id, install_timestamp, 64-bit FNV-1a 암호학적 서명 체크섬 `signature_hash`], 4대 Steamworks 정규 DLC AppID 규격 [`TitanChronicles`, `VoidFrontier`, `GoldenDecals`, `FoundryOverdrive`], DLC 소유권 위변조 실시간 방어 및 런타임 라이선스 언락 머신, 64B L1 캐시 정렬 게임플레이 확장 추적기 `ExpansionTracker`, 신규 챔피언십 보스 2종 [`KRONOS (180 HP, Titan Smash)`, `AETHER (140 HP, Phase Cloak)`] DLC 게이팅 및 해금 연동, 5개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-120: Axiom 120대 통합 최종 마일스톤 데모 패키징 및 스팀 상점 페이지 에셋 빌더** (`tools/package.ps1`, `docs/steam-store-assets.md`, `Cargo.toml`, `dist/axiom-v2.1.0-unified-milestone.zip` [1.98 MB, SHA-256 검증], `dist/.../bin/mimic-the-show.exe` [0.84 MB, 60 FPS 네이티브 메카 복싱 로그라이트 단일 바이너리], `dist/.../bin/axiom.exe` [0.82 MB, 팩토리 RPG / 10만 NPC / 워크숍 CLI], `dist/.../web/` [1.08 MB WASM 7대 통합 웹 플레이어 & WebRTC P2P 롤백 넷코드], 스팀 상점 페이지 공식 명세 `docs/steam-store-assets.md` [5대 캡슐 규격, 영문/국문 소개문, 0-Float CPU 래스터라이저 시스템 요구사항], 전체 워크스페이스 v2.1.0 공식 판올림 및 Git 태그 `v2.1.0` 준비, `tools/guard.ps1` 통과)

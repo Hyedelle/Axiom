@@ -24,6 +24,7 @@ pub mod input;
 pub mod logistics;
 pub mod monster_spawn;
 pub mod netcode;
+pub mod neural_ai;
 pub mod npc_crowd;
 pub mod pathfinding;
 pub mod pcg;
@@ -91,6 +92,9 @@ pub use monster_spawn::{
 pub use netcode::{
     PlayerInputQueue, RollbackFrameStats, RollbackSession, SimulatedNetworkPipe,
     DEFAULT_NETCODE_BUFFER_SIZE, MAX_SUPPORTED_PLAYERS,
+};
+pub use neural_ai::{
+    infer_action, CombatObservation, NeuralAiWeights, NN_HIDDEN_DIM, NN_INPUT_DIM, NN_OUTPUT_DIM,
 };
 pub use npc_crowd::{
     Npc, NpcActivity, NpcCrowdPool, NpcTable, DEFAULT_NPC_TABLE_CAPACITY, TICKS_PER_DAY,
