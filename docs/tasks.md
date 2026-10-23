@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-137: Axiom WebGL/WASM 3D 복셀 다이나믹 메쉬 붕괴 & 파편 비산 웹 시뮬레이터 연동** (`crates/axiom-wasm`, `web/`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-138: Axiom WebGL/WASM 3D 복셀 다이나믹 메쉬 붕괴 벤치마크 및 웹 UI 컨트롤 패널 완성** (`crates/axiom-wasm`, `web/`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-139: Axiom 3D 복셀 메카 지형 파괴 & 분절 시뮬레이션 스트레스 테스트 및 최적화** (`crates/axiom-render`, `crates/axiom-wasm`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-137: Axiom WebGL/WASM 3D 복셀 다이나믹 메쉬 붕괴 & 파편 비산 웹 시뮬레이터 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `WasmVoxelEngine` 내 64B L1 캐시 정렬 `VoxelShardPool<128>` 및 `DynamicCollapseSystem<16>` 연동, 3D Reversed-Z 깊이 버퍼 동시 판정 래스터라이저 `render_dynamic_collapse_chunks` & `render_voxel_shards`, C-ABI 신규 엔드포인트 4종 [`axiom_voxel_get_shard_count`, `axiom_voxel_get_collapsed_chunk_count`, `axiom_voxel_trigger_collapse`, `axiom_voxel_spawn_shard_storm`], 웹 UI 🏛️ Dynamic Collapse & 🌪️ Shard Storm(x32) 컨트롤러 및 실시간 청크/샤드 HUD 연동, 20개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-136: Mimic The Show 챔피언십 복셀 지형 실시간 구조 붕괴 및 파괴 파편 벤치마크 모드** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `DesktopGameView` 내 64B L1 캐시 정렬 `DynamicCollapseSystem<16>` 상주, 피니셔 노바 스트라이크 지반 크레이터 굴착 후 `detect_and_collapse` 실시간 공중 부유 고립 지형 자동 분절, 3D Reversed-Z 소프트웨어 래스터라이저 `render_dynamic_collapse_chunks` 실시간 프레임버퍼 렌더링, 청크 바닥 충돌 및 샤드 산산조각 시 `SoundKind::VoxelBlast`/`DebrisScatter` 사운드 동기화, 글로벌 `F10` 핫키 즉시 붕괴 벤치마크 트리거 및 결정론적 벤치마크 메서드 `run_destruction_benchmark` [100% 해시 재현성 검증], `axiom voxel bench` CLI 초당 7,141+ TPS 고속 스루풋 계측기 완비, 18개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-135: Axiom Engine v2.4.0 3D 복셀 메카 지형 파괴 & 탄도 물리 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-074]~[D-079], `docs/audit-report.md` [AUDIT-20261023-v2.4.0], 64B L1 캐시 정렬 0-Float 관성 복셀 파편 풀 `VoxelShardPool<CAP>` [#[repr(C, align(64))], 4대 머티리얼 물리 탄성 반발 계수, 지면 마찰, BAMS 텀블링], Reversed-Z 3D 소프트웨어 래스터라이저 `render_voxel_shards`, `mimic-the-show` 챔피언십 복셀 아레나 관성 조각 비산 및 바닥 충돌 사운드스케이프 실시간 결합, 6-방향 3D BFS 지반 연결성 분석기 `detect_and_collapse` 및 64B L1 정렬 `DynamicVoxelChunk` 다이나믹 메쉬 붕괴 시뮬레이터, 고속 지면 충돌 시 청크 ➔ 샤드 산산조각(Shatter) 파이프라인, 워크스페이스 v2.4.0 공식 판올림 및 Git 태그 `v2.4.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-134: Axiom 차세대 3D 복셀 분절 및 다이나믹 메쉬 붕괴(Dynamic Mesh Collapse) 시뮬레이션** (`crates/axiom-core/src/voxel_collapse.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_voxel_collapse.rs`, `crates/axiom-render/src/voxel_collapse_render.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_voxel_collapse_rendering.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `DynamicVoxelChunk` [#[repr(C, align(64))], exact 64-byte chunk struct, pos/vel/rot/ang_vel/material/bounces/voxel_count/life/scale/shape_extent/shatter_threshold], 6-방향 3D BFS 지반 연결성 분석기 `detect_and_collapse` [지반 anchor_y와의 연결이 단절된 공중 부유/고립 복셀 클러스터 자동 탐지, 볼륨 내 공기화 및 동적 강체 청크 분절], 물리 강체 오일러 적분 및 텀블링 회전, 지면 고속 충돌(`vel[1] >= shatter_threshold`) 시 `VoxelShardPool` 미립자 파편 자동 산산조각(Shatter) 파이프라인, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 3D 소프트웨어 래스터라이저 `render_dynamic_collapse_chunks` [Reversed-Z 깊이 버퍼 판정, 원근 투영 바운딩 익스텐트, 텀블링 BAMS 면 노멀 페이싯 라이팅 및 슬레이트 엣지 베벨], 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

@@ -426,6 +426,8 @@
     <button class="action-btn" id="voxBtn4" onclick="setVoxelPreset(4)">Volcanic</button>
     <span style="font-weight: bold; color: #f87171; margin-left: 6px;">💥 Carve:</span>
     <button class="action-btn" style="color: #f87171; border-color: #ef4444;" onclick="carveVoxelCenterBlast()">💥 Blast Crater (r=5)</button>
+    <button class="action-btn" style="color: #fb923c; border-color: #ea580c;" onclick="triggerVoxelDynamicCollapse()">🏛️ Dynamic Collapse</button>
+    <button class="action-btn" style="color: #c084fc; border-color: #a855f7;" onclick="spawnVoxelShardStorm()">🌪️ Shard Storm (x32)</button>
     <button class="action-btn" style="color: #fbbf24; border-color: #f59e0b;" onclick="runVoxelBenchmark()">⚡ Benchmark (50 Ops)</button>
     <button class="action-btn" style="color: #38bdf8; border-color: #0284c7;" onclick="exportVoxelAxvm()">💾 Export .axvm</button>
     <label class="action-btn" style="cursor: pointer; color: #a78bfa; border-color: #7c3aed;">
@@ -2634,19 +2636,35 @@
           `<span class="gray">Hash:</span> 0x${hash.toString(16).toUpperCase()}`;
       } else if (mode === 'voxel') {
         const renderStart = performance.now();
+        if (wasmInstance && wasmInstance.axiom_voxel_step) {
+          const stepFlags = wasmInstance.axiom_voxel_step(0, 0);
+          const cShatters = (stepFlags >> 8) & 0xFF;
+          const sBounces = (stepFlags >> 16) & 0xFF;
+          if (cShatters > 0) {
+            playVoxelBlastSfx(8, 8, 3);
+          } else if (sBounces > 0 && Math.random() < 0.25) {
+            if (wasmInstance.axiom_audio_play_debris_bounce) {
+              wasmInstance.axiom_audio_play_debris_bounce(0, 0, 1);
+            }
+          }
+        }
         wasmInstance.axiom_voxel_render();
         const renderMs = (performance.now() - renderStart).toFixed(2);
         ptr = wasmInstance.axiom_voxel_get_framebuffer_ptr();
         len = width * height;
         tick++;
 
-        const solid = wasmInstance.axiom_voxel_get_solid_count();
-        const damaged = wasmInstance.axiom_voxel_get_damaged_count();
-        const tris = wasmInstance.axiom_voxel_get_triangles();
+        const solid = wasmInstance.axiom_voxel_get_solid_count ? wasmInstance.axiom_voxel_get_solid_count() : 0;
+        const damaged = wasmInstance.axiom_voxel_get_damaged_count ? wasmInstance.axiom_voxel_get_damaged_count() : 0;
+        const tris = wasmInstance.axiom_voxel_get_triangles ? wasmInstance.axiom_voxel_get_triangles() : 0;
+        const shards = wasmInstance.axiom_voxel_get_shard_count ? wasmInstance.axiom_voxel_get_shard_count() : 0;
+        const chunks = wasmInstance.axiom_voxel_get_collapsed_chunk_count ? wasmInstance.axiom_voxel_get_collapsed_chunk_count() : 0;
 
         document.getElementById('hudDetail').innerHTML =
           `<span class="blue">Solid:</span> <span class="blue">${solid}</span> | ` +
           `<span class="red">Damaged:</span> <span class="red">${damaged}</span> | ` +
+          `<span class="gold">Chunks:</span> <span class="gold">${chunks}</span> | ` +
+          `<span style="color:#c084fc">Shards:</span> <span style="color:#c084fc">${shards}</span> | ` +
           `<span class="gold">Tris:</span> <span class="gold">${tris.toLocaleString()}</span> | ` +
           `<span class="green">Render:</span> <span class="green">${renderMs}ms</span>`;
       }
@@ -2958,6 +2976,22 @@
       if (wasmInstance && wasmInstance.axiom_voxel_carve_crater) {
         wasmInstance.axiom_voxel_carve_crater(8, 8, 4, 6);
         playVoxelBlastSfx(8, 8, 6);
+      }
+    }
+
+    function triggerVoxelDynamicCollapse() {
+      if (wasmInstance && wasmInstance.axiom_voxel_trigger_collapse) {
+        const collapsed = wasmInstance.axiom_voxel_trigger_collapse(0);
+        if (collapsed > 0) {
+          playVoxelBlastSfx(8, 8, 5);
+        }
+      }
+    }
+
+    function spawnVoxelShardStorm() {
+      if (wasmInstance && wasmInstance.axiom_voxel_spawn_shard_storm) {
+        wasmInstance.axiom_voxel_spawn_shard_storm(32);
+        playVoxelBlastSfx(8, 8, 3);
       }
     }
 

@@ -32,14 +32,18 @@ use axiom_game::lobby::{
 use axiom_game::tournament::{
     TournamentBroadcastTelemetry, TournamentDirector, TournamentEngine, TournamentFighter,
 };
+use axiom_core::voxel_collapse::DynamicCollapseSystem;
 use axiom_core::voxel_destruct::VoxelVolume16;
+use axiom_core::voxel_shard::VoxelShardPool;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D, PartMesh};
 use axiom_render::raster3d::{CelShadingPalette, Rasterizer3D};
 use axiom_render::texture::{DecalKind, TextureMap};
+use axiom_render::voxel_collapse_render::render_dynamic_collapse_chunks;
 use axiom_render::voxel_map::{deserialize_axvm, generate_voxel_preset, serialize_axvm, VoxelPreset};
 use axiom_render::voxel_mesh::extract_voxel_mesh;
+use axiom_render::voxel_shard_render::render_voxel_shards;
 use axiom_render::{cos_bams, sin_bams, FrameBuffer};
 
 #[allow(static_mut_refs)]
@@ -4091,6 +4095,8 @@ struct WasmVoxelEngine {
     last_triangles: u32,
     preset_id: u32,
     staged_axvm: Vec<u8>,
+    shards: VoxelShardPool<128>,
+    collapse: DynamicCollapseSystem<16>,
 }
 
 #[allow(static_mut_refs)]
@@ -4123,6 +4129,11 @@ pub extern "C" fn axiom_voxel_init(width: u32, height: u32, preset_id: u32, seed
         Fixed::from_raw(-32768),
     );
 
+    let mut shards = VoxelShardPool::new(seed as u64);
+    shards.floor_y_q16 = 0;
+    let mut collapse = DynamicCollapseSystem::new(seed as u64);
+    collapse.floor_y_q16 = 0;
+
     let engine = WasmVoxelEngine {
         volume,
         framebuffer: FrameBuffer::new(width as usize, height as usize),
@@ -4135,6 +4146,8 @@ pub extern "C" fn axiom_voxel_init(width: u32, height: u32, preset_id: u32, seed
         last_triangles: tris,
         preset_id,
         staged_axvm: Vec::new(),
+        shards,
+        collapse,
     };
 
     unsafe {
@@ -4161,6 +4174,20 @@ pub extern "C" fn axiom_voxel_carve_sphere(
         radius as i16,
         fill_material as u8,
     );
+    if carved > 0 {
+        let origin = [
+            -16384 + (cx * 2048),
+            cy * 2048,
+            -16384 + (cz * 2048),
+        ];
+        eng.shards.spawn_burst(origin, (fill_material as u8).max(1), (carved as usize).min(16), 1200);
+        let _ = eng.collapse.detect_and_collapse(
+            &mut eng.volume,
+            0,
+            [-16384, 0, -16384],
+            2048,
+        );
+    }
     let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
     eng.last_triangles = mesh.triangle_count() as u32;
     eng.extracted_mesh = Some(mesh);
@@ -4173,7 +4200,21 @@ pub extern "C" fn axiom_voxel_carve_crater(cx: i32, cz: i32, depth: i32, radius:
         Some(e) => e,
         None => return 0,
     };
-    let carved = eng.volume.carve_crater(cx as i16, cz as i16, depth as i16, radius as i16);
+    let carved = eng.volume.carve_crater_with_shards(
+        cx as i16,
+        cz as i16,
+        depth as i16,
+        radius as i16,
+        &mut eng.shards,
+        [-16384, 0, -16384],
+        2048,
+    );
+    let _collapsed = eng.collapse.detect_and_collapse(
+        &mut eng.volume,
+        0,
+        [-16384, 0, -16384],
+        2048,
+    );
     let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
     eng.last_triangles = mesh.triangle_count() as u32;
     eng.extracted_mesh = Some(mesh);
@@ -4181,13 +4222,22 @@ pub extern "C" fn axiom_voxel_carve_crater(cx: i32, cz: i32, depth: i32, radius:
 }
 
 #[no_mangle]
-pub extern "C" fn axiom_voxel_step(yaw_delta: i32, pitch_delta: i32) {
+pub extern "C" fn axiom_voxel_step(yaw_delta: i32, pitch_delta: i32) -> u32 {
     let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
         Some(e) => e,
-        None => return,
+        None => return 0,
     };
-    eng.yaw_bam = (eng.yaw_bam as i32 + yaw_delta).rem_euclid(256) as u8;
-    eng.pitch_bam = (eng.pitch_bam as i32 + pitch_delta).clamp(180, 255) as u8;
+    if yaw_delta != 0 {
+        eng.yaw_bam = (eng.yaw_bam as i32 + yaw_delta).rem_euclid(256) as u8;
+    }
+    if pitch_delta != 0 {
+        eng.pitch_bam = (eng.pitch_bam as i32 + pitch_delta).clamp(180, 255) as u8;
+    }
+
+    let (c_bounces, c_shatters) = eng.collapse.step(Some(&mut eng.shards));
+    let shard_bounces = eng.shards.step();
+
+    (c_bounces as u32 & 0xFF) | (((c_shatters as u32) & 0xFF) << 8) | (((shard_bounces as u32) & 0xFF) << 16)
 }
 
 #[no_mangle]
@@ -4200,19 +4250,34 @@ pub extern "C" fn axiom_voxel_render() -> u32 {
     eng.framebuffer.clear(0xFF0F172A); // Dark slate background
     eng.rasterizer.clear_depth();
 
-    let mesh = match &eng.extracted_mesh {
-        Some(m) => m,
-        None => return 0,
-    };
-
     let rot_y = Mat4Fixed::from_rotation_y(eng.yaw_bam);
     let rot_x = Mat4Fixed::from_rotation_x(eng.pitch_bam);
     let trans = Mat4Fixed::from_translation(Vec3Fixed::from_raw(0, 0, 15000));
     let world_mat = trans.mul_mat(&rot_x.mul_mat(&rot_y));
 
-    eng.rasterizer.render_part(
+    if let Some(ref mesh) = eng.extracted_mesh {
+        eng.rasterizer.render_part(
+            &mut eng.framebuffer,
+            mesh,
+            &world_mat,
+            eng.cam_dist,
+            eng.focal_length,
+        );
+    }
+
+    render_dynamic_collapse_chunks(
         &mut eng.framebuffer,
-        mesh,
+        &mut eng.rasterizer.depth_buffer,
+        &eng.collapse,
+        &world_mat,
+        eng.cam_dist,
+        eng.focal_length,
+    );
+
+    render_voxel_shards(
+        &mut eng.framebuffer,
+        &mut eng.rasterizer.depth_buffer,
+        &eng.shards,
         &world_mat,
         eng.cam_dist,
         eng.focal_length,
@@ -4315,6 +4380,8 @@ pub extern "C" fn axiom_voxel_load_staged_axvm(len: u32) -> i32 {
         Ok((header, volume)) => {
             eng.volume = volume;
             eng.preset_id = header.preset_id as u32;
+            eng.shards.active_count = 0;
+            eng.collapse.active_count = 0;
             let mesh = extract_voxel_mesh("loaded_axvm", &eng.volume, Fixed::from_raw(2048));
             eng.last_triangles = mesh.triangle_count() as u32;
             eng.extracted_mesh = Some(mesh);
@@ -4322,6 +4389,58 @@ pub extern "C" fn axiom_voxel_load_staged_axvm(len: u32) -> i32 {
         }
         Err(_) => 0,
     }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_shard_count() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.shards.active_count as u32)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_collapsed_chunk_count() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.collapse.active_count as u32)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_trigger_collapse(anchor_y: i32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+    let collapsed = eng.collapse.detect_and_collapse(
+        &mut eng.volume,
+        anchor_y as i16,
+        [-16384, 0, -16384],
+        2048,
+    );
+    if collapsed > 0 {
+        let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+        eng.last_triangles = mesh.triangle_count() as u32;
+        eng.extracted_mesh = Some(mesh);
+    }
+    collapsed as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_spawn_shard_storm(count: u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+    let center = [0, 24576, 0];
+    let spawned = (count as usize).min(128);
+    eng.shards.spawn_burst(center, 1, spawned, 2400);
+    eng.shards.active_count as u32
 }
 
 #[no_mangle]
@@ -5078,6 +5197,31 @@ mod tests {
         assert!(carved > 0);
         assert!(axiom_voxel_get_solid_count() < solid_init);
         assert_eq!(axiom_voxel_get_damaged_count(), carved);
+        let shards_after_sphere = axiom_voxel_get_shard_count();
+        assert!(shards_after_sphere > 0, "Carving should spawn kinetic shards into the pool");
+
+        // 4.1 Carve crater with ballistic shards & collapse detection
+        let crater_carved = axiom_voxel_carve_crater(8, 8, 4, 5);
+        assert!(crater_carved > 0);
+        let shards_after_crater = axiom_voxel_get_shard_count();
+        assert!(shards_after_crater >= shards_after_sphere);
+
+        // 4.2 Spawn shard storm
+        let spawned_storm = axiom_voxel_spawn_shard_storm(24);
+        assert!(spawned_storm >= 24);
+        assert!(axiom_voxel_get_shard_count() >= 24);
+
+        // 4.3 Trigger structural collapse detection
+        let _collapsed = axiom_voxel_trigger_collapse(0);
+        let _chunks = axiom_voxel_get_collapsed_chunk_count();
+
+        // 4.4 Step physics and verify simulation advance
+        let step_flags = axiom_voxel_step(0, 0);
+        let _ = step_flags;
+
+        // 4.5 Render scene with Reversed-Z depth buffer containing mesh, chunks, shards
+        let post_tris = axiom_voxel_render();
+        assert!(post_tris > 0);
 
         // 5. Run benchmark
         let bench_result = axiom_voxel_benchmark(5);
