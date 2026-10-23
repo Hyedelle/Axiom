@@ -380,16 +380,16 @@ impl BoxingView {
         };
 
         // Opponent Torso (Cel shaded with dark outline)
-        fb.draw_rect(cx - 28, body_y - 48, 56, 48, 0xFF0F172A); // Ink Outline
+        fb.draw_rect(cx - 28, body_y - 48, 56, 48, 0xFF2B222A); // Ink Outline
         fb.draw_rect(cx - 25, body_y - 45, 50, 42, tint);       // Lit Armor
-        fb.draw_rect(cx - 25, body_y - 25, 50, 22, 0xFF1E3A8A); // Shade Band
+        fb.draw_rect(cx - 25, body_y - 25, 50, 22, 0xFF3D3730); // Canon Worn Iron Shade Band
 
         // Opponent Head
-        fb.draw_rect(cx - 16, body_y - 74, 32, 24, 0xFF0F172A); // Outline
-        fb.draw_rect(cx - 14, body_y - 72, 28, 20, 0xFF64748B); // Metal Helm
+        fb.draw_rect(cx - 16, body_y - 74, 32, 24, 0xFF2B222A); // Outline
+        fb.draw_rect(cx - 14, body_y - 72, 28, 20, 0xFF5A5148); // Canon Steel Helm
 
         // Eyes (Visor)
-        let eye_col = if is_telegraph { 0xFFFF0000 } else { 0xFF00FFCC };
+        let eye_col = if is_telegraph { 0xFFFF0000 } else { 0xFF5BB8A0 }; // Canon Bronze Rust Visor
         fb.draw_rect(cx - 10, body_y - 66, 20, 6, eye_col);
 
         // Opponent Fists
@@ -468,16 +468,16 @@ impl BoxingView {
         let body_col = if is_hit { 0xFFFFFFFF } else { 0xFF1E293B };
 
         // Player Back & Shoulders (Over-the-shoulder rear view)
-        fb.draw_rect(cx - 44, body_y - 64, 88, 70, 0xFF020617); // Ink Outline
-        fb.draw_rect(cx - 40, body_y - 60, 80, 62, body_col);   // Rear Armor
-        fb.draw_rect(cx - 20, body_y - 50, 40, 40, 0xFF0F172A); // Spine / Exhaust Core
+        fb.draw_rect(cx - 44, body_y - 64, 88, 70, 0xFF2B222A); // Canon Manga Ink Outline
+        fb.draw_rect(cx - 40, body_y - 60, 80, 62, body_col);   // Rear Armor (Worn Iron)
+        fb.draw_rect(cx - 20, body_y - 50, 40, 40, 0xFF3D3730); // Spine / Exhaust Core
 
-        // Core Heat Glow
+        // Core Heat Glow (Canon Amber & Brass)
         let heat_ratio = (self.engine.player.heat as i32 * 10) / (self.engine.player.max_heat as i32).max(1);
-        let heat_col = if heat_ratio > 7 { 0xFFEF4444 } else if heat_ratio > 3 { 0xFFF97316 } else { 0xFF06B6D4 };
+        let heat_col = if heat_ratio > 7 { 0xFFDC2626 } else if heat_ratio > 3 { 0xFFFD9F07 } else { 0xFFA06432 };
         fb.draw_rect(cx - 8, body_y - 38, 16, 16, heat_col);
 
-        // Player Gloves
+        // Player Gloves (Canon Red Boxing Gloves)
         if !is_down {
             let punch_y = match self.engine.player.action.kind {
                 ActionKind::Jab => -45,
@@ -490,13 +490,13 @@ impl BoxingView {
             let (glove_l_x, glove_l_y) = if is_guard { (cx - 16, body_y - 56) } else { (cx - 52, body_y - 40 + punch_y) };
             let (glove_r_x, glove_r_y) = if is_guard { (cx + 2, body_y - 56) } else { (cx + 34, body_y - 40 + punch_y) };
 
-            // Left Glove (Player)
-            fb.draw_rect(glove_l_x, glove_l_y, 24, 24, 0xFF020617);
-            fb.draw_rect(glove_l_x + 2, glove_l_y + 2, 20, 20, 0xFF2563EB); // Royal Blue Gloves
+            // Left Glove (Canon Red)
+            fb.draw_rect(glove_l_x, glove_l_y, 24, 24, 0xFF2B222A);
+            fb.draw_rect(glove_l_x + 2, glove_l_y + 2, 20, 20, 0xFFDC2626); // Canon Red Boxing Glove
 
-            // Right Glove (Player)
-            fb.draw_rect(glove_r_x, glove_r_y, 24, 24, 0xFF020617);
-            fb.draw_rect(glove_r_x + 2, glove_r_y + 2, 20, 20, 0xFF2563EB);
+            // Right Glove (Canon Red)
+            fb.draw_rect(glove_r_x, glove_r_y, 24, 24, 0xFF2B222A);
+            fb.draw_rect(glove_r_x + 2, glove_r_y + 2, 20, 20, 0xFFDC2626);
         }
     }
 
