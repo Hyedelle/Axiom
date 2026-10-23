@@ -4,7 +4,7 @@
 //! lattices for 16x16x16 voxel volumes. Features gravity downwards flow, horizontal hydrostatic
 //! pressure spreading, rock permeability infiltration, thermal evaporation, and 100% mass conservation.
 
-use crate::thermal_stress::{ThermalStressField16, TEMP_WARM_THRESHOLD};
+use crate::thermal_stress::{ThermalStressField16, TEMP_AMBIENT, TEMP_WARM_THRESHOLD};
 use crate::voxel_destruct::{
     VoxelVolume16, VOXEL_AIR, VOXEL_DIM, VOXEL_STONE, VOXEL_TOTAL, VOXEL_WATER,
 };
@@ -293,6 +293,44 @@ impl VoxelFluidField16 {
             units_infiltrated,
             units_evaporated,
         }
+    }
+
+    /// Couples fluid field with thermal stress field:
+    /// 1. Rapidly quenches elevated temperatures in saturated cells (accelerated latent heat cooling).
+    /// 2. Relaxes mechanical thermal shear stress (hydraulic damping / pore pressure dissipation).
+    /// Returns (quenched_temp_units, relaxed_stress_units).
+    pub fn relax_thermal_and_stress(
+        &mut self,
+        thermal: &mut ThermalStressField16,
+    ) -> (u32, u32) {
+        let mut quenched_temp = 0u32;
+        let mut relaxed_stress = 0u32;
+
+        for idx in 0..VOXEL_TOTAL {
+            let lvl = self.level[idx] as u32;
+            let inf = self.infiltrated[idx] as u32;
+            let saturation = lvl + inf;
+
+            if saturation > 0 {
+                let cur_t = thermal.temp[idx];
+                if cur_t > TEMP_AMBIENT {
+                    let quench = (((cur_t - TEMP_AMBIENT) as u32 * saturation) / 512).max(1) as u16;
+                    let new_t = cur_t.saturating_sub(quench).max(TEMP_AMBIENT);
+                    quenched_temp += (cur_t - new_t) as u32;
+                    thermal.temp[idx] = new_t;
+                }
+
+                let cur_s = thermal.stress[idx];
+                if cur_s > 0 {
+                    let relief = ((cur_s as u32 * saturation) / 400).max(1) as u16;
+                    let new_s = cur_s.saturating_sub(relief);
+                    relaxed_stress += (cur_s - new_s) as u32;
+                    thermal.stress[idx] = new_s;
+                }
+            }
+        }
+
+        (quenched_temp, relaxed_stress)
     }
 
     /// Computes full 64-bit FNV-1a deterministic state hash.

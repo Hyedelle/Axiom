@@ -63,3 +63,45 @@ fn test_render_voxel_fluid_into_framebuffer() {
 
     assert_eq!(rendered, 2, "Must render exactly 2 fluid voxels");
 }
+
+#[test]
+fn test_render_fluid_under_heavy_saturation() {
+    use axiom_core::voxel_destruct::VOXEL_DIM;
+
+    let mut fb = FrameBuffer::new(704, 544);
+    let mut depth_buffer = vec![i32::MIN; 704 * 544];
+    let mut fluid = VoxelFluidField16::new();
+    let mut volume = VoxelVolume16::new_empty();
+
+    // Flood entire 4096-voxel volume with fluid and infiltration
+    for y in 0..VOXEL_DIM {
+        for z in 0..VOXEL_DIM {
+            for x in 0..VOXEL_DIM {
+                fluid.inject_fluid(&mut volume, x, y, z, 200);
+                fluid.infiltrated[VoxelFluidField16::index(x, y, z)] = 150;
+            }
+        }
+    }
+
+    let vp = Mat4Fixed::from_translation(Vec3Fixed::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(20)));
+    let voxel_scale = Fixed::from_int(1);
+    let world_origin = Vec3Fixed::ZERO;
+
+    let start = std::time::Instant::now();
+    let rendered = render_voxel_fluid(
+        &mut fb,
+        &mut depth_buffer,
+        &vp,
+        &fluid,
+        voxel_scale,
+        world_origin,
+    );
+    let elapsed = start.elapsed();
+
+    assert_eq!(rendered, 4096, "All 4096 saturated fluid voxels must be rendered");
+    assert!(
+        elapsed.as_millis() < 50,
+        "4096-voxel fluid rasterization must complete in under 50ms (took {:?})",
+        elapsed
+    );
+}

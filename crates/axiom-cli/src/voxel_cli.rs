@@ -308,6 +308,99 @@ pub fn run_voxel_suite(args: &[String]) {
             println!("  Active Shards:       {}", shards.active_count);
             println!("  Consensus Hash:      0x{:016X}", hash);
         }
+        "bench-fluid" => {
+            let mut steps = 5000usize;
+            let mut seed = 0x160_FEED_CAFEu64;
+
+            let mut i = 3;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--steps" if i + 1 < args.len() => {
+                        steps = args[i + 1].parse().unwrap_or(5000);
+                        i += 2;
+                    }
+                    "--seed" if i + 1 < args.len() => {
+                        seed = args[i + 1].parse().unwrap_or(0x160_FEED_CAFE);
+                        i += 2;
+                    }
+                    _ => i += 1,
+                }
+            }
+
+            println!("💧 [Axiom Voxel] Running 3D Fluid Dynamics & Pore Stress Relaxation Benchmark...");
+            println!("  Steps:       {} integration ticks", steps);
+            println!("  Seed:        0x{:016X}", seed);
+
+            let mut fluid = axiom_core::voxel_fluid::VoxelFluidField16::new();
+            let mut thermal = axiom_core::thermal_stress::ThermalStressField16::new();
+            let mut volume = axiom_core::voxel_destruct::VoxelVolume16::new_solid(axiom_core::voxel_destruct::VOXEL_STONE);
+            let mut collapse = DynamicCollapseSystem::<16>::new(seed);
+            let mut shards = VoxelShardPool::<128>::new(seed);
+
+            let start = std::time::Instant::now();
+            let mut total_quenched = 0u32;
+            let mut total_relaxed = 0u32;
+            let mut total_phase_transitions = 0u32;
+
+            for step in 0..steps {
+                if step % 50 == 0 {
+                    let cx = (step * 7) % VOXEL_DIM;
+                    let cz = (step * 11) % VOXEL_DIM;
+                    let peak_t = 800 + ((step % 200) as u16);
+                    let peak_s = 700 + ((step % 250) as u16);
+                    thermal.inject_thermal_pulse(cx, 2, cz, 2, peak_t, peak_s);
+                }
+
+                if step % 25 == 0 {
+                    let fx = (step * 7) % VOXEL_DIM;
+                    let fz = (step * 11) % VOXEL_DIM;
+                    fluid.inject_fluid(&mut volume, fx, 2, fz, 220);
+                }
+
+                let (q_temp, r_stress) = fluid.relax_thermal_and_stress(&mut thermal);
+                total_quenched += q_temp;
+                total_relaxed += r_stress;
+
+                let _ = fluid.step_fluid(&mut volume, Some(&thermal), 25);
+
+                let thermal_res = thermal.step_thermal_and_collapse_advanced(
+                    &mut volume,
+                    &mut collapse,
+                    15,
+                    1,
+                    [-16384, 0, -16384],
+                    2048,
+                );
+                total_phase_transitions += thermal_res.phase_transitions;
+
+                let (_c, _sh) = collapse.step(Some(&mut shards));
+                shards.step();
+            }
+
+            let elapsed = start.elapsed();
+            let us_per_tick = elapsed.as_micros() as f64 / steps as f64;
+            let tps = (steps as f64 / elapsed.as_secs_f64()) as u64;
+
+            let mut hash: u64 = 0xCBF2_9CE4_8422_2325;
+            hash ^= fluid.compute_consensus_hash();
+            hash = hash.wrapping_mul(0x100_0000_01B3);
+            hash ^= thermal.compute_consensus_hash();
+            hash = hash.wrapping_mul(0x100_0000_01B3);
+            hash ^= collapse.compute_consensus_hash();
+            hash = hash.wrapping_mul(0x100_0000_01B3);
+            hash ^= shards.compute_consensus_hash();
+            hash = hash.wrapping_mul(0x100_0000_01B3);
+
+            println!("🏁 Fluid Physics Benchmark Completed:");
+            println!("  Total Time:          {:?}", elapsed);
+            println!("  Throughput:          {} TPS ({:.2} µs/step)", tps, us_per_tick);
+            println!("  Total Infiltrated:   {} fluid units", fluid.total_infiltrated);
+            println!("  Total Evaporated:    {} fluid units", fluid.total_evaporated);
+            println!("  Heat Quenched:       {} temp units", total_quenched);
+            println!("  Stress Relaxed:      {} stress units", total_relaxed);
+            println!("  Phase Transitions:   {}", total_phase_transitions);
+            println!("  Consensus Hash:      0x{:016X}", hash);
+        }
         cmd => {
             eprintln!("Unknown voxel command '{}'. Run 'axiom voxel help'.", cmd);
         }
@@ -322,4 +415,5 @@ fn print_voxel_help() {
     println!("  axiom voxel inspect <file.axvm>");
     println!("  axiom voxel bench [--preset <preset>] [--ticks <n>]");
     println!("  axiom voxel bench-extreme [--steps <10000>] [--seed <num>]");
+    println!("  axiom voxel bench-fluid [--steps <5000>] [--seed <num>]");
 }
