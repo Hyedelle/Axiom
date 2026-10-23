@@ -1559,6 +1559,50 @@
   4. 전체 워크스페이스 버전을 v3.5.0에서 **v3.6.0**으로 공식 판올림하고 `dist/axiom-v3.6.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.6.0` 발행.
 - **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-129] 0-Float 64B L1 캐시 정렬 히트박스 슬랩 HitboxSlab64 및 충돌 결과 슬랩 SweptAabbResult64 (T-194, T-195)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 구조체 `HitboxSlab64` 구현: 8바이트 타겟 레이어 마스크를 선두에 두고 44바이트 3D 좌표계/선형 속도 벡터, 8바이트 데미지/넉백/활성 틱 윈도우, 4바이트 식별자/플래그/타입을 배치하여 암시적 패딩이 전혀 없는 자연 정렬 64B 슬랩 완성 (`size_of == 64, align_of == 64`).
+  2. `#[repr(C, align(64))]` 구조체 `SweptAabbResult64` 구현: 고유 충돌 쌍 키(`pair_key: u64`), 서브프레임 $Q16.16$ 충돌 시점(`toi: u32`), 정수 mm 3D 접촉 지점(`hit_x/y/z`), 공격자/피격자 ID, 데미지, 넉백, 접촉 법선 단위 벡터(`normal_x/y/z: i8`)를 64바이트 슬랩 내에 0-포인터로 직렬화.
+- **영향:** `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`.
+
+---
+
+### [D-130] Minkowski Sum 확장 박스 및 64비트 정수 Kay-Kajiya 슬랩 교차법 기반 O(1) 해석적 CCD 알고리즘 (T-194, T-195)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 두 이동 바운딩 박스 간의 연속 충돌을 상대 변위 벡터 $V_{rel} = V_a - V_b$와 민코프스키 합으로 확장된 목표 AABB 간의 광선 교차 문제로 환원.
+  2. 64비트 정수 산술 기반 닫힌 형식(Closed-form) Kay-Kajiya 3D 슬랩 교차법 `raycast_aabb_toi` 및 `swept_aabb_toi` 구현. 이분 탐색이나 서브스테핑 루프 없이 $O(1)$ 상수 시간에 정규화 충돌 시간 $TOI$ ($0 \sim 65536$) 및 6방향 접촉 법선(`ContactNormal6`) 도출.
+  3. 1틱당 500mm를 이동하는 30 m/s 초고속 로켓 펀치의 100mm 두께 가드/안면 관통(터널링) 100% 원천 차단 실증.
+- **영향:** `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/tests/test_ccd.rs`.
+
+---
+
+### [D-131] 잡 시스템 병렬 디스패치 및 40-바이트 인라인 POD 이벤트 버스 파이프라인 연계 (T-196)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `dispatch_ccd_hitboxes_with_jobs`: 활성 히트박스 슬랩들을 N-배치 작업으로 분할하여 Chase-Lev 무잠금 SPMC 덱에 큐잉하고 워커 풀에서 병렬 스캐닝.
+  2. `emit_ccd_hits_to_event_bus`: 검출된 유효 타격을 `EVENT_CCD_HIT = 0x0230` 및 `channel::COMBAT | channel::PHYSICS` 채널로 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드로 방출. GGPO 롤백(`rollback_to`) 및 64-bit FNV-1a 상태 합의 지원.
+  3. `NetworkMatchDirector` 내 `step_ccd` 및 `step_ccd_with_jobs`를 구축하여 16-인 배틀로얄 경기장 고속 펀치/스윕 히트박스 실시간 연속 감지 파이프라인 일체화.
+- **영향:** `crates/axiom-core/src/ccd.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ccd_jobs.rs`, `crates/axiom-game/tests/test_ccd_game_pipeline.rs`.
+
+---
+
+### [D-132] WASM CCD 벤치마크, Mimic The Show 챔피언십 링 결합 및 공식 릴리즈 v3.7.0 (T-197, T-198, T-199)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_ccd_bench_hitbox` 및 웹 3D 복셀 스튜디오 🥊 **230 CCD Hitbox (64B Slabs)** 대화형 모달 배포 (1.31 MB WASM).
+  2. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `step_ccd_pipeline` 탑재, 싱글플레이 메카 펀치 및 나이트메어 반격 스윕 교차 판정, F3 HUD 카드(`CCD: {} Hits | TOI: {:.2} | 64B`), 56x56 미니 레이더 붉은색 타격 경고 인디케이터, 하단 `[CCD: {}H]` 연동.
+  3. 전체 워크스페이스 버전을 v3.6.0에서 **v3.7.0**으로 공식 판올림하고 `dist/axiom-v3.7.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.7.0` 발행.
+- **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
+
 
 
 

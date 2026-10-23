@@ -1339,6 +1339,60 @@ Axiom 220대 과제(T-188 ~ T-193)에서는 엔진의 헌법(0-Float, 64-Byte L1
    - `web/index.html`에 **🌐 220 Spatial Broadphase (64B Slabs)** 전용 모달을 연동하여 1.30 MB WASM 바이너리 상에서 실시간 벤치마크 및 64비트 FNV-1a 상태 합의 체크섬을 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `SpatialHashGrid<64, 14>`를 탑재하여 챔피언십 링 복싱 물리와 16-인 배틀로얄 HUD 레이더에 실시간 충돌 접촉 경고를 일체화했습니다.
 
+---
+
+## 39. Axiom 230대: 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 엔진 (v3.7.0)
+
+Axiom 230대 과제(T-194 ~ T-199)에서는 엔진의 핵심 헌법(0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열)을 엄격히 준수하며, 20~40 m/s 이상의 초고속 메카 로켓 펀치와 투사체가 장애물을 뚫고 지나가는 종이 관통 현상(Tunneling / Bullet-through-Paper)을 $O(1)$ 상수 시간에 원천 차단하는 **폐형식(Closed-form) 연속 충돌 감지(Continuous Collision Detection, CCD) 엔진**과 **나이트메어 복싱 히트박스 물리학 시스템**을 완성했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│       Axiom 230-Series Continuous Collision Detection & Hitbox Physics      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (HitboxSlab64 & SweptAabbResult64)]  │
+│    - HitboxSlab64: Natural 64B Layout (8B mask, 44B coords/vel, 8B dmg/kb)   │
+│    - SweptAabbResult64: Natural 64B Layout (16B keys, 24B TOI/hit, 4B norm) │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Minkowski Sum Closed-Form Swept AABB & Kay-Kajiya Raycast ($O(1)$)]     │
+│    - Box A vs Box B Swept Intersection -> Ray vs Minkowski Expanded Box B   │
+│    - Kay-Kajiya Integer 64-Bit Slab Algorithm (0-Float Q16.16 TOI 0..65536) │
+│    - 6-Directional Discrete Unit Normal Vector (ContactNormal6)             │
+│    - Earliest TOI Priority Rule (Sub-frame Contact at exact t in [0.0, 1.0])│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [High-Speed Tunneling Prevention (>30 m/s = 500 mm/tick)]                │
+│    - 30 m/s Punch passing 100mm barrier detected at exact TOI = 0.3 (19660) │
+│    - 0-Tunneling Guarantee without costly iterative sub-stepping loops      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Job System Parallel Partitioning & Event Bus Combat Pipeline]           │
+│    - dispatch_ccd_hitboxes_with_jobs: N-Worker Parallel Slab Chunk Dispatch │
+│    - emit_ccd_hits_to_event_bus: channel::COMBAT | channel::PHYSICS | 0x0230│
+│    - 40-Byte Packed POD Payload: pair_key, TOI, hit_xyz, normal, damage, kb │
+│    - GGPO Speculative Rollback Support: rollback_to(confirmed_seq)          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [Interactive WASM Studio & Native Desktop Game View Integration]         │
+│    - WASM Studio: 🥊 230 CCD Hitbox (64B Slabs) Interactive Modal (1.31 MB) │
+│    - Mimic The Show: DesktopGameView step_ccd_pipeline (Single & 16-Net)    │
+│    - F3 HUD Card: "CCD: {} Hits | TOI: {:.2} | 64B" & Mini Radar Contact    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 39.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 히트박스/결과 슬랩 (`HitboxSlab64`, `SweptAabbResult64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 L1 캐시 라인을 점유하며, 8바이트 타겟 레이어 마스크를 필두로 44바이트 3D 좌표/속도 벡터, 8바이트 데미지/넉백/활성 틱 윈도우, 4바이트 식별자/플래그/타입을 배치하여 컴파일러 임의 패딩이 전혀 없는 자연 정렬을 구현했습니다.
+   - `SweptAabbResult64`는 고유 충돌 쌍 키(`pair_key: u64`), 서브프레임 $Q16.16$ 충돌 시간(`toi: u32`), 정수 mm 3D 접촉 좌표(`hit_x/y/z: i32`), 공격자/피격자 ID, 데미지, 넉백, 접촉 법선 단위 벡터(`normal_x/y/z: i8`)를 64바이트 슬랩 내에 0-포인터로 직렬화합니다.
+2. **민코프스키 합(Minkowski Sum) 확장 및 64비트 정수 Kay-Kajiya 광선 슬랩 교차법**:
+   - 두 이동 바운딩 박스 간의 연속 충돌을 상대 변위 벡터 $V_{rel} = V_a - V_b$와 민코프스키 합으로 확장된 목표 AABB 간의 광선 교차 문제로 환원하였습니다.
+   - 고전적 이분 탐색(Bisection)이나 반복적 서브스테핑(Sub-stepping) 대신, 64비트 정수 나눗셈을 통한 닫힌 형식(Closed-form) 해석적 연산을 수행하여 $O(1)$ 상수 시간에 진입 시간 $t_{enter}$와 이탈 시간 $t_{exit}$를 도출합니다.
+3. **초고속 펀치 터널링(Bullet-through-Paper) 방지 실증**:
+   - 1틱(1/60초)당 500mm를 순간 이동하는 30 m/s 초고속 로켓 펀치(재브/크로스)가 두께 100mm의 얇은 가드나 안면 허트박스를 순간 건너뛰지 않고, $TOI = 19660$ ($0.3$) 서브프레임 시점에서 100% 비트 결정론적으로 감지됨을 실증했습니다.
+4. **멀티스레드 잡 시스템 병렬 디스패치 및 결정론적 이벤트 버스 연계**:
+   - `dispatch_ccd_hitboxes_with_jobs`를 통해 활성 히트박스들을 Chase-Lev 무잠금 SPMC 덱에 N-배치 작업으로 큐잉하고 워커 풀에서 병렬 스캐닝합니다.
+   - 검출된 유효 타격은 `EVENT_CCD_HIT = 0x0230` 및 `channel::COMBAT | channel::PHYSICS` 채널을 통해 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드로 방출되며, GGPO 롤백(`rollback_to`) 및 64-bit FNV-1a 상태 합의 체크섬을 100% 지원합니다.
+5. **WASM 웹 스튜디오 및 상용 게임 뷰 결합**:
+   - `web/index.html`에 **🥊 230 CCD Hitbox (64B Slabs)** 인터랙티브 모달을 탑재하여 1.31 MB 최적화 WASM 바이너리 상에서 실시간 벤치마크 및 비트 일치 결정론을 계측합니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_ccd_pipeline`을 탑재하여 싱글플레이 메카 복싱 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `CCD: {} Hits | TOI: {:.2} | 64B`, 56x56 미니 레이더 붉은색 타격 경고 인디케이터, 하단 `[CCD: {}H]` 상시 모니터링을 완비했습니다.
+
+
 
 
 
