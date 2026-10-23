@@ -36,6 +36,7 @@ pub mod replay;
 pub mod schema;
 pub mod serialization;
 pub mod spatial;
+pub mod spatial_grid;
 pub mod spatial_index;
 pub mod state;
 pub mod storage;
@@ -67,6 +68,11 @@ pub use worker_pool::{
 pub use event_bus::{
     channel, component, dispatch_events_with_jobs, filter_entities, filter_entities_with_jobs,
     ComponentMask64, ComponentQuery, DeterministicEventBus, EventSlab64, DEFAULT_EVENT_CAPACITY,
+};
+pub use spatial_grid::{
+    spatial_hash_3d, AabbSlab64, CollisionPair64, SpatialCell64, SpatialHashGrid,
+    COLLISION_FLAG_DYNAMIC, COLLISION_FLAG_SLEEPING, COLLISION_FLAG_STATIC, COLLISION_FLAG_TRIGGER,
+    DEFAULT_CELL_CAPACITY, DEFAULT_GRID_TABLE_CAP,
 };
 
 pub use audio::{
