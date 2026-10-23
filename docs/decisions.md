@@ -1472,6 +1472,52 @@
   3. 전체 워크스페이스 버전을 v3.3.0에서 **v3.4.0**으로 공식 판올림하고 `dist/axiom-v3.4.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.4.0` 발행.
 - **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-121] 0-Float 64B L1 캐시 정렬 분산 이벤트 슬랩 EventSlab64 및 링 버퍼 DeterministicEventBus (T-182, T-183)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 규격의 정확히 64바이트 1개 캐시라인 이벤트 슬랩 `EventSlab64` 설계 (`tick`, `sequence`, `event_type`, `channel_mask`, `source_id`, `target_id`, 40B 인라인 POD 페이로드).
+  2. 0-힙 고정 용량 링 버퍼 `DeterministicEventBus<CAP>` 구현 (2의 거듭제곱 비트마스크 고속 인덱싱 `tail & (CAP - 1)`).
+  3. GGPO 투기적 롤백 지원: 서버 확정 시퀀스 이후의 오예측 이벤트를 $O(1)$ 즉시 되감는 `rollback_to(confirmed_seq)` 절단 로직 완비.
+  4. 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash()`를 통한 피어 간 100% 비트 일치 검증.
+- **영향:** `crates/axiom-core/src/event_bus.rs`, `crates/axiom-core/tests/test_event_bus.rs`.
+
+---
+
+### [D-122] 64-컴포넌트 비트마스크 ComponentMask64 및 1-사이클 플랫 어레이 엔티티 쿼리 파이프라인 (T-183)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 64개 컴포넌트 유무를 단일 `u64` 레지스터 비트 플래그로 표현하는 `ComponentMask64` 구현 (`all`, `any`, `none`, 비트 연산자 오버로딩).
+  2. `ComponentQuery`(require/exclude)를 통해 1사이클 비트 AND 연산으로 아키타입 부합 여부를 O(1) 고속 평가.
+  3. 플랫 어레이 기반 엔티티 슬랩 필터링 함수 `filter_entities`로 동적 메모리 할당 및 스파스 셋 간접 참조 비용 소거.
+- **영향:** `crates/axiom-core/src/event_bus.rs`.
+
+---
+
+### [D-123] 분산 이벤트 버스 멀티스레드 잡 시스템 병렬 디스패치 파이프라인 연계 (T-184)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `dispatch_events_with_jobs`: 활성 슬랩들을 N-배치 작업으로 분할하여 Chase-Lev 워커 풀에 병렬 디스패치하고 다중 채널을 락 없이 동시 필터링.
+  2. `filter_entities_with_jobs`: 수만 개 엔티티 슬랩을 워커 풀에 N-배치로 병렬 분할하여 아키타입 쿼리를 동시 평가.
+  3. `NetworkMatchDirector` 내 `DeterministicEventBus<128>` 내장 및 `CombatHitPayload`(20B POD) 자동 방출 연동 (`advance_tick_with_jobs` 시 이벤트 디스패치).
+- **영향:** `crates/axiom-core/src/event_bus.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-game/tests/test_event_bus_job_pipeline.rs`.
+
+---
+
+### [D-124] WASM 이벤트 버스 벤치마크, Mimic The Show 사운드/VFX 파이프라인 결합 및 공식 릴리즈 v3.5.0 (T-185, T-186, T-187)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_event_bench_bus` 및 웹 3D 복셀 스튜디오 📡 **210 Event Bus (64B Slabs)** 대화형 모달 배포 (1.28 MB WASM).
+  2. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `DeterministicEventBus<64>` 내장, 16-슬랩 스택 무할당 배치 배출 `dispatch_event_bus_pipeline`, 실시간 사운드/VFX/카메라 셰이크/넉다운 토스트 및 `F3` HUD 카드 텔레메트리(`Bus: 128 Slabs | Events: {}`) 탑재.
+  3. 전체 워크스페이스 버전을 v3.4.0에서 **v3.5.0**으로 공식 판올림하고 `dist/axiom-v3.5.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.5.0` 발행.
+- **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
+
 
 
 

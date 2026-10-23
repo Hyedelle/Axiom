@@ -3,7 +3,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools/package.ps1 [-Version "2.1.0"] [-Clean]
 
 param (
-    [string]$Version = "3.4.0",
+    [string]$Version = "3.5.0",
     [switch]$Clean
 )
 
@@ -208,7 +208,7 @@ $MimicHash = (Get-FileHash -Path $MimicDstExe -Algorithm SHA256).Hash
 $BuildDate = (Get-Date).ToString("yyyy-MM-ddTHH:mm:sszzz")
 
 $ManifestObj = [PSCustomObject]@{
-    milestone = "Axiom 200-Series Multi-Threaded Job System & Work-Stealing Physical Scheduler Milestone v3.4.0 (T-001 ~ T-180)"
+    milestone = "Axiom 210-Series Deterministic Event Bus & Component Query Engine Milestone v3.5.0 (T-001 ~ T-186)"
     engine_version = "v$Version"
     game_version = "v1.0.0"
     target_platform = "windows-x64-steam-deck-verified"
@@ -241,6 +241,8 @@ $ManifestObj = [PSCustomObject]@{
     architecture = [PSCustomObject]@{
         determinism = "pure_integer_fixed_point_0_floats"
         l1_cache_alignment = "64_bytes"
+        event_bus = "64b_l1_cache_aligned_event_slab_pod_ring_buffer_zero_alloc"
+        component_query = "64_bit_component_mask_and_1_cycle_filter_query_pipeline"
         job_system = "chase_lev_lock_free_work_stealing_spmc_deque_64b_slabs"
         netcode = "16_peer_full_mesh_distributed_rollback_8_frame_sliding_window"
         gpu_compute = "64b_voxel_compute_dispatch_webgpu_vulkan_dx12"

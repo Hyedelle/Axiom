@@ -1244,6 +1244,57 @@ Axiom 200대 과제(T-176 ~ T-181)에서는 엔진의 헌법(0-Float, 64-Byte L1
    - WebAssembly C-ABI `axiom_job_bench_scheduler`를 통해 웹 환경에서도 4~8개 워커 협력 스틸링 큐를 가동하여 초당 수백만 잡 처리량(Jobs/sec)과 64-bit FNV-1a 상태 합의 체크섬을 실시간 검증합니다.
    - `mimic-the-show` 인게임의 글로벌 백틱(`` ` ``) 핫키 및 `F3` 텔레메트리 HUD 카드를 통해 16-플레이어 롤백 물리 기구학 및 3D 복셀 유체 연산이 워커 풀에서 병렬 해결되는 과정을 실시간 모니터링할 수 있습니다.
 
+---
+
+## 37. Axiom 210대: 결정론적 분산 이벤트 버스 & 컴포넌트 쿼리 파이프라인 (v3.5.0)
+
+Axiom 210대 과제(T-182 ~ T-187)에서는 엔진의 헌법(0-Float, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 어레이)을 바탕으로, GGPO 롤백 넷코드와 멀티스레드 물리 시뮬레이션 환경에서 동적 메모리 할당 없이 전투·물리·오디오·VFX 이벤트를 실시간 중계하는 **결정론적 분산 이벤트 버스(`DeterministicEventBus<CAP>`)**와 초고속 비트마스크 필터링을 지원하는 **컴포넌트 쿼리 시스템(`ComponentMask64`, `ComponentQuery`)**을 구축했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│       Axiom 210-Series Deterministic Event Bus & Query Architecture         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Event Slab (EventSlab64)]                  │
+│    - #[repr(C, align(64))] Exact 64-Byte Slab (1 Cacheline = 1 Event)       │
+│    - tick(u32) + sequence(u32) + event_type(u16) + channel_mask(u16)       │
+│    - source_id(u32) + target_id(u32) + payload: [u8; 40] Inline POD Payload │
+│    - Zero Dynamic Allocation / Zero Heap Pointer Overhead                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Zero-Heap Power-of-Two Ring Buffer (DeterministicEventBus<CAP>)]        │
+│    - Modulo Bitmask Indexing: (tail & (CAP - 1))                            │
+│    - GGPO Speculative Rollback Support: rollback_to(confirmed_seq)          │
+│    - 64-bit FNV-1a Consensus Hash (compute_consensus_hash)                  │
+│    - Multi-Channel Filter Iterator: for_each_matching(channel_mask, ...)    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [64-Bit Archetype Bitmask Filter (ComponentMask64 & ComponentQuery)]     │
+│    - 1-Cycle Bitwise Query: (mask & require == require) && (mask & exclude == 0)│
+│    - High-Throughput Flat-Array Entity Evaluation: filter_entities          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Job System Parallel Dispatch & Production Game View Integration]        │
+│    - dispatch_events_with_jobs: N-Worker Parallel Channel Event Filtering   │
+│    - filter_entities_with_jobs: N-Worker Parallel Entity Query Evaluation   │
+│    - WASM Studio: 📡 210 Event Bus (64B Slabs) Interactive Modal (1.28 MB)  │
+│    - Mimic The Show: Desktop View dispatch_event_bus_pipeline (16-Slab Drain│
+│      Audio/VFX/Shake Feedback & F3 Bus: 128 Slabs HUD Telemetry Card)       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 37.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 이벤트 슬랩 (`EventSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 L1 캐시 라인을 차지하여 False Sharing을 원천 차단하고 순차 메모리 버스트 읽기 효율을 극대화합니다.
+   - 40바이트 인라인 POD 바이트 배열 `payload: [u8; 40]`을 내장하여 `CombatHitPayload`(20B) 등 임의의 고정 크기 POD 데이터를 힙 포인터 없이 제로 카피로 전달합니다 (`read_payload<T: Copy>()`).
+2. **0-힙 고정 용량 링 버퍼 이벤트 버스 (`DeterministicEventBus<CAP>`)**:
+   - 2의 거듭제곱 용량 비트마스크 인덱싱을 통해 나머지 연산 비용을 1사이클 비트 AND 연산으로 절감합니다.
+   - GGPO 롤백 지원: 투기적 실행 후 서버 확정 시퀀스보다 이후에 생성된 오예측 이벤트를 `rollback_to(confirmed_seq)`를 통해 $O(1)$ 즉시 되감기 및 절단합니다.
+   - 64-bit FNV-1a 결정론 체크섬(`compute_consensus_hash`): 활성 슬랩의 틱, 시퀀스, 이벤트 타입, 채널, 페이로드를 일괄 해싱하여 피어 간 100% 비트 일치 상태 합의를 보증합니다.
+3. **64-컴포넌트 비트마스크 및 1-사이클 엔티티 쿼리 (`ComponentMask64`, `ComponentQuery`)**:
+   - 64개 컴포넌트의 유무를 단일 `u64` 레지스터 비트 플래그로 표현하여, `require`와 `exclude` 필터를 1사이클 비트 논리 연산으로 평가합니다.
+   - 플랫 어레이 슬랩을 순차 스캔하여 복잡한 ECS 스파스 셋(Sparse Set) 간접 참조 오버헤드 없이 수십만 엔티티를 초고속 필터링합니다.
+4. **멀티스레드 잡 시스템 병렬 디스패치 및 게임 뷰 파이프라인 결합**:
+   - `dispatch_events_with_jobs` 및 `filter_entities_with_jobs`를 통해 Chase-Lev 워커 풀에 N-배치 작업을 분산하여 락 없이 이벤트를 병렬 처리합니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `DeterministicEventBus<64>` 및 `dispatch_event_bus_pipeline`을 탑재하여 16-슬랩 스택 무할당 배치 배출을 통해 공간 음향, 2D/3D 파티클 비산, 카메라 임팩트 셰이크 및 `F3` HUD 카드 텔레메트리를 실시간 연동합니다.
+
+
 
 
 

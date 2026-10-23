@@ -11,7 +11,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "3.4.0"
+version = "3.5.0"
 edition = "2021"
 authors = ["Hyedelle <hyedelle@dreamhub.engine>"]
 license = "MIT OR Apache-2.0"

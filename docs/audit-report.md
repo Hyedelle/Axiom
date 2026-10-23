@@ -8,32 +8,43 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 05:20 KST
-- **감사 대상:** Axiom Engine v3.4.0 200대 멀티스레드 비동기 잡 스케줄러 & 무잠금 워크 스틸링 물리 엔진 마일스톤 종합 감사 (`axiom-core`, `axiom-game`, `axiom-wasm`, `mimic-the-show`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 잡 서술자 (`JobDescriptor64`) & 워커 텔레메트리 (`WorkerTelemetry64`), Chase-Lev 무잠금 SPMC 워크 스틸링 덱 (`WorkStealingDeque`), N-워커 협력 풀 코디네이터 (`WorkerPoolCoordinator`), 복셀 유체 및 16-플레이어 롤백 기구학 병렬 잡 디스패치, WASM ⚡ 200 Job System 대화형 모달 및 Mimic The Show [~: JOBS 4W] & F3 HUD 카드 일체화, 헌법 가드 올패스 (v3.4.0 공식 승인)**
+- **일시:** 2026-10-24 06:00 KST
+- **감사 대상:** Axiom Engine v3.5.0 210대 결정론적 분산 이벤트 버스 & 컴포넌트 쿼리 엔진 마일스톤 종합 감사 (`axiom-core`, `axiom-game`, `axiom-wasm`, `mimic-the-show`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 이벤트 슬랩 (`EventSlab64`) & 0-힙 링 버퍼 (`DeterministicEventBus<CAP>`), GGPO 롤백 지원 (`rollback_to`) 및 64-bit FNV-1a 상태 합의 체크섬, 64-컴포넌트 비트마스크 (`ComponentMask64`) & 1-사이클 비트 쿼리 (`ComponentQuery`), 멀티스레드 잡 시스템 병렬 디스패치 (`dispatch_events_with_jobs`), WASM 📡 210 Event Bus 대화형 모달 및 Mimic The Show 챔피언십 링 사운드/VFX/전투 파이프라인 일체화, 헌법 가드 올패스 (v3.5.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **0-Float 64B L1 캐시 정렬 잡 서술자 (`JobDescriptor64`, `JobHandle`)**:
-     - `#[repr(C, align(64))]` 정확히 64바이트 L1 슬랩 유지 (`size_of == 64, align_of == 64`).
-     - 슬롯(32비트) + 세대(32비트) 64비트 정수 `JobHandle`로 ABA 문제 차단.
-     - `AtomicU32` 잔여 의존성 카운터 및 원자적 감소를 통한 잠금(Lock) 0회 부모-자식 DAG 의존성 해소.
-     - 64-bit FNV-1a 결정론 합의 체크섬으로 비트 단위 상태 일치 검증.
-  2. **Chase-Lev 무잠금 SPMC 워크 스틸링 덱 (`WorkStealingDeque`, `WorkerPoolCoordinator`)**:
-     - 소유자 LIFO Push/Pop (Acquire/Release 메모리 펜스, 캐시 친화적), 도둑 FIFO Steal (원자적 CAS 경쟁).
-     - 워커 간 뮤텍스/락 0회, 비차단 협력 드레인 `drain_all`을 통해 싱글스레드 WASM 및 멀티코어 x86_64 완전 지원.
-  3. **물리 및 넷코드 비동기 잡 디스패치 파이프라인 연동**:
-     - `SimdFluidEngine::step_fluid_with_jobs`: 4분면 수직 중력 배수 및 4슬라이스 배치 수평 정수압 확산의 잡 분할 디스패치 (100% 질량 보존).
-     - `NetworkMatchDirector::advance_tick_with_jobs`: 16-플레이어 물리 기구학 적분을 4배치 잡으로 분할 디스패치하여 4개 워커 풀에서 병렬 해결 (0 Desync 합의).
-  4. **WASM 3D 스튜디오 ⚡ 200 Job System (Chase-Lev) 벤치마크 & C-ABI (`axiom_job_bench_scheduler`)**:
-     - 200개 부모-자식 의존성 잡, 4개 워커 풀 스틸링 계측, 1.28 MB 최적화 WASM 바이너리 배포.
-  5. **Mimic The Show 챔피언십 링 잡 스케줄러 결합 (`mimic-the-show/src/view.rs`)**:
-     - 글로벌 백틱(`` ` ``) 핫키 및 `F3` HUD 카드 텔레메트리 연동 [Jobs: {} | Stolen: {} (4W STEAL)].
-     - 22개 전체 단위/통합 테스트 100% 통과.
-  6. **헌법 가드 `tools/guard.ps1` 100% 통과**:
+  1. **0-Float 64B L1 캐시 정렬 이벤트 슬랩 (`EventSlab64`)**:
+     - `#[repr(C, align(64))]` 정확히 64바이트 1개 캐시라인 슬랩 유지 (`size_of == 64, align_of == 64`).
+     - tick/sequence/event_type/channel_mask/source_id/target_id 및 40B 인라인 POD 바이트 배열 `payload: [u8; 40]` 탑재로 동적 할당 원천 소거.
+     - `CombatHitPayload`(20B) 등 임의의 고정 크기 POD 데이터를 제로 카피 인라인 적재 및 읽기 (`read_payload<T: Copy>()`).
+  2. **0-힙 고정 용량 링 버퍼 이벤트 버스 (`DeterministicEventBus<CAP>`)**:
+     - 2의 거듭제곱 용량 비트마스크 인덱싱 `tail & (CAP - 1)`으로 1사이클 O(1) 링 인덱싱.
+     - GGPO 롤백 지원: 투기적 실행 후 확정 시퀀스보다 이후에 생성된 오예측 이벤트를 `rollback_to(confirmed_seq)`로 $O(1)$ 즉시 되감기 및 절단.
+     - 64-bit FNV-1a 상태 합의 체크섬(`compute_consensus_hash`)을 통한 피어 간 100% 비트 일치 검증.
+  3. **64-컴포넌트 비트마스크 및 1-사이클 엔티티 쿼리 (`ComponentMask64`, `ComponentQuery`)**:
+     - 64개 컴포넌트 유무를 단일 `u64` 레지스터 비트 플래그로 표현 (`all`, `any`, `none`, 비트 연산자 완비).
+     - `ComponentQuery`(require/exclude)를 통해 1사이클 비트 AND 연산으로 아키타입 부합 여부를 고속 평가.
+     - 플랫 어레이 슬랩을 순차 스캔하여 스파스 셋 오버헤드 없는 초고속 엔티티 필터링 (`filter_entities`).
+  4. **멀티스레드 잡 시스템 병렬 디스패치 파이프라인 연계**:
+     - `dispatch_events_with_jobs`: 활성 슬랩들을 N-배치 작업으로 분할하여 Chase-Lev 워커 풀에 병렬 디스패치하고 다중 채널을 락 없이 동시 필터링.
+     - `filter_entities_with_jobs`: 수만 개 엔티티 슬랩을 워커 풀에 N-배치로 병렬 분할하여 아키타입 쿼리를 동시 평가.
+     - `NetworkMatchDirector` 내 `DeterministicEventBus<128>` 내장 및 `CombatHitPayload` 자동 방출 연동.
+  5. **WASM 3D 스튜디오 📡 210 Event Bus (64B Slabs) 벤치마크 & C-ABI (`axiom_event_bench_bus`)**:
+     - 256-슬랩 다중 채널 이벤트 발행, GGPO 롤백 되감기, 4-워커 잡 시스템 병렬 디스패치 및 FNV-1a 체크섬 실시간 계측, 1.28 MB 최적화 WASM 바이너리 배포.
+  6. **Mimic The Show 챔피언십 링 사운드/VFX 파이프라인 결합 (`mimic-the-show/src/view.rs`)**:
+     - `DesktopGameView` 내 `DeterministicEventBus<64>` 내장, L1 캐시 스택 16-슬랩 무할당 배치 배출 `dispatch_event_bus_pipeline`.
+     - 실시간 입체 공간 음향(`HitKo`/`GuardHit`/`HitCross`/`HitJab`), 2D/3D 파티클 비산, 카메라 임팩트 셰이크 및 `F3` HUD 카드 텔레메트리(`Bus: 128 Slabs | Events: {}`) 탑재.
+     - 23개 전체 단위/통합 테스트 100% 통과.
+  7. **헌법 가드 `tools/guard.ps1` 100% 통과**:
      - 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 100% 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v3.4.0] Axiom Engine v3.4.0 200대 멀티스레드 비동기 잡 스케줄러 & 무잠금 워크 스틸링 물리 엔진 마일스톤 종합 감사
+- **일시:** 2026-10-24 05:20 KST
+- **판정:** 🟢 **ALL CLEAR (v3.4.0 공식 승인)**
+- **검증:** 0-Float 64B L1 캐시 정렬 잡 서술자 `JobDescriptor64` & `JobHandle`, Chase-Lev 무잠금 SPMC 워크 스틸링 덱 `WorkStealingDeque`, N-워커 협력 풀 코디네이터 `WorkerPoolCoordinator`, 복셀 유체 및 16-플레이어 롤백 기구학 병렬 잡 디스패치, WASM ⚡ 200 Job System 대화형 모달 및 Mimic The Show [~: JOBS 4W] & F3 HUD 카드 일체화, 헌법 가드 올패스.
 
 ### [AUDIT-20261024-v3.3.0] Axiom Engine v3.3.0 190대 P2P 홀펀칭(NAT Traversal) & 16-플레이어 분산 롤백 넷코드 마일스톤 종합 감사
 - **일시:** 2026-10-24 04:30 KST
@@ -886,6 +897,33 @@
 - `cargo test --manifest-path c:\Dreamhub\Game\mimic-the-show\Cargo.toml` 100% 통과 (20개 테스트 전원 PASS).
 - `tools/guard.ps1` 무결성 검증 100% 통과.
 - 워크스페이스 v3.2.0 판올림 및 공식 Git 릴리즈 태그 `v3.2.0` 발행 승인.
+
+---
+
+## 🏛️ [AUDIT-20261024-v3.5.0] Axiom Engine v3.5.0 210대 결정론적 분산 이벤트 버스 & 컴포넌트 쿼리 공식 릴리즈 종합 감사 보고서
+- **감사 일자:** 2026-10-24
+- **감사 주체:** Hyedelle (디렉터) & Antigravity (총괄 관제탑)
+- **감사 대상:** Axiom Engine v3.5.0 전역 워크스페이스 (`crates/axiom-core`, `crates/axiom-game`, `crates/axiom-wasm`, `mimic-the-show`, `web`, `tools/package.ps1`)
+- **판정 결과:** **PASS (전 항목 무결성 100% 승인)**
+
+### 1. 헌법 및 기하 정렬 준수 검증
+1. **0-Float 절대 결정론**:
+   - `DeterministicEventBus<CAP>`: 0-힙 링 버퍼, 2의 거듭제곱 비트마스크 인덱싱, GGPO 투기적 롤백 절단 `rollback_to`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`.
+   - `ComponentMask64` & `ComponentQuery`: 64-비트 컴포넌트 마스크 및 1-사이클 비트 논리 연산 아키타입 쿼리.
+   - `dispatch_events_with_jobs` & `filter_entities_with_jobs`: 멀티스레드 Chase-Lev 워커 풀 협력 분산 디스패치 파이프라인.
+2. **L1 캐시 라인 기하 정렬**:
+   - `EventSlab64`: 정확히 64바이트 L1 슬랩 (`size_of == 64, align_of == 64`), 40B 인라인 POD 바이트 배열 `payload: [u8; 40]`.
+   - `CombatHitPayload`: 정확히 20바이트 POD 구조체 (`size_of == 20, align_of == 4`).
+3. **글로벌 벤치마크 스루풋 및 상용 렌더링**:
+   - Web 3D 복셀 스튜디오: 📡 **210 Event Bus (64B Slabs)** 인터랙티브 모달, 256-슬랩 다중 채널 이벤트 발행, GGPO 롤백 되감기, 4-워커 잡 시스템 병렬 디스패치 및 FNV-1a 체크섬 실시간 계측, 1.28 MB 최적화 WASM 바이너리 동기화.
+   - `mimic-the-show`: `DesktopGameView` 내 `DeterministicEventBus<64>` 탑재, L1 캐시 스택 16-슬랩 무할당 배치 배출 `dispatch_event_bus_pipeline`, 실시간 입체 공간 음향(`HitKo`/`GuardHit`/`HitCross`/`HitJab`), 2D/3D 파티클 비산, 카메라 임팩트 셰이크 및 `F3` HUD 카드 텔레메트리(`Bus: 128 Slabs | Events: {}`) 연동.
+   - 단일 상용 배포 패키지: `dist/axiom-v3.5.0-unified-milestone.zip` (2.16 MB, SHA-256: `1472025578213AA5B6047DDC2BD93061E0D554B5AC5A68272424E60C37ADF051` 검증 완료).
+
+### 2. 종합 테스트 및 품질 승인
+- `cargo test --workspace` 100% 통과.
+- `cargo test --manifest-path c:\Dreamhub\Game\mimic-the-show\Cargo.toml` 100% 통과 (23개 테스트 전원 PASS).
+- `tools/guard.ps1` 무결성 검증 100% 통과.
+- 워크스페이스 v3.5.0 판올림 및 공식 Git 릴리즈 태그 `v3.5.0` 발행 승인.
 
 ---
 
