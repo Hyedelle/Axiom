@@ -41,6 +41,7 @@ pub mod tick;
 pub mod tile_entity;
 pub mod time_machine;
 pub mod voxel_destruct;
+pub mod voxel_shard;
 pub mod world_time_machine;
 
 pub use audio::{
@@ -144,6 +145,7 @@ pub use voxel_destruct::{
     SeverancePlane, VoxelVolume16, VOXEL_AIR, VOXEL_ARMOR, VOXEL_DIM, VOXEL_METAL, VOXEL_MOLTEN,
     VOXEL_STONE, VOXEL_TOTAL,
 };
+pub use voxel_shard::{VoxelShard, VoxelShardPool};
 pub use world_time_machine::{
     WorldSnapshot, WorldTimeMachine, DEFAULT_WORLD_ROLLBACK_CAPACITY,
 };

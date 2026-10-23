@@ -126,6 +126,30 @@ impl VoxelVolume16 {
         c1
     }
 
+    /// Carves an arena floor impact crater and expels kinetic rigid voxel shards into the shard pool.
+    pub fn carve_crater_with_shards<const CAP: usize>(
+        &mut self,
+        cx: i16,
+        cz: i16,
+        depth: i16,
+        radius: i16,
+        pool: &mut crate::voxel_shard::VoxelShardPool<CAP>,
+        world_origin_q16: [i32; 3],
+        voxel_scale_q16: i32,
+    ) -> u32 {
+        let carved = self.carve_crater(cx, cz, depth, radius);
+        if carved > 0 {
+            let origin = [
+                world_origin_q16[0] + (cx as i32 * voxel_scale_q16),
+                world_origin_q16[1] + ((VOXEL_DIM as i32 - 1) * voxel_scale_q16),
+                world_origin_q16[2] + (cz as i32 * voxel_scale_q16),
+            ];
+            let shard_count = (carved as usize).min(16);
+            pool.spawn_burst(origin, VOXEL_STONE, shard_count, 1200);
+        }
+        carved
+    }
+
     /// Deterministic 3D raycast traversing voxel grid using integer steps.
     pub fn raycast(
         &self,

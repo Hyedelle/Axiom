@@ -18,6 +18,7 @@ pub mod sprites;
 pub mod texture;
 pub mod voxel_map;
 pub mod voxel_mesh;
+pub mod voxel_shard_render;
 
 pub use camera3d::{Camera3D, CameraShot};
 pub use cutin::{render_cutin_overlay, CutinKind};
@@ -48,3 +49,4 @@ pub use voxel_map::{
     AXVM_MAGIC, AXVM_VERSION,
 };
 pub use voxel_mesh::{extract_voxel_mesh, sever_part_mesh};
+pub use voxel_shard_render::{render_voxel_shards, VoxelShardColorMap};
