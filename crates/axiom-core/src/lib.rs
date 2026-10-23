@@ -21,6 +21,7 @@ pub mod grid_netcode;
 pub mod hash;
 pub mod hpa;
 pub mod input;
+pub mod job_system;
 pub mod logistics;
 pub mod monster_spawn;
 pub mod netcode;
@@ -53,6 +54,10 @@ pub use voxel_fluid_simd::{SimdFluidEngine, SimdFluidStepResult};
 pub use thermal_stress::{
     ThermalCollapseResult, ThermalStressField16, TEMP_AMBIENT, TEMP_INCANDESCENT_THRESHOLD,
     TEMP_PHASE_MELT_THRESHOLD, TEMP_WARM_THRESHOLD, STRESS_FRACTURE_THRESHOLD,
+};
+pub use job_system::{
+    JobContext, JobDescriptor64, JobFn, JobHandle, JobPriority, JobStatus, JobSystem,
+    DEFAULT_JOB_CAPACITY,
 };
 
 pub use audio::{
