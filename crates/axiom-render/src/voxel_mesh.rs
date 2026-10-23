@@ -192,7 +192,7 @@ pub fn sever_part_mesh(mesh: &PartMesh, plane: &SeverancePlane) -> (PartMesh, Pa
 
         // Intersecting triangle: partition between upper and lower
         // Helper to interpolate vertex along an edge
-        let interp = |va: Vertex3D, vb: Vertex3D, pa: [i32; 3], pb: [i32; 3]| -> Vertex3D {
+        let interp = |va: Vertex3D, _vb: Vertex3D, pa: [i32; 3], pb: [i32; 3]| -> Vertex3D {
             if let Some(pi) = plane.intersect_segment(pa, pb) {
                 let norm = va.norm; // Maintain face normal
                 Vertex3D {

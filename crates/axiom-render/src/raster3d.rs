@@ -7,7 +7,7 @@
 
 use crate::framebuffer::FrameBuffer;
 use crate::math3d::{Mat4Fixed, Vec3Fixed};
-use crate::mesh3d::MechaModel3D;
+use crate::mesh3d::{MechaModel3D, PartMesh};
 use axiom_core::Fixed;
 
 /// Color palette for mecha cel-shading adhering to Steel-the-Show Color Grammar v1.
@@ -337,6 +337,83 @@ impl Rasterizer3D {
                     self.rasterize_pineda_8x8(fb, x0, y0, z0, x1, y1, z1, x2, y2, z2, color);
                 }
             }
+        }
+    }
+
+    /// Renders a single `PartMesh` (e.g. dynamic crater floor or severed mecha piece).
+    pub fn render_part(
+        &mut self,
+        fb: &mut FrameBuffer,
+        part: &PartMesh,
+        world_mat: &Mat4Fixed,
+        cam_dist: Fixed,
+        focal_length: i64,
+    ) {
+        let cx = (self.width / 2) as i64;
+        let cy = (self.height / 2) as i64;
+
+        let palette = self
+            .custom_palette
+            .unwrap_or_else(|| CelShadingPalette::for_part(&part.name));
+
+        let mut view_verts: Vec<(i64, i64, i32, Vec3Fixed, i32, i32)> =
+            Vec::with_capacity(part.vertices.len());
+
+        for v in &part.vertices {
+            let p_world = world_mat.transform_point(v.pos);
+            let n_world = world_mat.transform_vector(v.norm);
+
+            let vz = (cam_dist - p_world.z).raw();
+
+            if vz <= 65536 / 10 {
+                view_verts.push((0, 0, i32::MIN, n_world, v.u, v.v));
+                continue;
+            }
+
+            let sx = cx + (p_world.x.raw() * focal_length) / vz;
+            let sy = cy - (p_world.y.raw() * focal_length) / vz;
+            let inv_z = ((1i64 << 30) / vz) as i32;
+
+            view_verts.push((sx, sy, inv_z, n_world, v.u, v.v));
+        }
+
+        let tri_count = part.indices.len() / 3;
+        for t in 0..tri_count {
+            let i0 = part.indices[t * 3] as usize;
+            let i1 = part.indices[t * 3 + 1] as usize;
+            let i2 = part.indices[t * 3 + 2] as usize;
+
+            if i0 >= view_verts.len() || i1 >= view_verts.len() || i2 >= view_verts.len() {
+                continue;
+            }
+
+            let (x0, y0, z0, n0, u0, v0) = view_verts[i0];
+            let (x1, y1, z1, n1, u1, v1) = view_verts[i1];
+            let (x2, y2, z2, n2, u2, v2) = view_verts[i2];
+
+            if z0 == i32::MIN || z1 == i32::MIN || z2 == i32::MIN {
+                continue;
+            }
+
+            let avg_norm = Vec3Fixed::new(
+                (n0.x + n1.x + n2.x) * Fixed::from_raw(21845),
+                (n0.y + n1.y + n2.y) * Fixed::from_raw(21845),
+                (n0.z + n1.z + n2.z) * Fixed::from_raw(21845),
+            );
+
+            let light_dot = avg_norm.dot(self.light_dir);
+
+            let color = if u0 >= 49152 || v0 >= 49152 {
+                0xFFFFAA00 // Molten glowing slag / severed edge
+            } else if light_dot.raw() > 24000 {
+                palette.highlight
+            } else if light_dot.raw() > 4000 {
+                palette.base
+            } else {
+                palette.shadow
+            };
+
+            self.rasterize_pineda_8x8(fb, x0, y0, z0, x1, y1, z1, x2, y2, z2, color);
         }
     }
 

@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-125: Mimic The Show 절단 파츠 파편 비산 및 3D 링 바닥 크레이터 연출 통합** (`mimic-the-show`, `crates/axiom-render`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-126: Axiom Engine v2.2.0 파괴 및 신경망 인공지능 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-127: Axiom 차세대 3D 복셀 메카 지형 에디터 및 커스텀 파괴 맵 익스포터** (`crates/axiom-cli`, `crates/axiom-render`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-125: Mimic The Show 절단 파츠 파편 비산 및 3D 링 바닥 크레이터 연출 통합** (`mimic-the-show/src/view.rs`, `crates/axiom-render/src/raster3d.rs`, `crates/axiom-render/src/voxel_mesh.rs`, 0-Float 64-Byte L1 정렬 `VoxelVolume16` 3D 링 바닥 복셀 그리드 상주, `CinematicFinisherDirector` NovaStrike 임팩트 순간 `carve_crater` 동적 6-반경 충격파 크레이터 파괴 및 `extract_voxel_mesh` 3D 실시간 렌더링, 상대 메카 파츠 실시간 물리 평면 절단 `sever_part_mesh` [Q16.16 normal [0, 65536, 0]], 절단 상반신 파츠 3D 궤적 비산 시뮬레이션 [pos += vel, vel.y -= 80 gravity], `r.render_part` 단일 PartMesh 래스터라이징 파이프라인, 40개 AMBER 피격 파편 비산 연출, 전체 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-124: Axiom 차세대 3D 복셀 메카 지형 파괴 및 물리 절단 엔진** (`crates/axiom-core/src/voxel_destruct.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_voxel_destruct.rs`, `crates/axiom-render/src/voxel_mesh.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_voxel_and_severance.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `VoxelVolume16` [#[repr(C, align(64))], exact 4160-byte 65-cacheline slab, 16x16x16 4096-voxel grid, damaged_count, total_solid], 5대 복셀 머티리얼 [`VOXEL_AIR`, `VOXEL_STONE`, `VOXEL_METAL`, `VOXEL_MOLTEN`, `VOXEL_ARMOR`], 구형 폭발 파괴 `carve_sphere`, 링 지면 크레이터 파괴 `carve_crater`, 3D 정수 DDA 광선 추적 `raycast`, 64B L1 정렬 `SeverancePlane` [#[repr(C, align(64))], Q16.16 normal/offset, cut_id], 선분/평면 교차 계산 `intersect_segment`, 0-Float 복셀 경계 메시 추출기 `extract_voxel_mesh`, 실시간 3D 파츠 평면 물리 절단 엔진 `sever_part_mesh` [상/하부 반공간 분할, 절단면 모서리 보간 및 절단 모서리 발광 UV 생성], 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-123: AI 대전 파이터 인공지능 강화학습 모델 추론 엔진 통합** (`crates/axiom-core/src/neural_ai.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_neural_ai.rs`, `crates/axiom-game/src/neural_fighter.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_neural_fighter.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `NeuralAiWeights` [#[repr(C, align(64))], exact 320-byte 5-cacheline slab, INT8 weights, INT16 biases, model_version, checksum], 8차원 전투 관측 벡터 `CombatObservation` [rel_distance, player_hp_pct, opponent_hp_pct, player_heat_pct, player_action, opponent_action, player_combo_streak, opponent_telegraph_rem], 순수 정수 양자화(INT8 x INT8 ➔ i32 누산 ➔ Quantized ReLU / 64) 다층 퍼셉트론 순방향 추론기 `infer_action`, 64B L1 캐시 정렬 인게임 컨트롤러 `NeuralFighterController` [#[repr(C, align(64))], exact 384-byte 6-cacheline slab], 복싱 링 `BoxingRingEngine` 실시간 관측 추출 및 `ActionKind` 자동 의사결정/시뮬레이션 연동 `step_player`, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-122: 크로스 플랫폼 Vulkan/DirectX 12 선택적 백엔드 및 모바일 타겟 검증** (`crates/axiom-render/src/gpu_backend.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_gpu_backend.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `GpuPresenterConfig` [#[repr(C, align(64))], backend, scaling, vsync, triple_buffering, target_fps, viewport_w/h, safe_area_inset], 64B L1 정렬 `PresentStats` 텔레메트리, 5대 프레젠테이션 백엔드 [`SoftwareCpu`, `Vulkan`, `DirectX12`, `Metal`, `WebGpu`], 4대 정수배/레터박스 스케일러 [`Nearest1x`, `Integer2x`, `Integer4x`, `FitAspectLetterbox`] 16:9/16:10 디스플레이 자동 센터링, 3개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
