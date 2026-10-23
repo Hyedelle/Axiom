@@ -114,6 +114,8 @@ pub struct Rasterizer3D {
     pub draw_outline: bool,
     pub outline_width: Fixed,
     pub outline_color: u32,
+    pub rim_light_color: Option<u32>,
+    pub eye_glow_boost: bool,
 }
 
 impl Rasterizer3D {
@@ -129,6 +131,8 @@ impl Rasterizer3D {
             draw_outline: true,
             outline_width: Fixed::from_raw(524), // ~0.008m extrusion
             outline_color: CelShadingPalette::INK,
+            rim_light_color: None,
+            eye_glow_boost: true,
         }
     }
 
@@ -227,13 +231,14 @@ impl Rasterizer3D {
                         continue; // Cull front-facing triangles
                     }
 
-                    // Rasterize outline triangle in canon INK
+                    // Rasterize outline triangle in canon INK or active Rim Light color
+                    let line_color = self.rim_light_color.unwrap_or(self.outline_color);
                     self.rasterize_pineda_8x8(
                         fb,
                         x0, y0, z0,
                         x1, y1, z1,
                         x2, y2, z2,
-                        self.outline_color,
+                        line_color,
                     );
                 }
             }
@@ -294,8 +299,21 @@ impl Rasterizer3D {
 
                 let light_dot = avg_norm.dot(self.light_dir);
 
-                // Cel-shading stepped tone selection
-                let color = if light_dot.raw() > 24000 {
+                // Cel-shading stepped tone selection with Visor Eye Glow and Rim Lighting
+                let color = if self.eye_glow_boost && (part.name == "visor" || part.name.contains("eye")) {
+                    0xFFFFF59D // Incandescent Oracle Visor beacon
+                } else if let Some(rim_col) = self.rim_light_color {
+                    // Grazing angle silhouette rim highlight
+                    if avg_norm.z.raw().abs() < 16000 {
+                        rim_col
+                    } else if light_dot.raw() > 24000 {
+                        palette.highlight
+                    } else if light_dot.raw() > 4000 {
+                        palette.base
+                    } else {
+                        palette.shadow
+                    }
+                } else if light_dot.raw() > 24000 {
                     palette.highlight
                 } else if light_dot.raw() > 4000 {
                     palette.base

@@ -56,3 +56,36 @@ fn test_inverted_hull_outline_rasterization() {
         ink_pixels
     );
 }
+
+#[test]
+fn test_rim_lighting_and_eye_glow_boost() {
+    let hero_glb_path = Path::new(r"C:\Dreamhub\Game\steel-the-show\assets\robot3d\hero\hero_a.glb");
+    if !hero_glb_path.exists() {
+        return;
+    }
+
+    let bytes = fs::read(hero_glb_path).expect("Failed to read GLB");
+    let model = parse_glb(&bytes).expect("Failed to parse GLB");
+
+    let width = 640;
+    let height = 480;
+    let mut fb = FrameBuffer::new(width, height);
+    fb.clear(0xFF000000);
+
+    let mut rasterizer = Rasterizer3D::new(width, height);
+    let rim_gold = 0xFFFFD700;
+    rasterizer.rim_light_color = Some(rim_gold);
+    rasterizer.eye_glow_boost = true;
+
+    let world_mat = Mat4Fixed::IDENTITY;
+    let cam_dist = Fixed::from_int(2);
+    rasterizer.render_model(&mut fb, &model, &world_mat, cam_dist, 500);
+
+    // Verify rim lighting pixels were rendered
+    let gold_pixels = fb.pixels.iter().filter(|&&p| p == rim_gold).count();
+    assert!(
+        gold_pixels > 300,
+        "Rim lighting must render >300 golden highlight pixels, rendered {}",
+        gold_pixels
+    );
+}
