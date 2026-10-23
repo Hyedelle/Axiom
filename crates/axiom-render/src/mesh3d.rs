@@ -27,6 +27,99 @@ impl PartMesh {
     pub fn triangle_count(&self) -> usize {
         self.indices.len() / 3
     }
+
+    /// Creates an axis-aligned box part mesh with flat normals.
+    pub fn create_box(name: &str, min: Vec3Fixed, max: Vec3Fixed) -> Self {
+        use axiom_core::Fixed;
+        let zero = Fixed::ZERO;
+        let one = Fixed::ONE;
+        let neg_one = Fixed::from_raw(-65536);
+
+        let faces: [([Vec3Fixed; 4], Vec3Fixed); 6] = [
+            // Front (+Z)
+            (
+                [
+                    Vec3Fixed::new(min.x, min.y, max.z),
+                    Vec3Fixed::new(max.x, min.y, max.z),
+                    Vec3Fixed::new(max.x, max.y, max.z),
+                    Vec3Fixed::new(min.x, max.y, max.z),
+                ],
+                Vec3Fixed::new(zero, zero, one),
+            ),
+            // Back (-Z)
+            (
+                [
+                    Vec3Fixed::new(max.x, min.y, min.z),
+                    Vec3Fixed::new(min.x, min.y, min.z),
+                    Vec3Fixed::new(min.x, max.y, min.z),
+                    Vec3Fixed::new(max.x, max.y, min.z),
+                ],
+                Vec3Fixed::new(zero, zero, neg_one),
+            ),
+            // Top (+Y)
+            (
+                [
+                    Vec3Fixed::new(min.x, max.y, max.z),
+                    Vec3Fixed::new(max.x, max.y, max.z),
+                    Vec3Fixed::new(max.x, max.y, min.z),
+                    Vec3Fixed::new(min.x, max.y, min.z),
+                ],
+                Vec3Fixed::new(zero, one, zero),
+            ),
+            // Bottom (-Y)
+            (
+                [
+                    Vec3Fixed::new(min.x, min.y, min.z),
+                    Vec3Fixed::new(max.x, min.y, min.z),
+                    Vec3Fixed::new(max.x, min.y, max.z),
+                    Vec3Fixed::new(min.x, min.y, max.z),
+                ],
+                Vec3Fixed::new(zero, neg_one, zero),
+            ),
+            // Right (+X)
+            (
+                [
+                    Vec3Fixed::new(max.x, min.y, max.z),
+                    Vec3Fixed::new(max.x, min.y, min.z),
+                    Vec3Fixed::new(max.x, max.y, min.z),
+                    Vec3Fixed::new(max.x, max.y, max.z),
+                ],
+                Vec3Fixed::new(one, zero, zero),
+            ),
+            // Left (-X)
+            (
+                [
+                    Vec3Fixed::new(min.x, min.y, min.z),
+                    Vec3Fixed::new(min.x, min.y, max.z),
+                    Vec3Fixed::new(min.x, max.y, max.z),
+                    Vec3Fixed::new(min.x, max.y, min.z),
+                ],
+                Vec3Fixed::new(neg_one, zero, zero),
+            ),
+        ];
+
+        let mut vertices = Vec::with_capacity(24);
+        let mut indices = Vec::with_capacity(36);
+
+        for (quad, norm) in faces {
+            let base_idx = vertices.len() as u32;
+            for pos in quad {
+                vertices.push(Vertex3D { pos, norm, u: 0, v: 0 });
+            }
+            indices.push(base_idx);
+            indices.push(base_idx + 1);
+            indices.push(base_idx + 2);
+            indices.push(base_idx);
+            indices.push(base_idx + 2);
+            indices.push(base_idx + 3);
+        }
+
+        Self {
+            name: name.to_string(),
+            vertices,
+            indices,
+        }
+    }
 }
 
 /// A complete 3D mecha model composed of discrete rigid parts.
@@ -46,6 +139,23 @@ impl MechaModel3D {
 
     pub fn total_vertices(&self) -> usize {
         self.parts.iter().map(|p| p.vertices.len()).sum()
+    }
+
+    /// Constructs an instant procedural ELPIS mecha chassis with canon proportions and part names.
+    pub fn procedural_chassis() -> Self {
+        let parts = vec![
+            PartMesh::create_box("hero_torso", Vec3Fixed::from_f32(-0.24, -0.16, -0.16), Vec3Fixed::from_f32(0.24, 0.22, 0.16)),
+            PartMesh::create_box("hero_head", Vec3Fixed::from_f32(-0.14, 0.22, -0.13), Vec3Fixed::from_f32(0.14, 0.44, 0.13)),
+            PartMesh::create_box("hero_eye", Vec3Fixed::from_f32(-0.06, 0.30, 0.13), Vec3Fixed::from_f32(0.06, 0.37, 0.17)),
+            PartMesh::create_box("hero_arm_L", Vec3Fixed::from_f32(-0.38, -0.06, -0.10), Vec3Fixed::from_f32(-0.24, 0.20, 0.10)),
+            PartMesh::create_box("hero_glove_L", Vec3Fixed::from_f32(-0.44, -0.32, -0.12), Vec3Fixed::from_f32(-0.22, -0.06, 0.12)),
+            PartMesh::create_box("hero_arm_R", Vec3Fixed::from_f32(0.24, -0.06, -0.10), Vec3Fixed::from_f32(0.38, 0.20, 0.10)),
+            PartMesh::create_box("hero_glove_R", Vec3Fixed::from_f32(0.22, -0.32, -0.12), Vec3Fixed::from_f32(0.44, -0.06, 0.12)),
+            PartMesh::create_box("hero_leg_L", Vec3Fixed::from_f32(-0.22, -0.56, -0.10), Vec3Fixed::from_f32(-0.06, -0.16, 0.10)),
+            PartMesh::create_box("hero_leg_R", Vec3Fixed::from_f32(0.06, -0.56, -0.10), Vec3Fixed::from_f32(0.22, -0.16, 0.10)),
+            PartMesh::create_box("hero_exhaust", Vec3Fixed::from_f32(-0.12, 0.08, -0.24), Vec3Fixed::from_f32(0.12, 0.32, -0.16)),
+        ];
+        Self { parts }
     }
 }
 

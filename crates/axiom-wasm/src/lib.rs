@@ -24,7 +24,10 @@ pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
-use axiom_render::FrameBuffer;
+use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
+use axiom_render::mesh3d::{parse_glb, MechaModel3D};
+use axiom_render::raster3d::{CelShadingPalette, Rasterizer3D};
+use axiom_render::{cos_bams, sin_bams, FrameBuffer};
 
 #[allow(static_mut_refs)]
 struct WasmEngine {
@@ -2517,9 +2520,345 @@ pub extern "C" fn axiom_boxing_is_ko() -> u32 {
         .unwrap_or(0)
 }
 
+// ============================================================================
+// Track 3: WebGL/WASM 3D Cel-Shading Software Rasterizer Bridge
+// ============================================================================
+
+#[allow(static_mut_refs)]
+struct Wasm3DEngine {
+    rasterizer: Rasterizer3D,
+    framebuffer: FrameBuffer,
+    model: MechaModel3D,
+    yaw_bam: u8,
+    pitch_bam: u8,
+    cam_dist_q16: i32,
+    focal_length: i64,
+    auto_rotate: bool,
+    rim_lighting: bool,
+    cel_palette_idx: u32,
+    inverted_hull: bool,
+    tick: u64,
+}
+
+static mut ENGINE_3D: Option<Box<Wasm3DEngine>> = None;
+#[allow(static_mut_refs)]
+static mut GLB_STAGING_BUFFER: Vec<u8> = Vec::new();
+
+#[inline(always)]
+fn wasm_3d_engine() -> Option<&'static mut Wasm3DEngine> {
+    unsafe { (*core::ptr::addr_of_mut!(ENGINE_3D)).as_deref_mut() }
+}
+
+/// Allocates or resizes staging buffer in WASM memory for binary GLB transmission.
+/// Returns pointer to the start of the buffer.
+#[no_mangle]
+#[allow(static_mut_refs)]
+pub extern "C" fn axiom_3d_alloc_glb_buffer(len: u32) -> *mut u8 {
+    unsafe {
+        GLB_STAGING_BUFFER.clear();
+        GLB_STAGING_BUFFER.resize(len as usize, 0);
+        GLB_STAGING_BUFFER.as_mut_ptr()
+    }
+}
+
+/// Parses the GLB binary currently residing in the staging buffer.
+/// Returns 1 on success, 0 on failure.
+#[no_mangle]
+#[allow(static_mut_refs)]
+pub extern "C" fn axiom_3d_parse_staged_glb() -> u32 {
+    unsafe {
+        if GLB_STAGING_BUFFER.len() < 12 {
+            return 0;
+        }
+        match parse_glb(&GLB_STAGING_BUFFER) {
+            Ok(model) => {
+                if let Some(engine) = wasm_3d_engine() {
+                    engine.model = model;
+                    1
+                } else {
+                    0
+                }
+            }
+            Err(_) => 0,
+        }
+    }
+}
+
+/// Initializes the 3D software rasterizer engine and loads procedural ELPIS mecha chassis.
+#[no_mangle]
+pub extern "C" fn axiom_3d_init(width: u32, height: u32) {
+    let w = width.max(64) as usize;
+    let h = height.max(64) as usize;
+    let rasterizer = Rasterizer3D::new(w, h);
+    let framebuffer = FrameBuffer::new(w, h);
+    let model = MechaModel3D::procedural_chassis();
+
+    unsafe {
+        ENGINE_3D = Some(Box::new(Wasm3DEngine {
+            rasterizer,
+            framebuffer,
+            model,
+            yaw_bam: 32, // 45-degree default view
+            pitch_bam: 0,
+            cam_dist_q16: (2.15 * 65536.0) as i32, // 2.15m camera distance
+            focal_length: 520,
+            auto_rotate: true,
+            rim_lighting: false,
+            cel_palette_idx: 0, // Canon per-part materials
+            inverted_hull: true,
+            tick: 0,
+        }));
+    }
+}
+
+/// Ingests a Tripo/Blender GLB binary directly from WebAssembly memory.
+/// Returns 1 on success, 0 on failure.
+#[no_mangle]
+pub extern "C" fn axiom_3d_load_glb(bytes_ptr: *const u8, len: u32) -> u32 {
+    if bytes_ptr.is_null() || len < 12 {
+        return 0;
+    }
+    let slice = unsafe { core::slice::from_raw_parts(bytes_ptr, len as usize) };
+    match parse_glb(slice) {
+        Ok(model) => {
+            if let Some(engine) = wasm_3d_engine() {
+                engine.model = model;
+                1
+            } else {
+                0
+            }
+        }
+        Err(_) => 0,
+    }
+}
+
+/// Resets the 3D model to the procedural canon ELPIS chassis.
+#[no_mangle]
+pub extern "C" fn axiom_3d_reset_procedural() {
+    if let Some(engine) = wasm_3d_engine() {
+        engine.model = MechaModel3D::procedural_chassis();
+    }
+}
+
+/// Advances 3D simulation / turntable rotation by 1 frame.
+#[no_mangle]
+pub extern "C" fn axiom_3d_step(yaw_delta: i32, pitch_delta: i32) {
+    if let Some(engine) = wasm_3d_engine() {
+        engine.tick += 1;
+        if yaw_delta != 0 || pitch_delta != 0 {
+            engine.auto_rotate = false;
+            engine.yaw_bam = engine.yaw_bam.wrapping_add(yaw_delta as u8);
+            engine.pitch_bam = (engine.pitch_bam as i32 + pitch_delta).clamp(-64, 64) as u8;
+        } else if engine.auto_rotate {
+            engine.yaw_bam = engine.yaw_bam.wrapping_add(1);
+        }
+    }
+}
+
+/// Configures 3D camera distance and focal length.
+#[no_mangle]
+pub extern "C" fn axiom_3d_set_cam(dist_q16: i32, focal_length: i64) {
+    if let Some(engine) = wasm_3d_engine() {
+        engine.cam_dist_q16 = dist_q16.clamp(65536, 65536 * 10);
+        engine.focal_length = focal_length.clamp(100, 2000);
+    }
+}
+
+/// Configures 3D rendering pipeline flags:
+/// - auto_rotate: 0: disabled, 1: enabled
+/// - rim_lighting: 0: disabled, 1: enabled
+/// - palette_idx: 0: Canon per-part, 1: Golden Nova, 2: Gunmetal Steel, 3: Overheat Red
+/// - inverted_hull: 0: disabled, 1: enabled
+#[no_mangle]
+pub extern "C" fn axiom_3d_set_options(
+    auto_rotate: u32,
+    rim_lighting: u32,
+    palette_idx: u32,
+    inverted_hull: u32,
+) {
+    if let Some(engine) = wasm_3d_engine() {
+        engine.auto_rotate = auto_rotate != 0;
+        engine.rim_lighting = rim_lighting != 0;
+        engine.cel_palette_idx = palette_idx;
+        engine.inverted_hull = inverted_hull != 0;
+    }
+}
+
+/// Renders the 3D scene using pure CPU software rasterization to the internal framebuffer.
+#[no_mangle]
+pub extern "C" fn axiom_3d_render() {
+    let engine = match wasm_3d_engine() {
+        Some(e) => e,
+        None => return,
+    };
+
+    let w = engine.framebuffer.width as i32;
+    let h = engine.framebuffer.height as i32;
+
+    // High-tech dark steel canvas
+    engine.framebuffer.clear(0xFF0B0F19);
+
+    // Draw radial turntable pedestal floor
+    let ped_cy = h - (h / 4);
+    let ped_cx = w / 2;
+    for r in (30..180).step_by(25) {
+        let ring_col = if r % 50 == 0 { 0xFF1E293B } else { 0xFF141C2B };
+        for ang in 0..128 {
+            let cos_val = cos_bams((ang * 2) as u8).raw();
+            let sin_val = sin_bams((ang * 2) as u8).raw();
+            let px = ped_cx + ((cos_val * r) >> 16) as i32;
+            let py = ped_cy + ((sin_val * (r / 3)) >> 16) as i32;
+            engine.framebuffer.set_pixel(px, py, ring_col);
+        }
+    }
+
+    // Configure 3D rasterizer parameters
+    engine.rasterizer.clear_depth();
+    engine.rasterizer.cull_backfaces = false;
+    engine.rasterizer.draw_outline = engine.inverted_hull;
+    engine.rasterizer.rim_light_color = if engine.rim_lighting {
+        Some(match engine.cel_palette_idx {
+            1 => 0xFFFFD700, // Golden Nova
+            2 => 0xFFFFFFFF, // Flash White
+            3 => 0xFFEF4444, // Overheat Red
+            _ => 0xFF38BDF8, // Cyan Beacon
+        })
+    } else {
+        None
+    };
+
+    engine.rasterizer.custom_palette = match engine.cel_palette_idx {
+        1 => Some(CelShadingPalette {
+            highlight: 0xFFFFFBEB,
+            base: 0xFFF59E0B,
+            shadow: 0xFFB45309,
+            outline: CelShadingPalette::INK,
+        }),
+        2 => Some(CelShadingPalette {
+            highlight: 0xFFF8FAFC,
+            base: 0xFF64748B,
+            shadow: 0xFF1E293B,
+            outline: CelShadingPalette::INK,
+        }),
+        3 => Some(CelShadingPalette {
+            highlight: 0xFFFEE2E2,
+            base: 0xFFDC2626,
+            shadow: 0xFF7F1D1D,
+            outline: CelShadingPalette::INK,
+        }),
+        _ => None, // Canon multi-material per part
+    };
+
+    // Transform: center mecha around origin, rotate by yaw & pitch
+    let center_offset = Vec3Fixed::from_f32(0.0, -0.19, 0.0);
+    let trans_mat = Mat4Fixed::from_translation(center_offset);
+    let rot_y = Mat4Fixed::from_rotation_y(engine.yaw_bam);
+    let rot_x = Mat4Fixed::from_rotation_x(engine.pitch_bam);
+    let rot_mat = rot_x.mul_mat(&rot_y);
+    let world_mat = rot_mat.mul_mat(&trans_mat);
+
+    engine.rasterizer.render_model(
+        &mut engine.framebuffer,
+        &engine.model,
+        &world_mat,
+        Fixed::from_raw(engine.cam_dist_q16 as i64),
+        engine.focal_length,
+    );
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_3d_get_framebuffer_ptr() -> *const u32 {
+    wasm_3d_engine()
+        .map(|e| e.framebuffer.pixels.as_ptr())
+        .unwrap_or(core::ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_3d_get_framebuffer_len() -> u32 {
+    wasm_3d_engine()
+        .map(|e| e.framebuffer.pixels.len() as u32)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_3d_get_triangles() -> u32 {
+    wasm_3d_engine()
+        .map(|e| e.model.total_triangles() as u32)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_3d_get_vertices() -> u32 {
+    wasm_3d_engine()
+        .map(|e| e.model.total_vertices() as u32)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_3d_get_yaw() -> u32 {
+    wasm_3d_engine().map(|e| e.yaw_bam as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_3d_get_pitch() -> u32 {
+    wasm_3d_engine().map(|e| e.pitch_bam as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_3d_get_tick() -> u64 {
+    wasm_3d_engine().map(|e| e.tick).unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_wasm_3d_lifecycle_and_render() {
+        axiom_3d_init(320, 240);
+        assert_eq!(axiom_3d_get_tick(), 0);
+        assert!(axiom_3d_get_triangles() > 0, "procedural chassis must have triangles");
+        assert!(axiom_3d_get_vertices() > 0, "procedural chassis must have vertices");
+        assert_eq!(axiom_3d_get_framebuffer_len(), 320 * 240);
+        assert_eq!(axiom_3d_get_yaw(), 32);
+
+        // Advance 10 ticks in auto rotate
+        for _ in 0..10 {
+            axiom_3d_step(0, 0);
+        }
+        assert_eq!(axiom_3d_get_tick(), 10);
+        assert_eq!(axiom_3d_get_yaw(), 42);
+
+        // Manual drag step
+        axiom_3d_step(16, 5);
+        assert_eq!(axiom_3d_get_yaw(), 58);
+        assert_eq!(axiom_3d_get_pitch(), 5);
+
+        // Render frame
+        axiom_3d_render();
+        let ptr = axiom_3d_get_framebuffer_ptr();
+        assert!(!ptr.is_null());
+
+        let fb_slice = unsafe { core::slice::from_raw_parts(ptr, (320 * 240) as usize) };
+        // Check that pixels have been rendered (not all clear color)
+        let non_bg_count = fb_slice.iter().filter(|&&p| p != 0xFF0B0F19).count();
+        assert!(non_bg_count > 100, "rendered mecha must paint visible pixels: count={}", non_bg_count);
+
+        // Test options change: golden nova, rim light, inverted hull
+        axiom_3d_set_options(1, 1, 1, 1);
+        axiom_3d_step(0, 0);
+        axiom_3d_render();
+
+        // Reset to procedural
+        axiom_3d_reset_procedural();
+        assert!(axiom_3d_get_triangles() > 0);
+
+        // Test GLB staging buffer allocation
+        let stage_ptr = axiom_3d_alloc_glb_buffer(100);
+        assert!(!stage_ptr.is_null());
+        // Invalid GLB in buffer returns 0
+        assert_eq!(axiom_3d_parse_staged_glb(), 0);
+    }
 
     #[test]
     fn test_boxing_wasm_lifecycle_and_exports() {

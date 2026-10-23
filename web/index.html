@@ -285,20 +285,34 @@
     
     <div class="badges">
       <span class="badge green">⚡ 595 KB Pure Rust WASM</span>
+      <span class="badge gold">🤖 3D Software Rasterizer</span>
       <span class="badge blue">🏭 Factorio + RPG Base Defense</span>
       <span class="badge gold">🥊 Punch-Out Mecha Boxing</span>
-      <span class="badge gold">📦 64-Byte Cache-Line DOD</span>
+      <span class="badge purple">📦 64-Byte Cache-Line DOD</span>
       <span class="badge purple">🌍 100k Live NPCs @ 60 FPS</span>
     </div>
   </header>
 
   <div class="controls">
+    <button id="btn3D" onclick="switchMode('turntable3d')">🤖 3D Mecha Turntable</button>
     <button id="btnBoxing" class="active" onclick="switchMode('boxing')">🥊 Mecha Boxing (Punch-Out)</button>
     <button id="btnFactory" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
     <button id="btnCoop" onclick="switchMode('coop')">🌐 P2P Co-op Factory</button>
     <button id="btnRpg" onclick="switchMode('rpg')">🛡️ Open-World RPG</button>
     <button id="btnOpenWorld" onclick="switchMode('openworld')">🌍 100k NPC Streamer</button>
     <button id="btnArena" onclick="switchMode('arena')">⚔️ Auto-Battler (100v100)</button>
+  </div>
+
+  <div id="turntable3dActionBar" class="action-bar" style="display: none; flex-wrap: wrap; gap: 6px;">
+    <button class="action-btn active" id="btn3dAutoRot" onclick="toggle3DAutoRotate()">🔄 Auto Rotate: ON</button>
+    <button class="action-btn" id="btn3dRim" onclick="toggle3DRimLight()" style="color: #38bdf8; border-color: #0284c7;">✨ Rim Light: OFF</button>
+    <button class="action-btn active" id="btn3dHull" onclick="toggle3DInvertedHull()">🖋️ Ink Outline: ON</button>
+    <button class="action-btn" id="btn3dPal" onclick="cycle3DPalette()" style="color: #facc15; border-color: #854d0e;">🎨 Palette: Canon Material</button>
+    <button class="action-btn" onclick="reset3DModel()" style="color: #4ade80; border-color: #166534;">🤖 Reset ELPIS</button>
+    <button class="action-btn" id="btnFetchGlb" onclick="fetchHeroGlb()" style="color: #c084fc; border-color: #7e22ce; font-weight: bold;">⚡ Load hero_a.glb (29k tris)</button>
+    <label class="action-btn" style="cursor: pointer; color: #f472b6; border-color: #db2777;">
+      📁 Upload GLB <input type="file" id="glbFileInput" accept=".glb" style="display:none" onchange="handleGlbUpload(event)">
+    </label>
   </div>
 
   <div id="boxingActionBar" class="action-bar" style="display: flex; flex-wrap: wrap; gap: 6px;">
@@ -679,6 +693,155 @@
       if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
     });
 
+    // 3D Turntable State & Controls
+    let is3DDragging = false;
+    let dragLastX = 0;
+    let dragLastY = 0;
+    let dragDeltaX = 0;
+    let dragDeltaY = 0;
+    let autoRotate3D = true;
+    let rimLight3D = false;
+    let invertedHull3D = true;
+    let paletteIdx3D = 0;
+    const paletteNames = ["Canon Material", "Golden Nova", "Gunmetal Steel", "Overheat Red"];
+    let camDistQ16 = 140902; // 2.15m
+
+    function sync3DOptions() {
+      if (!wasmInstance || !wasmInstance.axiom_3d_set_options) return;
+      wasmInstance.axiom_3d_set_options(
+        autoRotate3D ? 1 : 0,
+        rimLight3D ? 1 : 0,
+        paletteIdx3D,
+        invertedHull3D ? 1 : 0
+      );
+    }
+
+    function toggle3DAutoRotate() {
+      autoRotate3D = !autoRotate3D;
+      const btn = document.getElementById('btn3dAutoRot');
+      if (btn) {
+        btn.innerText = `🔄 Auto Rotate: ${autoRotate3D ? 'ON' : 'OFF'}`;
+        btn.className = autoRotate3D ? 'action-btn active' : 'action-btn';
+      }
+      sync3DOptions();
+    }
+
+    function toggle3DRimLight() {
+      rimLight3D = !rimLight3D;
+      const btn = document.getElementById('btn3dRim');
+      if (btn) {
+        btn.innerText = `✨ Rim Light: ${rimLight3D ? 'ON' : 'OFF'}`;
+        btn.className = rimLight3D ? 'action-btn active' : 'action-btn';
+      }
+      sync3DOptions();
+    }
+
+    function toggle3DInvertedHull() {
+      invertedHull3D = !invertedHull3D;
+      const btn = document.getElementById('btn3dHull');
+      if (btn) {
+        btn.innerText = `🖋️ Ink Outline: ${invertedHull3D ? 'ON' : 'OFF'}`;
+        btn.className = invertedHull3D ? 'action-btn active' : 'action-btn';
+      }
+      sync3DOptions();
+    }
+
+    function cycle3DPalette() {
+      paletteIdx3D = (paletteIdx3D + 1) % paletteNames.length;
+      const btn = document.getElementById('btn3dPal');
+      if (btn) {
+        btn.innerText = `🎨 Palette: ${paletteNames[paletteIdx3D]}`;
+      }
+      sync3DOptions();
+    }
+
+    function reset3DModel() {
+      if (!wasmInstance || !wasmInstance.axiom_3d_reset_procedural) return;
+      wasmInstance.axiom_3d_reset_procedural();
+      const btn = document.getElementById('btnFetchGlb');
+      if (btn) btn.innerText = '⚡ Load hero_a.glb (29k tris)';
+    }
+
+    function loadGlbBytes(u8) {
+      if (!wasmInstance || !wasmInstance.axiom_3d_alloc_glb_buffer) return;
+      const ptr = wasmInstance.axiom_3d_alloc_glb_buffer(u8.length);
+      if (!ptr) {
+        alert("Failed to allocate GLB staging buffer");
+        return;
+      }
+      const mem = new Uint8Array(wasmInstance.memory.buffer, ptr, u8.length);
+      mem.set(u8);
+      const ok = wasmInstance.axiom_3d_parse_staged_glb();
+      if (ok) {
+        const tris = wasmInstance.axiom_3d_get_triangles();
+        console.log(`GLB parsed successfully: ${tris} triangles`);
+      } else {
+        alert("GLB parsing failed: invalid binary format");
+      }
+    }
+
+    async function fetchHeroGlb() {
+      const btn = document.getElementById('btnFetchGlb');
+      try {
+        if (btn) btn.innerText = '⏳ Downloading hero_a.glb...';
+        const res = await fetch('hero_a.glb');
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const buf = await res.arrayBuffer();
+        const u8 = new Uint8Array(buf);
+        loadGlbBytes(u8);
+        if (btn) btn.innerText = `✅ hero_a.glb (${(u8.length / 1024).toFixed(0)}KB)`;
+      } catch (err) {
+        alert("Failed to load hero_a.glb: " + err.message);
+        if (btn) btn.innerText = '⚡ Load hero_a.glb (29k tris)';
+      }
+    }
+
+    function handleGlbUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const u8 = new Uint8Array(e.target.result);
+        loadGlbBytes(u8);
+        const btn = document.getElementById('btnFetchGlb');
+        if (btn) btn.innerText = `📁 ${file.name.slice(0, 15)}...`;
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (mode === 'turntable3d') {
+        is3DDragging = true;
+        dragLastX = e.clientX;
+        dragLastY = e.clientY;
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (is3DDragging && mode === 'turntable3d') {
+        const dx = e.clientX - dragLastX;
+        const dy = e.clientY - dragLastY;
+        dragLastX = e.clientX;
+        dragLastY = e.clientY;
+        dragDeltaX += Math.round(dx * 0.7);
+        dragDeltaY -= Math.round(dy * 0.7);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      is3DDragging = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      if (mode === 'turntable3d') {
+        e.preventDefault();
+        camDistQ16 = Math.max(65536, Math.min(655360, camDistQ16 + Math.round(e.deltaY * 80)));
+        if (wasmInstance && wasmInstance.axiom_3d_set_cam) {
+          wasmInstance.axiom_3d_set_cam(camDistQ16, 520);
+        }
+      }
+    }, { passive: false });
+
     canvas.addEventListener('click', (e) => {
       if (!wasmInstance) return;
       const rect = canvas.getBoundingClientRect();
@@ -737,7 +900,11 @@
       const mouseX = (touch.clientX - rect.left) * scaleX;
       const mouseY = (touch.clientY - rect.top) * scaleY;
 
-      if (mode === 'boxing') {
+      if (mode === 'turntable3d') {
+        is3DDragging = true;
+        dragLastX = touch.clientX;
+        dragLastY = touch.clientY;
+      } else if (mode === 'boxing') {
         const phase = wasmInstance.axiom_boxing_get_phase();
         if (phase === 1) { // Drafting: click left/middle/right card
           if (mouseX < width / 3) sendBoxingInput(1);
@@ -778,6 +945,23 @@
       e.preventDefault();
     }, { passive: false });
 
+    canvas.addEventListener('touchmove', (e) => {
+      if (mode === 'turntable3d' && is3DDragging && e.touches.length > 0) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - dragLastX;
+        const dy = touch.clientY - dragLastY;
+        dragLastX = touch.clientX;
+        dragLastY = touch.clientY;
+        dragDeltaX += Math.round(dx * 0.7);
+        dragDeltaY -= Math.round(dy * 0.7);
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => {
+      is3DDragging = false;
+    });
+
     function rpgQuest() {
       if (wasmInstance && mode === 'rpg') {
         wasmInstance.axiom_rpg_interact_quest(1, 100, 999, 1, 500);
@@ -798,6 +982,8 @@
 
     function switchMode(newMode) {
       mode = newMode;
+      const btn3D = document.getElementById('btn3D');
+      if (btn3D) btn3D.className = mode === 'turntable3d' ? 'active' : '';
       const btnBoxing = document.getElementById('btnBoxing');
       if (btnBoxing) btnBoxing.className = mode === 'boxing' ? 'active' : '';
       document.getElementById('btnFactory').className = mode === 'factory' ? 'active' : '';
@@ -807,18 +993,25 @@
       document.getElementById('btnOpenWorld').className = mode === 'openworld' ? 'active' : '';
       document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
 
+      const turntableBar = document.getElementById('turntable3dActionBar');
       const boxingBar = document.getElementById('boxingActionBar');
       const factoryBar = document.getElementById('factoryActionBar');
       const coopBar = document.getElementById('coopActionBar');
       const rpgBar = document.getElementById('rpgActionBar');
       const instruction = document.getElementById('instruction');
 
+      if (turntableBar) turntableBar.style.display = 'none';
       if (boxingBar) boxingBar.style.display = 'none';
       if (factoryBar) factoryBar.style.display = 'none';
       if (coopBar) coopBar.style.display = 'none';
       if (rpgBar) rpgBar.style.display = 'none';
 
-      if (mode === 'boxing') {
+      if (mode === 'turntable3d') {
+        if (turntableBar) turntableBar.style.display = 'flex';
+        instruction.innerText = '🤖 3D 소프트웨어 래스터라이저: 마우스/터치 드래그로 360° 회전 및 휠 줌 | 순수 CPU 정수 래스터라이징 (8x8 Juan Pineda 타일 비닝 / Reversed-Z)';
+        wasmInstance.axiom_3d_init(width, height);
+        sync3DOptions();
+      } else if (mode === 'boxing') {
         if (boxingBar) boxingBar.style.display = 'flex';
         instruction.innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
         wasmInstance.axiom_boxing_init(BigInt(Date.now()), width, height);
@@ -1060,7 +1253,35 @@
 
       let ptr, len, tick;
 
-      if (mode === 'boxing') {
+      if (mode === 'turntable3d') {
+        let yawDelta = 0;
+        let pitchDelta = 0;
+        if (is3DDragging) {
+          yawDelta = dragDeltaX;
+          pitchDelta = dragDeltaY;
+          dragDeltaX = 0;
+          dragDeltaY = 0;
+        }
+        wasmInstance.axiom_3d_step(yawDelta, pitchDelta);
+        wasmInstance.axiom_3d_render();
+        ptr = wasmInstance.axiom_3d_get_framebuffer_ptr();
+        len = wasmInstance.axiom_3d_get_framebuffer_len();
+        tick = wasmInstance.axiom_3d_get_tick();
+
+        const tris = wasmInstance.axiom_3d_get_triangles();
+        const verts = wasmInstance.axiom_3d_get_vertices();
+        const yaw = wasmInstance.axiom_3d_get_yaw();
+        const pitch = wasmInstance.axiom_3d_get_pitch();
+        const yawDeg = Math.round((yaw * 360) / 256);
+        const pitchDeg = Math.round((pitch * 360) / 256);
+
+        document.getElementById('hudDetail').innerHTML =
+          `<span class="purple" style="font-weight:bold;">3D SOFT-RASTER</span> | ` +
+          `<span class="gold">${tris.toLocaleString()} Tris</span> | ` +
+          `<span class="blue">${verts.toLocaleString()} Verts</span> | ` +
+          `<span class="green">Yaw: ${yawDeg}° Pitch: ${pitchDeg}°</span> | ` +
+          `<span class="gold">8x8 Tile Binning L1</span>`;
+      } else if (mode === 'boxing') {
         let action = boxingPendingAction || 0;
         boxingPendingAction = 0; // consume action
         if (!action && keys.s) {
