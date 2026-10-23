@@ -6,16 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-100: Axiom 3D 셰이더 및 메카 복싱 비주얼 벤치마크 & 상용화 데모 배포 패키징** (`crates/axiom-render`, `mimic-the-show`, `web/`, 60 FPS 3D 복싱 링 소프트웨어 래스터라이저 실시간 프로파일링 및 릴리즈 배포, `tools/guard.ps1` 통과)
+- [ ] **T-101: Axiom Engine v1.7.0 멀티플레이어 넷코드 & 3D 완성 종합 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, 공식 Git 태그 발행)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-101: Axiom Engine v1.7.0 멀티플레이어 넷코드 & 3D 완성 종합 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, 공식 Git 태그 발행)
+- [ ] **T-102: WebRTC DataChannel 시그널링 브릿지 및 P2P 실시간 룸 브로커 연동** (`crates/axiom-wasm`, `web/`, P2P 원격 롤백 세션 자동 매칭 및 핑/지연 측정 HUD)
+- [ ] **T-103: Mimic The Show 챔피언십 보스전 연출 강화 및 스팀 덱 60 FPS 컨트롤러 최적화** (`mimic-the-show`, Gamepad 입력 매핑 및 햅틱 진동)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-100: Axiom 3D 셰이더 및 메카 복싱 비주얼 벤치마크 & 상용화 데모 배포 패키징** (`crates/axiom-render`, `mimic-the-show`, `web/`, Juan Pineda 8x8 타일 비닝 3D 래스터라이저 실측 벤치마크 완료: 절차적 섀시 876.1 FPS(1.141ms), 100 파티클 1.88 µs/tick, 풀 GLB 1.61 Mtris/sec, 512B 슬랩 L1 캐시 완전 상주 및 Reversed-Z 무나눗셈 어파인 깊이 판정 입증, `mimic-the-show.exe`(0.76MB, dist.zip 0.65MB) 및 `axiom.exe`(0.70MB, dist.zip 0.30MB) 스탠드얼론 배포 패키징, `web/` 7대 통합 웹 플레이어 배포, `tools/guard.ps1` 통과)
 - [x] **T-099: 멀티플레이어 3D 링 실시간 롤백 넷코드 P2P 대전 및 관전 모드 검증** (`crates/axiom-game/src/boxing_netcode.rs`, `crates/axiom-game/src/boxing.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `crates/axiom-game/tests/test_boxing_netcode.rs`, 2인 대칭 실시간 전투 루프 `step_pvp`, 64B L1 캐시 정렬 무할당 `BoxingRollbackSession<64>`, 0ms 예측 실행, 100ms 지연 패킷 수신 시 <200ns 서브밀리초 롤백 재시뮬레이션, 관전자 100% 비트 상태 해시 일치 검증, WASM C-ABI 12개 엔드포인트 연동, 단위/통합 테스트 통과, `tools/guard.ps1` 통과)
 - [x] **T-098: WebGL/WASM 3D 소프트웨어 래스터라이저 웹 플레이어 빌드 및 라이브 데모 배포** (`crates/axiom-wasm`, `web/`, 8x8 Pineda 타일 비닝/Reversed-Z 깊이 버퍼링 WASM C-ABI 13개 엔드포인트 실장, 10개 부위 즉각 렌더링 절차적 ELPIS 섀시 `MechaModel3D::procedural_chassis` 및 29,283 트라이앵글 `hero_a.glb` 동적 스테이징 파서, 캔버스 360° 마우스/터치 드래그 턴테이블, 휠 줌, 림 라이팅/만화 먹선/4대 툰 팔레트 실시간 조작 액션바 및 커스텀 GLB 업로드 뷰어 배포, 단위 테스트 통과, `tools/guard.ps1` 통과)
 - [x] **T-097: Axiom Engine v1.6.0 3D 렌더링 & 미믹 더 쇼 상용 완성도 종합 감사 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-040]~[D-045], `docs/audit-report.md` [AUDIT-20261023-v1.6.0], 0-Float 3D GLB 파이프라인/8x8 타일 비닝/64B L1 캐시 정렬/시네마틱 카메라/빈티지 신문 그라비아/공간 오디오 통합 승인 및 전체 워크스페이스 v1.6.0 공식 판올림, `tools/guard.ps1` 통과)
