@@ -23,7 +23,7 @@ pub mod worker;
 pub use achievement::{
     AchievementId, AchievementState, AchievementToast, AchievementTracker, TOTAL_ACHIEVEMENTS,
 };
-pub use boxing::{ActionKind, AiPhase, BoxerAction, BoxerState, BoxingEvent, BoxingRingEngine};
+pub use boxing::{ActionKind, AiDifficulty, AiPhase, BoxerAction, BoxerState, BoxingEvent, BoxingRingEngine};
 pub use boxing_netcode::{
     BoxingFrameStats, BoxingInputQueue, BoxingRollbackSession, NetboxWirePacket,
     SpectatorRelaySession, DEFAULT_BOXING_BUFFER_SIZE, MAX_SUPPORTED_BOXING_PLAYERS,

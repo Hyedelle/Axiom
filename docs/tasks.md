@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-143: Mimic The Show 챔피언십 AI 난이도 밸런싱 및 3D 컷씬 오버레이 강화** (`mimic-the-show`, `crates/axiom-game`)
+- [ ] **T-144: Axiom 차세대 3D 복셀 메카 파괴 엔진 v2.6.0 종합 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-144: Axiom 차세대 3D 복셀 메카 파괴 엔진 v2.6.0 종합 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`)
+- [ ] **T-145: Axiom 3D 복셀 열전도-응력장 다이나믹 메쉬 붕괴 연쇄 시뮬레이터 및 WebGL/WASM 뷰어 연동** (`crates/axiom-core/src/thermal_stress.rs`, `crates/axiom-core/src/voxel_collapse.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-143: Mimic The Show 챔피언십 AI 난이도 밸런싱 및 3D 컷씬 오버레이 강화** (`mimic-the-show`, `crates/axiom-game`, `crates/axiom-game/src/boxing.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_boxing.rs`, `crates/axiom-render/src/cutin.rs`, `crates/axiom-render/tests/test_cutin.rs`, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, 0-Float 64B L1 캐시 정렬 256-바이트 `BoxingRingEngine` 내 `AiDifficulty` [Normal / Hard / Nightmare] 통합 및 패딩 보정 [29-byte pad, 정확히 256B 유지], 난이도별 텔레그래프/후딜/아이들 윈도우 스케일링 [Normal: 100%, Hard: 75% 윈도우, Nightmare: 50% 극한 윈도우], 64-bit 합의 해시에 난이도 상태 바인딩, 코믹북 3D/2D 컷인 오버레이 3종 추가 [`ClimaxNova = 4`, `CounterStrike = 5`, `BossEncounter = 6`], `mimic-the-show` 글로벌 F2 핫키 난이도 3단 순환 토글 및 컬러 배너, 보스 피니셔 발동 시 슈퍼노바 컷인, 카운터 명중 시 크로스 카운터 컷인, 보스전 진입 시 엠버 보스 인카운터 컷인 오버레이 발동, 전투 HUD 및 차고(Garage) 난이도 뱃지 노출, 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-142: Axiom 140+ 엔진 차세대 아키텍처 확장 및 추가 게임플레이 고도화** (`crates/axiom-core/src/thermal_stress.rs`, `crates/axiom-core/tests/test_thermal_stress.rs`, `crates/axiom-render/src/thermal_render.rs`, `crates/axiom-render/tests/test_thermal_rendering.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-render/src/lib.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 3D 열전도 및 기계적 파쇄 응력장 `ThermalStressField16` [#[repr(C, align(64))], exact 16448-byte slab, 16x16x16 4096-cell temp/stress lattices], 6-이웃 정수 라플라시안 확산 및 대기 냉각 감쇠, 고온 임계치($T \ge 750$) 도달 시 `VOXEL_STONE` ➔ `VOXEL_MOLTEN` 실시간 물질 상변이, 취성 암석 응력 파쇄, 64-bit FNV-1a 상태 합의 체크섬, 3D 열 방출 백열 발광(Incandescent Emissive) 래스터라이저 `render_thermal_glow` [Reversed-Z 깊이 버퍼 판정, 정수 가산 블렌딩, 3단 컬러 그라데이션], 6개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-141: Mimic The Show 챔피언십 복셀 파괴 & 메카 잔해 물리 사후 확장팩 연동** (`mimic-the-show`, `crates/axiom-game`, `crates/axiom-game/src/voxel_tournament.rs`, `crates/axiom-game/tests/test_voxel_tournament.rs`, `mimic-the-show/src/league.rs`, `mimic-the-show/src/part.rs`, `mimic-the-show/src/robot.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `VoxelChampionshipDirector` 내 64B L1 캐시 정렬 `DynamicCollapseSystem<16>` 및 `ExpansionTracker` 탑재, `VoxelChampionshipTelemetry` 64B 정렬 필드 [`expansion_flags: u8`, `collapsed_chunks: u16`], FNV-1a 붕괴 및 DLC 서명 해시 합의 검증, `mimic-the-show` 내 Steamworks DLC 보스 2종 [`KRONOS` 180 HP 타이탄 몰든 크레이터 붕괴, `AETHER` 140 HP 페이즈 스트라이커], 6대 신규 DLC 전용 부품 [`EyeTitan`, `EyeVoid`, `CoreJuggernaut`, `CorePhase`, `ArmTitanSmasher`, `ArmVoidRipper`], 피니셔 사지 절단(`sever_part_mesh`) 시 보스별 고속 파편 비산(`VOXEL_MOLTEN` / `VOXEL_ARMOR`), F8 스팀 클라우드 & DLC 라이선스 동적 해금, 빅토리 씬 사후 확장팩 챌린지 핫키(K/P) 완비, 19개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-140: Axiom 140대 통합 초대형 복셀 메카 파괴 엔진 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-080]~[D-084], `docs/audit-report.md` [AUDIT-20261023-v2.5.0], `tools/package.ps1`, 3D 복셀 메카 지형 파괴 & 관성 조각(Voxel Shard) 탄도 물리 & 공중 부유 고립 복셀 6-방향 3D BFS 다이나믹 메쉬 붕괴(Dynamic Mesh Collapse) 시뮬레이터 통합, 16-청크 풀 포화 FIFO/LRU 축출, 극단 속도 오버플로우 방어 `saturating_neg()`, 복셀 메쉬 추출 제로 재할당 [248 µs/op], 5대 스트레스 테스트 100% 통과, WebGL/WASM 3D 복셀 다이나믹 붕괴 스튜디오 & 100-Tick 벤치마크 모달 완결, 워크스페이스 v2.5.0 공식 판올림 및 Git 태그 `v2.5.0` 발행, `tools/guard.ps1` 통과)

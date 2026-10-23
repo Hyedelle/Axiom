@@ -182,6 +182,34 @@ pub enum AiPhase {
     Recovery = 3,
 }
 
+/// Opponent AI Difficulty Balancing Level.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AiDifficulty {
+    #[default]
+    Normal = 0,   // Standard telegraph and reaction windows
+    Hard = 1,     // 20% faster telegraph, 25% faster recovery
+    Nightmare = 2, // 35% faster telegraph, 45% faster recovery, aggressive feints
+}
+
+impl AiDifficulty {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Normal => "NORMAL",
+            Self::Hard => "HARD",
+            Self::Nightmare => "NIGHTMARE",
+        }
+    }
+
+    pub const fn next(&self) -> Self {
+        match self {
+            Self::Normal => Self::Hard,
+            Self::Hard => Self::Nightmare,
+            Self::Nightmare => Self::Normal,
+        }
+    }
+}
+
 /// Distinct Opponent Mecha Boss archetypes.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -283,7 +311,8 @@ pub struct BoxingRingEngine {
     pub hit_stop_frames: u8,
     pub camera_shake: u8,
     pub last_event: BoxingEvent,
-    pub _pad1: [u8; 30],
+    pub difficulty: AiDifficulty,
+    pub _pad1: [u8; 29],
 }
 
 impl BoxingRingEngine {
@@ -313,8 +342,14 @@ impl BoxingRingEngine {
             hit_stop_frames: 0,
             camera_shake: 0,
             last_event: BoxingEvent::None,
-            _pad1: [0; 30],
+            difficulty: AiDifficulty::Normal,
+            _pad1: [0; 29],
         }
+    }
+
+    /// Sets AI difficulty balancing level.
+    pub fn set_difficulty(&mut self, difficulty: AiDifficulty) {
+        self.difficulty = difficulty;
     }
 
     /// Advance the simulation by 1 discrete frame (60Hz fixed tick).
@@ -493,8 +528,14 @@ impl BoxingRingEngine {
                     }
                 };
 
+                let base_tele = self.opponent_kind.telegraph_frames();
+                let tele = match self.difficulty {
+                    AiDifficulty::Normal => base_tele,
+                    AiDifficulty::Hard => (base_tele * 80) / 100,
+                    AiDifficulty::Nightmare => (base_tele * 65) / 100,
+                };
                 self.ai_phase = AiPhase::Telegraph;
-                self.ai_timer = self.opponent_kind.telegraph_frames();
+                self.ai_timer = tele.max(10);
                 self.opponent.action = BoxerAction::idle();
                 self.opponent.is_counter_opportunity = true;
             }
@@ -509,15 +550,27 @@ impl BoxingRingEngine {
                 // Resolve opponent attack impact on player
                 self.resolve_opponent_hit();
                 self.ai_phase = AiPhase::Recovery;
-                self.ai_timer = match self.opponent_kind {
+                let base_rec = match self.opponent_kind {
                     OpponentKind::DummyMk2 => 24,
                     OpponentKind::IronBull => 32, // Heavy recovery window!
                     OpponentKind::VoltViper => 14, // Brief recovery window!
                 };
+                let rec = match self.difficulty {
+                    AiDifficulty::Normal => base_rec,
+                    AiDifficulty::Hard => (base_rec * 75) / 100,
+                    AiDifficulty::Nightmare => (base_rec * 55) / 100,
+                };
+                self.ai_timer = rec.max(8);
             }
             AiPhase::Recovery => {
                 self.ai_phase = AiPhase::Idle;
-                self.ai_timer = self.opponent_kind.idle_frames() + (self.prng_next() % 25) as u16;
+                let base_idle = self.opponent_kind.idle_frames();
+                let idle = match self.difficulty {
+                    AiDifficulty::Normal => base_idle,
+                    AiDifficulty::Hard => (base_idle * 75) / 100,
+                    AiDifficulty::Nightmare => (base_idle * 50) / 100,
+                };
+                self.ai_timer = idle + (self.prng_next() % 25) as u16;
                 self.opponent.action = BoxerAction::idle();
             }
         }
@@ -820,6 +873,7 @@ impl BoxingRingEngine {
             (self.opponent.hp as u64).to_le_bytes(),
             (self.ai_phase as u64).to_le_bytes(),
             (self.score as u64).to_le_bytes(),
+            (self.difficulty as u64).to_le_bytes(),
         ];
 
         for b_arr in &bytes {

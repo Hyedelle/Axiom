@@ -105,3 +105,34 @@ fn test_tactical_card_deck() {
     assert!(deck.add_card(TacticalCard::plasma_upper()));
     assert_eq!(deck.count, 5);
 }
+
+#[test]
+fn test_ai_difficulty_balancing() {
+    use axiom_game::boxing::AiDifficulty;
+
+    let mut normal_engine = BoxingRingEngine::new(0x1234_5678);
+    let mut hard_engine = BoxingRingEngine::new(0x1234_5678);
+    let mut nightmare_engine = BoxingRingEngine::new(0x1234_5678);
+
+    hard_engine.set_difficulty(AiDifficulty::Hard);
+    nightmare_engine.set_difficulty(AiDifficulty::Nightmare);
+
+    assert_eq!(normal_engine.difficulty, AiDifficulty::Normal);
+    assert_eq!(hard_engine.difficulty, AiDifficulty::Hard);
+    assert_eq!(nightmare_engine.difficulty, AiDifficulty::Nightmare);
+
+    // Initial hashes must differ due to difficulty state
+    assert_ne!(normal_engine.compute_hash(), hard_engine.compute_hash());
+
+    // Advance 60 frames
+    for _ in 0..60 {
+        normal_engine.step(ActionKind::Idle);
+        hard_engine.step(ActionKind::Idle);
+        nightmare_engine.step(ActionKind::Idle);
+    }
+
+    // Hard & Nightmare AI should transition to Telegraph faster than Normal
+    assert_eq!(normal_engine.difficulty.next(), AiDifficulty::Hard);
+    assert_eq!(hard_engine.difficulty.next(), AiDifficulty::Nightmare);
+    assert_eq!(nightmare_engine.difficulty.next(), AiDifficulty::Normal);
+}

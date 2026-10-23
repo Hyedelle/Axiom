@@ -13,6 +13,9 @@ pub enum CutinKind {
     TitanMirror = 1,
     OverheatMeltdown = 2,
     Knockout = 3,
+    ClimaxNova = 4,
+    CounterStrike = 5,
+    BossEncounter = 6,
 }
 
 /// Renders a full 2D anime cut-in overlay onto the framebuffer.
@@ -45,6 +48,9 @@ pub fn render_cutin_overlay(
         CutinKind::TitanMirror => 0xFF228B58,      // Emerald Green
         CutinKind::OverheatMeltdown => 0xFFD44018,  // Fiery Orange
         CutinKind::Knockout => 0xFFF0B020,          // Golden Yellow
+        CutinKind::ClimaxNova => 0xFF9333EA,        // Supernova Magenta / Purple
+        CutinKind::CounterStrike => 0xFFDC2626,     // Crimson Red
+        CutinKind::BossEncounter => 0xFFD97706,     // Warning Amber
     };
 
     let sweep_offset = ((permille as i32 - 500) * 12) / 10;
@@ -111,6 +117,9 @@ pub fn render_cutin_overlay(
         CutinKind::TitanMirror => "COUNTER IMPACT!",
         CutinKind::OverheatMeltdown => "OVERHEAT MELTDOWN!",
         CutinKind::Knockout => "K N O C K O U T !!",
+        CutinKind::ClimaxNova => "SUPERNOVA FINISHER!",
+        CutinKind::CounterStrike => "CROSS COUNTER!",
+        CutinKind::BossEncounter => "BOSS CONTENDER!",
     };
 
     let text_x = (w - (label.len() as i32 * 8 * 2)) / 2;

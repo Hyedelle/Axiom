@@ -23,3 +23,19 @@ fn test_2d_cutin_render() {
         center_pixel
     );
 }
+
+#[test]
+fn test_new_cinematic_cutin_kinds() {
+    let mut fb = FrameBuffer::new(704, 544);
+
+    for &kind in &[CutinKind::ClimaxNova, CutinKind::CounterStrike, CutinKind::BossEncounter] {
+        fb.clear(0xFF000000);
+        render_cutin_overlay(&mut fb, kind, 500, 352, 272);
+
+        // Top bar
+        assert_eq!(fb.pixels[10 * 704 + 10], 0xFF050508);
+        // Center text and band
+        let cp = fb.pixels[272 * 704 + 352];
+        assert_ne!(cp, 0xFF000000, "Cutin should plot active pixels in center");
+    }
+}
