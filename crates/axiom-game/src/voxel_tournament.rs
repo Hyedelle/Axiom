@@ -6,6 +6,7 @@
 //!
 //! Fully deterministic, zero floating-point arithmetic, cache-friendly 64-byte L1 telemetry.
 
+use axiom_core::thermal_stress::ThermalStressField16;
 use axiom_core::voxel_collapse::DynamicCollapseSystem;
 use axiom_core::voxel_destruct::{VoxelVolume16, VOXEL_STONE};
 use axiom_core::voxel_shard::VoxelShardPool;
@@ -42,7 +43,8 @@ pub struct VoxelChampionshipTelemetry {
     pub arena_checksum: u64,
 
     pub spectator_count: u32,
-    pub reserved_flags: u32,
+    pub max_temperature: u16,
+    pub thermal_transitions: u16,
 
     pub final_score_a: u16,
     pub final_score_b: u16,
@@ -56,6 +58,7 @@ pub struct VoxelChampionshipDirector {
     pub tournament: TournamentEngine<4>,
     pub ring: BoxingRingEngine,
     pub arena: VoxelVolume16,
+    pub thermal: ThermalStressField16,
     pub shards: VoxelShardPool<128>,
     pub collapse: DynamicCollapseSystem<16>,
     pub expansion: ExpansionTracker,
@@ -82,6 +85,7 @@ impl VoxelChampionshipDirector {
         let tournament = TournamentEngine::new_4_bracket(f0, f1, f2, f3);
         let ring = BoxingRingEngine::new(seed);
         let arena = VoxelVolume16::new_solid(VOXEL_STONE);
+        let thermal = ThermalStressField16::new();
         let shards = VoxelShardPool::new(seed);
         let collapse = DynamicCollapseSystem::new(seed);
         let expansion = ExpansionTracker::new(0x0041_584D, 1);
@@ -95,6 +99,7 @@ impl VoxelChampionshipDirector {
             tournament,
             ring,
             arena,
+            thermal,
             shards,
             collapse,
             expansion,
@@ -165,6 +170,16 @@ impl VoxelChampionshipDirector {
                 self.shards.step();
                 let (_bounces, _shatters) = self.collapse.step(Some(&mut self.shards));
 
+                // Advance thermal diffusion and phase transitions
+                self.thermal.step_thermal_and_collapse_advanced(
+                    &mut self.arena,
+                    &mut self.collapse,
+                    25,
+                    0,
+                    [0, -45000, 0],
+                    2048,
+                );
+
                 // 3. Dynamic Terrain Cratering on heavy combat strikes
                 let mut crater_event = false;
                 let is_heavy_0 = matches!(ev0, BoxingEvent::PlayerPunched { .. } | BoxingEvent::OpponentDowned | BoxingEvent::PlayerBlocked { .. });
@@ -176,6 +191,9 @@ impl VoxelChampionshipDirector {
                     let radius: i16 = if action_a == ActionKind::Finisher { 4 } else { 2 };
                     self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
                     let _ = self.collapse.detect_and_collapse(&mut self.arena, 0, [0, -45000, 0], 2048);
+                    if action_a == ActionKind::Finisher {
+                        self.thermal.inject_thermal_pulse(crater_x as usize, 2, crater_z as usize, 3, 950, 850);
+                    }
                     self.craters_carved += 1;
                     self.debris_count = self.shards.active_count as u16;
                     crater_event = true;
@@ -186,6 +204,9 @@ impl VoxelChampionshipDirector {
                     let radius: i16 = if action_b == ActionKind::Finisher { 4 } else { 2 };
                     self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
                     let _ = self.collapse.detect_and_collapse(&mut self.arena, 0, [0, -45000, 0], 2048);
+                    if action_b == ActionKind::Finisher {
+                        self.thermal.inject_thermal_pulse(crater_x as usize, 2, crater_z as usize, 3, 950, 850);
+                    }
                     self.craters_carved += 1;
                     self.debris_count = self.shards.active_count as u16;
                     crater_event = true;
@@ -275,6 +296,10 @@ impl VoxelChampionshipDirector {
         hash ^= collapse_hash;
         hash = hash.wrapping_mul(0x100_0000_01B3);
 
+        let thermal_hash = self.thermal.compute_consensus_hash();
+        hash ^= thermal_hash;
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
         let exp_hash = self.expansion.dlc_state.signature_hash;
         hash ^= exp_hash;
         hash = hash.wrapping_mul(0x100_0000_01B3);
@@ -308,7 +333,8 @@ impl VoxelChampionshipDirector {
             state_hash: self.compute_consensus_hash(),
             arena_checksum: (self.arena.damaged_count as u64) ^ ((self.arena.total_solid as u64) << 32),
             spectator_count: self.spectator_count,
-            reserved_flags: 0,
+            max_temperature: self.thermal.max_temp(),
+            thermal_transitions: self.thermal.phase_transitions.min(65535) as u16,
             final_score_a: self.ring.player.hp.max(0) as u16,
             final_score_b: self.ring.opponent.hp.max(0) as u16,
             _pad: [0u8; 12],

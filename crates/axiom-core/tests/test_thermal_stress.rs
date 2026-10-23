@@ -119,3 +119,62 @@ fn test_thermal_stress_induced_cascading_collapse() {
     assert!(post_collapse > 0, "Floating top slab must collapse as dynamic rigid chunk");
     assert!(collapse.active_count > 0);
 }
+
+#[test]
+fn test_multi_material_thermal_physics_differentiation() {
+    use axiom_core::thermal_stress::get_material_props;
+    use axiom_core::voxel_destruct::{VOXEL_ARMOR, VOXEL_METAL};
+
+    let stone_props = get_material_props(VOXEL_STONE);
+    let metal_props = get_material_props(VOXEL_METAL);
+    let armor_props = get_material_props(VOXEL_ARMOR);
+
+    // Metal conducts heat faster than Stone, Armor has lowest conductivity
+    assert!(metal_props.conductivity_permille > stone_props.conductivity_permille);
+    assert!(stone_props.conductivity_permille > armor_props.conductivity_permille);
+
+    // Armor has highest heat capacity, Metal has lower heat capacity
+    assert!(armor_props.heat_capacity_permille > stone_props.heat_capacity_permille);
+    assert!(stone_props.heat_capacity_permille > metal_props.heat_capacity_permille);
+
+    // Advanced diffusion simulation comparing Metal vs Armor thermal dissipation
+    let mut field_metal = ThermalStressField16::new();
+    let mut vol_metal = VoxelVolume16::new_solid(VOXEL_METAL);
+    let mut field_armor = ThermalStressField16::new();
+    let mut vol_armor = VoxelVolume16::new_solid(VOXEL_ARMOR);
+
+    field_metal.inject_thermal_pulse(8, 8, 8, 1, 900, 100);
+    field_armor.inject_thermal_pulse(8, 8, 8, 1, 900, 100);
+
+    for _ in 0..10 {
+        field_metal.step_thermal_diffusion_advanced(&mut vol_metal, 5);
+        field_armor.step_thermal_diffusion_advanced(&mut vol_armor, 5);
+    }
+
+    // Metal conducts and diffuses heat away much faster, so core cools faster than insulated Armor
+    let metal_core_temp = field_metal.get_temp(8, 8, 8);
+    let armor_core_temp = field_armor.get_temp(8, 8, 8);
+    assert!(
+        metal_core_temp < armor_core_temp,
+        "Metal core must cool faster than insulated Armor (Metal: {}, Armor: {})",
+        metal_core_temp,
+        armor_core_temp
+    );
+    assert!(field_metal.total_dissipated > 0);
+    assert!(field_armor.total_dissipated > 0);
+}
+
+#[test]
+fn test_thermal_expansion_and_shear_fracture() {
+    let mut field = ThermalStressField16::new();
+    let mut volume = VoxelVolume16::new_solid(VOXEL_STONE);
+
+    // Inject hot pulse with high stress near threshold
+    field.inject_thermal_pulse(8, 8, 8, 2, 850, 780);
+
+    let (_transitions, fractures) = field.step_thermal_diffusion_advanced(&mut volume, 10);
+    assert!(
+        fractures > 0 || field.fractures_triggered > 0,
+        "Combined thermal expansion and base stress must trigger mechanical fracture"
+    );
+}

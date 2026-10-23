@@ -5,13 +5,84 @@
 //! cooling dissipation, and dynamic material phase transitions (Stone -> Molten).
 
 use crate::voxel_collapse::DynamicCollapseSystem;
-use crate::voxel_destruct::{VoxelVolume16, VOXEL_AIR, VOXEL_DIM, VOXEL_MOLTEN, VOXEL_STONE, VOXEL_TOTAL};
+use crate::voxel_destruct::{
+    VoxelVolume16, VOXEL_AIR, VOXEL_DIM, VOXEL_METAL, VOXEL_MOLTEN, VOXEL_STONE,
+    VOXEL_TOTAL,
+};
 
 pub const TEMP_AMBIENT: u16 = 20;
 pub const TEMP_WARM_THRESHOLD: u16 = 300;
 pub const TEMP_INCANDESCENT_THRESHOLD: u16 = 700;
 pub const TEMP_PHASE_MELT_THRESHOLD: u16 = 750;
 pub const STRESS_FRACTURE_THRESHOLD: u16 = 800;
+
+/// Material thermal & mechanical physical properties.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoxelMaterialProps {
+    /// Thermal conductivity in permille (higher = faster diffusion, e.g. Metal: 650, Stone: 120, Air: 50).
+    pub conductivity_permille: u16,
+    /// Heat capacity in permille (higher = absorbs more heat before temp changes, e.g. Stone: 800, Metal: 350).
+    pub heat_capacity_permille: u16,
+    /// Melting / phase transformation temperature threshold (0..1000°C).
+    pub melt_temp_threshold: u16,
+    /// Mechanical shear stress fracture threshold (0..1000 units).
+    pub fracture_stress_threshold: u16,
+    /// Thermal expansion stress coefficient in permille.
+    pub thermal_expansion_permille: u16,
+}
+
+pub const MATERIAL_PROPERTIES: [VoxelMaterialProps; 5] = [
+    // 0: VOXEL_AIR
+    VoxelMaterialProps {
+        conductivity_permille: 50,
+        heat_capacity_permille: 100,
+        melt_temp_threshold: 1000,
+        fracture_stress_threshold: 1000,
+        thermal_expansion_permille: 0,
+    },
+    // 1: VOXEL_STONE
+    VoxelMaterialProps {
+        conductivity_permille: 120,
+        heat_capacity_permille: 800,
+        melt_temp_threshold: 750,
+        fracture_stress_threshold: 800,
+        thermal_expansion_permille: 60,
+    },
+    // 2: VOXEL_METAL
+    VoxelMaterialProps {
+        conductivity_permille: 650,
+        heat_capacity_permille: 350,
+        melt_temp_threshold: 950,
+        fracture_stress_threshold: 920,
+        thermal_expansion_permille: 120,
+    },
+    // 3: VOXEL_MOLTEN
+    VoxelMaterialProps {
+        conductivity_permille: 500,
+        heat_capacity_permille: 300,
+        melt_temp_threshold: 1000,
+        fracture_stress_threshold: 1000,
+        thermal_expansion_permille: 180,
+    },
+    // 4: VOXEL_ARMOR
+    VoxelMaterialProps {
+        conductivity_permille: 40,
+        heat_capacity_permille: 950,
+        melt_temp_threshold: 1000,
+        fracture_stress_threshold: 950,
+        thermal_expansion_permille: 30,
+    },
+];
+
+#[inline(always)]
+pub const fn get_material_props(material: u8) -> &'static VoxelMaterialProps {
+    if (material as usize) < MATERIAL_PROPERTIES.len() {
+        &MATERIAL_PROPERTIES[material as usize]
+    } else {
+        &MATERIAL_PROPERTIES[1] // fallback to stone
+    }
+}
 
 /// Result of an integrated thermal diffusion, phase transition, and structural collapse step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -170,24 +241,35 @@ impl ThermalStressField16 {
 
                     // 2. Material Phase Transformation on Thermal Threshold
                     let mat = volume.data[idx];
-                    if mat == VOXEL_STONE && diffused >= TEMP_PHASE_MELT_THRESHOLD {
+                    let props = get_material_props(mat);
+
+                    if (mat == VOXEL_STONE || mat == VOXEL_METAL) && diffused >= props.melt_temp_threshold {
                         volume.data[idx] = VOXEL_MOLTEN;
                         new_transitions += 1;
                         self.phase_transitions += 1;
                     }
 
-                    // 3. Mechanical Stress Dissipation & Fracture
+                    // 3. Mechanical Stress Dissipation, Thermal Expansion & Fracture
                     let cur_stress = self.stress[idx];
-                    if cur_stress > 0 {
-                        // Dissipate 10% of stress per step
-                        let stress_decay = (cur_stress as u32 * 100 / 1000) as u16;
-                        self.stress[idx] = cur_stress.saturating_sub(stress_decay.max(1));
 
-                        // Brittle rock stress fracture
-                        if cur_stress >= STRESS_FRACTURE_THRESHOLD && mat != VOXEL_AIR {
+                    // Accumulate thermal expansion stress if hot
+                    let expansion_stress = if diffused > TEMP_WARM_THRESHOLD {
+                        (((diffused - TEMP_WARM_THRESHOLD) as u32 * props.thermal_expansion_permille as u32) / 1000) as u16 / 8
+                    } else {
+                        0
+                    };
+                    let total_cell_stress = cur_stress.saturating_add(expansion_stress);
+
+                    if total_cell_stress > 0 {
+                        // Brittle rock & metal stress fracture
+                        if total_cell_stress >= props.fracture_stress_threshold && mat != VOXEL_AIR {
                             new_fractures += 1;
                             self.fractures_triggered += 1;
                             self.stress[idx] = 200; // Relieve stress on fracture
+                        } else {
+                            // Dissipate 10% of stress per step
+                            let stress_decay = (total_cell_stress as u32 * 100 / 1000) as u16;
+                            self.stress[idx] = total_cell_stress.saturating_sub(stress_decay.max(1)).min(1000);
                         }
                     }
                 }
@@ -196,6 +278,131 @@ impl ThermalStressField16 {
 
         self.temp = next_temp;
         (new_transitions, new_fractures)
+    }
+
+    /// Advances 1 tick of multi-material weighted thermal diffusion, cooling, and phase transitions.
+    ///
+    /// Considers individual heat capacity, thermal conductivity, thermal expansion,
+    /// and overburden vertical compression stress.
+    pub fn step_thermal_diffusion_advanced(
+        &mut self,
+        volume: &mut VoxelVolume16,
+        cooling_rate_permille: u16,
+    ) -> (u32, u32) {
+        let mut new_transitions = 0u32;
+        let mut new_fractures = 0u32;
+
+        let mut next_temp = self.temp;
+
+        for y in 0..VOXEL_DIM {
+            // Overburden depth compression load from resting weight above (0 at top, higher at bottom)
+            let depth_compression = ((15 - y) as u16) * 3;
+
+            for z in 0..VOXEL_DIM {
+                for x in 0..VOXEL_DIM {
+                    let idx = Self::index(x, y, z);
+                    let cur_t = self.temp[idx];
+                    let mat = volume.data[idx];
+                    let props = get_material_props(mat);
+
+                    // 6-neighbor weighted flux calculation based on material conductivity
+                    let neighbors = [
+                        if x > 0 { (self.temp[Self::index(x - 1, y, z)], volume.data[Self::index(x - 1, y, z)]) } else { (cur_t, mat) },
+                        if x + 1 < VOXEL_DIM { (self.temp[Self::index(x + 1, y, z)], volume.data[Self::index(x + 1, y, z)]) } else { (cur_t, mat) },
+                        if y > 0 { (self.temp[Self::index(x, y - 1, z)], volume.data[Self::index(x, y - 1, z)]) } else { (cur_t, mat) },
+                        if y + 1 < VOXEL_DIM { (self.temp[Self::index(x, y + 1, z)], volume.data[Self::index(x, y + 1, z)]) } else { (cur_t, mat) },
+                        if z > 0 { (self.temp[Self::index(x, y, z - 1)], volume.data[Self::index(x, y, z - 1)]) } else { (cur_t, mat) },
+                        if z + 1 < VOXEL_DIM { (self.temp[Self::index(x, y, z + 1)], volume.data[Self::index(x, y, z + 1)]) } else { (cur_t, mat) },
+                    ];
+
+                    let mut total_flux: i32 = 0;
+                    for (nb_t, nb_mat) in neighbors {
+                        let nb_props = get_material_props(nb_mat);
+                        // Harmonic average approximation for interface conductivity
+                        let eff_cond = (props.conductivity_permille as u32 + nb_props.conductivity_permille as u32) / 2;
+                        let delta_t = nb_t as i32 - cur_t as i32;
+                        total_flux += (delta_t * eff_cond as i32) / 1000;
+                    }
+
+                    // Delta T inverse to heat capacity
+                    let cap = props.heat_capacity_permille.max(100) as i32;
+                    let temp_delta = (total_flux * 400) / (cap * 6);
+                    let mut diffused = (cur_t as i32 + temp_delta).clamp(TEMP_AMBIENT as i32, 1000) as u16;
+
+                    // Atmospheric Cooling dissipation
+                    if diffused > TEMP_AMBIENT {
+                        let dissipation = ((diffused - TEMP_AMBIENT) as u32 * cooling_rate_permille as u32 / 1000) as u16;
+                        diffused = diffused.saturating_sub(dissipation.max(1));
+                        self.total_dissipated = self.total_dissipated.saturating_add(dissipation as u32);
+                    }
+
+                    next_temp[idx] = diffused;
+
+                    // Phase transformation
+                    if (mat == VOXEL_STONE || mat == VOXEL_METAL) && diffused >= props.melt_temp_threshold {
+                        volume.data[idx] = VOXEL_MOLTEN;
+                        new_transitions += 1;
+                        self.phase_transitions += 1;
+                    }
+
+                    // Mechanical Shear Stress + Thermal Expansion + Overburden
+                    let cur_stress = self.stress[idx];
+                    let expansion_stress = if diffused > TEMP_WARM_THRESHOLD {
+                        (((diffused - TEMP_WARM_THRESHOLD) as u32 * props.thermal_expansion_permille as u32) / 1000) as u16 / 4
+                    } else {
+                        0
+                    };
+                    let total_shear = cur_stress
+                        .saturating_add(expansion_stress)
+                        .saturating_add(depth_compression);
+
+                    if total_shear > 0 {
+                        if total_shear >= props.fracture_stress_threshold && mat != VOXEL_AIR {
+                            new_fractures += 1;
+                            self.fractures_triggered += 1;
+                            self.stress[idx] = 200; // Relieve stress on fracture
+                        } else {
+                            let stress_decay = (total_shear as u32 * 100 / 1000) as u16;
+                            self.stress[idx] = total_shear.saturating_sub(stress_decay.max(1)).min(1000);
+                        }
+                    }
+                }
+            }
+        }
+
+        self.temp = next_temp;
+        (new_transitions, new_fractures)
+    }
+
+    /// Advanced thermal diffusion step coupled with structural collapse analysis.
+    pub fn step_thermal_and_collapse_advanced<const MAX_CHUNKS: usize>(
+        &mut self,
+        volume: &mut VoxelVolume16,
+        collapse_system: &mut DynamicCollapseSystem<MAX_CHUNKS>,
+        cooling_rate_permille: u16,
+        anchor_y: i16,
+        world_origin_q16: [i32; 3],
+        voxel_scale_q16: i32,
+    ) -> ThermalCollapseResult {
+        let (phase_transitions, fractures_triggered) =
+            self.step_thermal_diffusion_advanced(volume, cooling_rate_permille);
+
+        let collapsed_chunks = if phase_transitions > 0 || fractures_triggered > 0 {
+            collapse_system.detect_and_collapse(
+                volume,
+                anchor_y,
+                world_origin_q16,
+                voxel_scale_q16,
+            )
+        } else {
+            0
+        };
+
+        ThermalCollapseResult {
+            phase_transitions,
+            fractures_triggered,
+            collapsed_chunks,
+        }
     }
 
     /// Executes 1 tick of thermal diffusion, cooling, and material phase transition.

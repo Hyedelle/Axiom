@@ -231,6 +231,83 @@ pub fn run_voxel_suite(args: &[String]) {
             println!("  Rendered Shards:     {}", rendered_shards);
             println!("  Consensus Hash:      0x{:016X}", collapse.compute_consensus_hash() ^ shards.compute_consensus_hash());
         }
+        "bench-extreme" => {
+            let mut steps = 10_000usize;
+            let mut seed = 987654321u64;
+
+            let mut i = 3;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--steps" | "--ticks" if i + 1 < args.len() => {
+                        steps = args[i + 1].parse().unwrap_or(10_000);
+                        i += 2;
+                    }
+                    "--seed" if i + 1 < args.len() => {
+                        seed = args[i + 1].parse().unwrap_or(987654321);
+                        i += 2;
+                    }
+                    _ => i += 1,
+                }
+            }
+
+            println!("🔥 [Axiom Voxel] Running Extreme Multi-Material Thermal-Collapse Benchmark...");
+            println!("  Steps:       {} integration ticks", steps);
+            println!("  Seed:        {}", seed);
+
+            let mut field = axiom_core::thermal_stress::ThermalStressField16::new();
+            let mut volume = axiom_core::voxel_destruct::VoxelVolume16::new_solid(axiom_core::voxel_destruct::VOXEL_STONE);
+            let mut collapse = DynamicCollapseSystem::<16>::new(seed);
+            let mut shards = VoxelShardPool::<128>::new(seed);
+
+            let start = std::time::Instant::now();
+            let mut total_phase_transitions = 0u32;
+            let mut total_shattered = 0u32;
+
+            for step in 0..steps {
+                if step % 50 == 0 {
+                    let cx = (step * 7) % VOXEL_DIM;
+                    let cz = (step * 11) % VOXEL_DIM;
+                    let peak_t = 800 + ((step % 200) as u16);
+                    let peak_s = 750 + ((step % 250) as u16);
+                    field.inject_thermal_pulse(cx, 4, cz, 2, peak_t, peak_s);
+                }
+
+                let res = field.step_thermal_and_collapse_advanced(
+                    &mut volume,
+                    &mut collapse,
+                    15,
+                    1,
+                    [-16384, 0, -16384],
+                    2048,
+                );
+                total_phase_transitions += res.phase_transitions;
+
+                let (_c, sh) = collapse.step(Some(&mut shards));
+                total_shattered += sh;
+                shards.step();
+            }
+
+            let elapsed = start.elapsed();
+            let us_per_tick = elapsed.as_micros() as f64 / steps as f64;
+            let tps = (steps as f64 / elapsed.as_secs_f64()) as u64;
+
+            let mut hash: u64 = 0xCBF2_9CE4_8422_2325;
+            hash ^= field.compute_consensus_hash();
+            hash = hash.wrapping_mul(0x100_0000_01B3);
+            hash ^= collapse.compute_consensus_hash();
+            hash = hash.wrapping_mul(0x100_0000_01B3);
+            hash ^= shards.compute_consensus_hash();
+            hash = hash.wrapping_mul(0x100_0000_01B3);
+
+            println!("🏁 Extreme Physics Benchmark Completed:");
+            println!("  Total Time:          {:?}", elapsed);
+            println!("  Throughput:          {} TPS ({:.2} µs/step)", tps, us_per_tick);
+            println!("  Phase Transitions:   {}", total_phase_transitions);
+            println!("  Chunks Collapsed:    {}", collapse.total_collapsed);
+            println!("  Chunks Shattered:    {}", total_shattered);
+            println!("  Active Shards:       {}", shards.active_count);
+            println!("  Consensus Hash:      0x{:016X}", hash);
+        }
         cmd => {
             eprintln!("Unknown voxel command '{}'. Run 'axiom voxel help'.", cmd);
         }
@@ -244,4 +321,5 @@ fn print_voxel_help() {
     println!("  axiom voxel export [--preset <flat|crater|bunker|ruins|volcanic>] [--out <file.axvm>] [--seed <num>]");
     println!("  axiom voxel inspect <file.axvm>");
     println!("  axiom voxel bench [--preset <preset>] [--ticks <n>]");
+    println!("  axiom voxel bench-extreme [--steps <10000>] [--seed <num>]");
 }

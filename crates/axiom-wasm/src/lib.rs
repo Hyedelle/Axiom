@@ -4723,6 +4723,68 @@ pub extern "C" fn axiom_voxel_reset_thermal() {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn axiom_voxel_bench_extreme(steps: u32, out_stats: *mut u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let iterations = steps.clamp(1, 10_000);
+    let mut total_phase_transitions = 0u32;
+    let mut total_shattered = 0u32;
+
+    for step in 0..iterations {
+        if step % 50 == 0 {
+            let cx = ((step * 7) % 16) as usize;
+            let cz = ((step * 11) % 16) as usize;
+            let peak_t = 800 + ((step % 200) as u16);
+            let peak_s = 750 + ((step % 250) as u16);
+            eng.thermal.inject_thermal_pulse(cx, 4, cz, 2, peak_t, peak_s);
+        }
+
+        let res = eng.thermal.step_thermal_and_collapse_advanced(
+            &mut eng.volume,
+            &mut eng.collapse,
+            15,
+            0,
+            [-16384, 0, -16384],
+            2048,
+        );
+        total_phase_transitions += res.phase_transitions;
+
+        let (_c, sh) = eng.collapse.step(Some(&mut eng.shards));
+        total_shattered += sh;
+        eng.shards.step();
+    }
+
+    let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+    eng.last_triangles = mesh.triangle_count() as u32;
+    eng.extracted_mesh = Some(mesh);
+
+    if !out_stats.is_null() {
+        let mut hash: u64 = 0xCBF2_9CE4_8422_2325;
+        hash ^= eng.thermal.compute_consensus_hash();
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+        hash ^= eng.collapse.compute_consensus_hash();
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+        hash ^= eng.shards.compute_consensus_hash();
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
+        unsafe {
+            *out_stats.add(0) = iterations;
+            *out_stats.add(1) = total_phase_transitions;
+            *out_stats.add(2) = eng.collapse.total_collapsed as u32;
+            *out_stats.add(3) = total_shattered;
+            *out_stats.add(4) = eng.shards.active_count as u32;
+            *out_stats.add(5) = (hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(6) = (hash >> 32) as u32;
+        }
+    }
+
+    iterations
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5550,5 +5612,12 @@ mod tests {
         // 5. Reset thermal
         axiom_voxel_reset_thermal();
         assert_eq!(axiom_voxel_get_max_temperature(), 20);
+
+        // 6. Extreme Physics Benchmark
+        let mut extreme_stats = [0u32; 7];
+        let bench_ticks = axiom_voxel_bench_extreme(50, extreme_stats.as_mut_ptr());
+        assert_eq!(bench_ticks, 50);
+        assert_eq!(extreme_stats[0], 50);
+        assert!(extreme_stats[5] != 0 || extreme_stats[6] != 0, "Consensus hash must be non-zero");
     }
 }
