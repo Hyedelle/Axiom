@@ -116,6 +116,8 @@ pub struct Rasterizer3D {
     pub outline_color: u32,
     pub rim_light_color: Option<u32>,
     pub eye_glow_boost: bool,
+    pub custom_texture: Option<crate::texture::TextureMap>,
+    pub texture_wrap_mode: crate::texture::TextureWrapMode,
 }
 
 impl Rasterizer3D {
@@ -133,6 +135,8 @@ impl Rasterizer3D {
             outline_color: CelShadingPalette::INK,
             rim_light_color: None,
             eye_glow_boost: true,
+            custom_texture: None,
+            texture_wrap_mode: crate::texture::TextureWrapMode::Repeat,
         }
     }
 
@@ -252,7 +256,7 @@ impl Rasterizer3D {
             let part_mat = crate::kinematics3d::get_part_matrix(transforms, &part.name);
             let effective_world = world_mat.mul_mat(&part_mat);
 
-            let mut view_verts: Vec<(i64, i64, i32, Vec3Fixed)> =
+            let mut view_verts: Vec<(i64, i64, i32, Vec3Fixed, i32, i32)> =
                 Vec::with_capacity(part.vertices.len());
 
             for v in &part.vertices {
@@ -262,7 +266,7 @@ impl Rasterizer3D {
                 let vz = (cam_dist - p_world.z).raw();
 
                 if vz <= 65536 / 10 {
-                    view_verts.push((0, 0, i32::MIN, n_world));
+                    view_verts.push((0, 0, i32::MIN, n_world, v.u, v.v));
                     continue;
                 }
 
@@ -270,7 +274,7 @@ impl Rasterizer3D {
                 let sy = cy - (p_world.y.raw() * focal_length) / vz;
                 let inv_z = ((1i64 << 30) / vz) as i32;
 
-                view_verts.push((sx, sy, inv_z, n_world));
+                view_verts.push((sx, sy, inv_z, n_world, v.u, v.v));
             }
 
             let tri_count = part.indices.len() / 3;
@@ -283,9 +287,9 @@ impl Rasterizer3D {
                     continue;
                 }
 
-                let (x0, y0, z0, n0) = view_verts[i0];
-                let (x1, y1, z1, n1) = view_verts[i1];
-                let (x2, y2, z2, n2) = view_verts[i2];
+                let (x0, y0, z0, n0, u0, v0) = view_verts[i0];
+                let (x1, y1, z1, n1, u1, v1) = view_verts[i1];
+                let (x2, y2, z2, n2, u2, v2) = view_verts[i2];
 
                 if z0 == i32::MIN || z1 == i32::MIN || z2 == i32::MIN {
                     continue;
@@ -321,7 +325,194 @@ impl Rasterizer3D {
                     palette.shadow
                 };
 
-                self.rasterize_pineda_8x8(fb, x0, y0, z0, x1, y1, z1, x2, y2, z2, color);
+                if self.custom_texture.is_some() {
+                    self.rasterize_textured_pineda_8x8(
+                        fb,
+                        x0, y0, z0, u0, v0,
+                        x1, y1, z1, u1, v1,
+                        x2, y2, z2, u2, v2,
+                        color,
+                    );
+                } else {
+                    self.rasterize_pineda_8x8(fb, x0, y0, z0, x1, y1, z1, x2, y2, z2, color);
+                }
+            }
+        }
+    }
+
+    /// Juan Pineda 8x8 Tile Binning Triangle Rasterizer with Affine 1/Z and UV interpolation.
+    pub fn rasterize_textured_pineda_8x8(
+        &mut self,
+        fb: &mut FrameBuffer,
+        x0: i64,
+        y0: i64,
+        z0: i32,
+        u0: i32,
+        v0: i32,
+        mut x1: i64,
+        mut y1: i64,
+        mut z1: i32,
+        mut u1: i32,
+        mut v1: i32,
+        mut x2: i64,
+        mut y2: i64,
+        mut z2: i32,
+        mut u2: i32,
+        mut v2: i32,
+        base_color: u32,
+    ) {
+        let (width, height, wrap_mode, cull_backfaces) = (
+            self.width,
+            self.height,
+            self.texture_wrap_mode,
+            self.cull_backfaces,
+        );
+        let texture = match &self.custom_texture {
+            Some(t) => t,
+            None => return,
+        };
+        let depth_buffer = &mut self.depth_buffer;
+
+        let area_init = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+        if area_init == 0 {
+            return;
+        }
+
+        if cull_backfaces && area_init <= 0 {
+            return;
+        }
+
+        if area_init < 0 {
+            core::mem::swap(&mut x1, &mut x2);
+            core::mem::swap(&mut y1, &mut y2);
+            core::mem::swap(&mut z1, &mut z2);
+            core::mem::swap(&mut u1, &mut u2);
+            core::mem::swap(&mut v1, &mut v2);
+        }
+
+        let area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+        if area <= 0 {
+            return;
+        }
+
+        let min_x = (x0.min(x1).min(x2)).max(0).min(width as i64 - 1);
+        let max_x = (x0.max(x1).max(x2)).max(0).min(width as i64 - 1);
+        let min_y = (y0.min(y1).min(y2)).max(0).min(height as i64 - 1);
+        let max_y = (y0.max(y1).max(y2)).max(0).min(height as i64 - 1);
+
+        if min_x > max_x || min_y > max_y {
+            return;
+        }
+
+        let dx0 = x2 - x1;
+        let dy0 = y2 - y1;
+        let dx1 = x0 - x2;
+        let dy1 = y0 - y2;
+        let dx2 = x1 - x0;
+        let dy2 = y1 - y0;
+
+        let dz10 = z1 as i64 - z0 as i64;
+        let dz20 = z2 as i64 - z0 as i64;
+        let d_zinv_dx = (dz10 * (y2 - y0) - dz20 * (y1 - y0)) / area;
+        let d_zinv_dy = (dz20 * (x1 - x0) - dz10 * (x2 - x0)) / area;
+
+        let du10 = u1 as i64 - u0 as i64;
+        let du20 = u2 as i64 - u0 as i64;
+        let du_dx = (du10 * (y2 - y0) - du20 * (y1 - y0)) / area;
+        let du_dy = (du20 * (x1 - x0) - du10 * (x2 - x0)) / area;
+
+        let dv10 = v1 as i64 - v0 as i64;
+        let dv20 = v2 as i64 - v0 as i64;
+        let dv_dx = (dv10 * (y2 - y0) - dv20 * (y1 - y0)) / area;
+        let dv_dy = (dv20 * (x1 - x0) - dv10 * (x2 - x0)) / area;
+
+        let tile_min_x = min_x / 8;
+        let tile_max_x = max_x / 8;
+        let tile_min_y = min_y / 8;
+        let tile_max_y = max_y / 8;
+
+        for ty in tile_min_y..=tile_max_y {
+            let t_y0 = ty * 8;
+            let t_y1 = (t_y0 + 7).min(height as i64 - 1);
+
+            for tx in tile_min_x..=tile_max_x {
+                let t_x0 = tx * 8;
+                let t_x1 = (t_x0 + 7).min(width as i64 - 1);
+
+                // Tile Trivial Reject Test at 4 corners
+                let e0_c00 = dx0 * (t_y0 - y1) - dy0 * (t_x0 - x1);
+                let e0_c10 = dx0 * (t_y0 - y1) - dy0 * (t_x1 - x1);
+                let e0_c01 = dx0 * (t_y1 - y1) - dy0 * (t_x0 - x1);
+                let e0_c11 = dx0 * (t_y1 - y1) - dy0 * (t_x1 - x1);
+                if e0_c00 < 0 && e0_c10 < 0 && e0_c01 < 0 && e0_c11 < 0 {
+                    continue;
+                }
+
+                let e1_c00 = dx1 * (t_y0 - y2) - dy1 * (t_x0 - x2);
+                let e1_c10 = dx1 * (t_y0 - y2) - dy1 * (t_x1 - x2);
+                let e1_c01 = dx1 * (t_y1 - y2) - dy1 * (t_x0 - x2);
+                let e1_c11 = dx1 * (t_y1 - y2) - dy1 * (t_x1 - x2);
+                if e1_c00 < 0 && e1_c10 < 0 && e1_c01 < 0 && e1_c11 < 0 {
+                    continue;
+                }
+
+                let e2_c00 = dx2 * (t_y0 - y0) - dy2 * (t_x0 - x0);
+                let e2_c10 = dx2 * (t_y0 - y0) - dy2 * (t_x1 - x0);
+                let e2_c01 = dx2 * (t_y1 - y0) - dy2 * (t_x0 - x0);
+                let e2_c11 = dx2 * (t_y1 - y0) - dy2 * (t_x1 - x0);
+                if e2_c00 < 0 && e2_c10 < 0 && e2_c01 < 0 && e2_c11 < 0 {
+                    continue;
+                }
+
+                // Incremental evaluation within tile
+                let mut row_e0 = dx0 * (t_y0 - y1) - dy0 * (t_x0 - x1);
+                let mut row_e1 = dx1 * (t_y0 - y2) - dy1 * (t_x0 - x2);
+                let mut row_e2 = dx2 * (t_y0 - y0) - dy2 * (t_x0 - x0);
+                let mut row_zinv = z0 as i64 + (t_x0 - x0) * d_zinv_dx + (t_y0 - y0) * d_zinv_dy;
+                let mut row_u = u0 as i64 + (t_x0 - x0) * du_dx + (t_y0 - y0) * du_dy;
+                let mut row_v = v0 as i64 + (t_x0 - x0) * dv_dx + (t_y0 - y0) * dv_dy;
+
+                for py in t_y0..=t_y1 {
+                    let row_idx = py as usize * width;
+                    let mut e0 = row_e0;
+                    let mut e1 = row_e1;
+                    let mut e2 = row_e2;
+                    let mut zinv = row_zinv;
+                    let mut u = row_u;
+                    let mut v = row_v;
+
+                    for px in t_x0..=t_x1 {
+                        if (e0 | e1 | e2) >= 0 {
+                            let pixel_idx = row_idx + px as usize;
+                            let z_val = zinv as i32;
+
+                            if z_val > depth_buffer[pixel_idx] {
+                                depth_buffer[pixel_idx] = z_val;
+                                let tex_col = texture.sample_nearest(
+                                    u as i32,
+                                    v as i32,
+                                    wrap_mode,
+                                );
+                                let final_col = crate::texture::blend_decal(base_color, tex_col);
+                                fb.pixels[pixel_idx] = final_col;
+                            }
+                        }
+
+                        e0 -= dy0;
+                        e1 -= dy1;
+                        e2 -= dy2;
+                        zinv += d_zinv_dx;
+                        u += du_dx;
+                        v += dv_dx;
+                    }
+
+                    row_e0 += dx0;
+                    row_e1 += dx1;
+                    row_e2 += dx2;
+                    row_zinv += d_zinv_dy;
+                    row_u += du_dy;
+                    row_v += dv_dy;
+                }
             }
         }
     }
