@@ -628,6 +628,32 @@
 
 ---
 
+## 🏛️ [AUDIT-20261023-v2.4.0] Axiom Engine v2.4.0 3D 복셀 메카 지형 파괴 & 탄도 물리 종합 감사 보고서
+
+- **감사 일자:** 2026-10-23
+- **감사 주체:** Hyedelle (디렉터) & Antigravity (총괄 관제탑)
+- **감사 대상:** Axiom Engine v2.4.0 전역 워크스페이스 (`crates/axiom-core`, `crates/axiom-render`, `crates/axiom-game`, `mimic-the-show`)
+- **판정 결과:** **PASS (전 항목 무결성 100% 승인)**
+
+### 1. 헌법 및 기하 정렬 준수 검증
+1. **0-Float 절대 결정론**:
+   - `crates/axiom-core/src/voxel_shard.rs` 및 `crates/axiom-core/src/voxel_collapse.rs` 내 부동소수점(`f32/f64`) 0건 준수.
+   - 탄도 오일러 적분, 중력 가속도, 공기 저항(985‰), 지면 마찰(65%) 및 탄성 반발(Restitution) 순수 고정소수점/정수 산술 검증.
+   - 64-bit FNV-1a 상태 합의 체크섬(`compute_consensus_hash`)을 통한 롤백 넷코드 무결성 보장.
+2. **64-Byte L1 캐시 라인 기하 정렬**:
+   - `VoxelShard`: 정확히 64바이트 (1개 L1 캐시 라인) 상주 확인 (`size_of == 64, align_of == 64`).
+   - `DynamicVoxelChunk`: 정확히 64바이트 (1개 L1 캐시 라인) 상주 확인 (`size_of == 64, align_of == 64`).
+   - `VoxelShardPool`: 64바이트 기하 정렬 확인 (`align_of == 64`).
+   - `VoxelVolume16`: 정확히 4160바이트 (65개 L1 캐시 라인) 상주 확인 (`size_of == 4160, align_of == 64`).
+
+### 2. 종합 테스트 및 품질 승인
+- `cargo test --workspace` 100% 통과 (80+개 테스트 통과).
+- `cargo test --manifest-path c:\Dreamhub\Game\mimic-the-show\Cargo.toml` 100% 통과 (17개 테스트 통과).
+- `tools/guard.ps1` 무결성 검증 100% 통과.
+- 워크스페이스 v2.4.0 판올림 및 공식 Git 릴리즈 태그 `v2.4.0` 발행 승인.
+
+---
+
 ## 🛠️ 긴급 처방전 템플릿 (Disaster Recovery Protocol)
 
 ```markdown

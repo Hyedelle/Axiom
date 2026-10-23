@@ -964,6 +964,70 @@
   2. 전체 워크스페이스 버전을 v2.2.0에서 **v2.3.0**으로 공식 판올림하고 Git 태그 `v2.3.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-074] 64B L1 캐시 정렬 0-Float 관성 복셀 파편 및 무할당 탄도 오일러 풀 (T-132)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64B L1 캐시 정렬 `VoxelShard` (exact 64-byte)**: 위치, 속도, 3축 BAMS 각도, 각속도, 머티리얼, 수명, 스케일을 단일 캐시 라인 슬랩에 정렬하여 L1 스플릿 미스 0건 달성.
+  2. **무할당 탄도 오일러 풀 (`VoxelShardPool<CAP>`)**: 고정 크기 인라인 배열 기반으로 동적 힙 할당 전무. 중력 가속도, 공기 저항 (985‰ 감쇠), 지면 충돌 및 바운스 카운팅 적분.
+  3. **64-bit FNV-1a 상태 합의 체크섬**: 활성 파편들의 상태를 주기적 해시로 집계하여 롤백 넷코드 시 비트 단위 동기화 보증.
+- **영향:** `crates/axiom-core/src/voxel_shard.rs`, `crates/axiom-core/tests/test_voxel_shard.rs`.
+
+---
+
+### [D-075] 4대 머티리얼별 탄성 반발(Restitution) 및 지면 마찰 댐핑 (T-132)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 머티리얼 고유 탄성 반발 계수 적용: Metal 650 permille (경쾌한 튕김), Armor 550 permille (둔탁한 바운스), Stone 350 permille (암석 감쇠), Molten 180 permille (점성 착지).
+  2. 지면 충돌 시 수평 속도 마찰 댐핑(65% 보존) 및 각속도 감쇠(60% 보존)를 정수 연산으로만 처리하여 0-Float 결정론 유지.
+- **영향:** `crates/axiom-core/src/voxel_shard.rs`.
+
+---
+
+### [D-076] 3D 복셀 파편 Reversed-Z 깊이 버퍼 판정 및 BAMS 텀블링 페이싯 라이팅 래스터라이저 (T-132)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `render_voxel_shards`: `Mat4Fixed` 뷰 변환, 원근 투영 및 Reversed-Z 깊이 버퍼(`inv_z > depth_buffer[idx]`) 비교를 통해 메카 및 지반과의 오클루전 완벽 처리.
+  2. 파편의 3축 BAMS 회전각에 기반한 페이싯 지향성 라이팅(Faceted Directional Lighting) 및 머티리얼 고유 색상 팔레트(`VoxelShardColorMap`) 적용.
+- **영향:** `crates/axiom-render/src/voxel_shard_render.rs`.
+
+---
+
+### [D-077] Mimic The Show 챔피언십 복셀 아레나 관성 조각 비산 및 탄도 충돌 연동 (T-133)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `DesktopGameView` 내 `VoxelShardPool<128>` 탑재, 메카 펀치 타격 시 아머/메탈 파편 분출(`spawn_burst`), 피니셔 노바 스트라이크 지반 크레이터 굴착 시 고속 복셀 샤드 방출 연동.
+  2. 파편 지면 탄성 충돌 시 `SoundKind::DebrisScatter` 입체 음향 자동 재생.
+  3. 자율 챔피언십 디렉터 `VoxelChampionshipDirector`의 FNV-1a 상태 합의 해시에 파편 풀 체크섬 결합.
+- **영향:** `mimic-the-show/src/view.rs`, `crates/axiom-game/src/voxel_tournament.rs`.
+
+---
+
+### [D-078] 6-방향 3D BFS 지반 연결성 분석기 및 64B L1 동적 강체 청크 다이나믹 메쉬 붕괴 (T-134)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **6-방향 3D BFS 지반 연결성 분석 (`detect_and_collapse`)**: 512B 비트셋(`[u64; 64]`)을 활용하여 지반(`y <= anchor_y`)과 단절된 공중 부유 고립 복셀 클러스터를 수 마이크로초 내 탐지하고 볼륨에서 제거.
+  2. **64B L1 정렬 `DynamicVoxelChunk` (exact 64-byte)**: 분절된 청크의 질량 중심(COM) 및 바운딩 익스텐트를 연산하여 물리 강체로 낙하시키며, 지면 고속 충돌(`vel[1] >= shatter_threshold`) 시 `VoxelShardPool` 미립자 파편으로 산산조각(Shatter) 파쇄.
+  3. **Reversed-Z 3D 래스터라이저 (`render_dynamic_collapse_chunks`)**: 원근 투영, Reversed-Z 깊이 판정, BAMS 텀블링 페이싯 라이팅 및 슬레이트 엣지 베벨 아웃라인 지원.
+- **영향:** `crates/axiom-core/src/voxel_collapse.rs`, `crates/axiom-render/src/voxel_collapse_render.rs`.
+
+---
+
+### [D-079] Axiom Engine v2.4.0 3D 복셀 메카 지형 파괴 & 탄도 물리 마일스톤 공식 릴리즈 (T-135)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 64B L1 캐시 정렬 0-Float 관성 복셀 파편 풀(`VoxelShardPool`), Reversed-Z 페이싯 래스터라이저, 6-방향 3D BFS 지반 연결성 분석기 및 다이나믹 메쉬 붕괴(`DynamicCollapseSystem`)를 종합 승인.
+  2. 전체 워크스페이스 버전을 v2.3.0에서 **v2.4.0**으로 공식 판올림하고 Git 태그 `v2.4.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
 

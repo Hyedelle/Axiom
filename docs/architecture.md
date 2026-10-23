@@ -777,6 +777,53 @@ Axiom Engine v2.3.0은 자율 AI 대전과 실시간 지형 파괴, 입체 음�
    - `SoundKind::DebrisScatter`(Kind 15): LCG 필터링 암석 노이즈와 탄성 충돌 클릭 펄스를 합성 (~350ms).
    - 데스크톱 WinMM 및 브라우저 AudioWorklet 양단에서 부동소수점 없이 동일한 오디오 경험 보장.
 
+---
+
+## 26. 3D Voxel Shard Ballistics & Dynamic Mesh Collapse Engine (v2.4.0)
+
+Axiom Engine v2.4.0은 복셀 파괴 시 발생하는 미립자 조각의 물리적 비산과 구조적 지지력을 상실한 대형 지형의 실시간 붕괴를 시뮬레이션하는 **3D 복셀 샤드 탄도 물리 엔진** 및 **다이나믹 메쉬 붕괴(Dynamic Mesh Collapse)** 시스템의 공식 릴리즈입니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│             Axiom Engine v2.4.0 Shard Ballistics & Dynamic Collapse    │
+├────────────────────────────────────────────────────────────────────────┤
+│ [64B L1 Cache Aligned Voxel Shard Ballistics (VoxelShardPool<CAP>)]    │
+│  - #[repr(C, align(64))] exact 64-byte VoxelShard struct               │
+│  - Euler Ballistic Integration: Gravity, 985‰ air drag damping         │
+│  - Material-Specific Restitution: Metal 650‰, Armor 550‰, Stone 350‰   │
+│  - Ground Friction (65% lateral velocity retention) & BAMS Tumbling    │
+│  - 64-bit FNV-1a Deterministic State Hash (Zero Desync)                │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Structural Connectivity Analysis & Mesh Collapse (DynamicCollapse)]   │
+│  - 6-Connected 3D BFS structural flood-fill on 4096-voxel volume       │
+│  - Instant detection of unsupported/isolated mid-air voxel clusters    │
+│  - DynamicVoxelChunk extraction: COM in Q16.16 & Bounding Extent       │
+│  - High-velocity floor impact (vel >= 16000) shatters chunk to shards  │
+├────────────────────────────────────────────────────────────────────────┤
+│ [3D Software Faceted Rasterizer & Reversed-Z Testing]                  │
+│  - Perspective projection with 1/Z depth test against z-buffer         │
+│  - Tumbling BAMS normal lighting & material highlight/shadow shading   │
+│  - Clean blocky bevel outline for distinct voxel fragment readability  │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Game Loop & Autonomous Championship Integration]                      │
+│  - DesktopGameView: Mecha punch impact shards & NovaStrike crater pool │
+│  - VoxelChampionshipDirector: Consensus hash binds shard physics state │
+│  - Real-time ground impact acoustic echo (SoundKind::DebrisScatter)    │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 26.1 핵심 구조 및 기술적 특성
+1. **64B L1 캐시 라인 정렬 `VoxelShard` & 무할당 탄도 오일러 풀 (`VoxelShardPool`)**:
+   - 위치/속도를 Q16.16 정수로 유지하고, 공기 저항과 중력 가속도를 고정소수점으로 적분.
+   - 머티리얼별 물리 계수(Metal 650‰, Armor 550‰, Stone 350‰, Molten 180‰)와 바닥 마찰을 통해 리얼한 탄성 반발 구현.
+   - 3축 BAMS 각속도 텀블링 회전각 갱신 및 FNV-1a 상태 해시 결합.
+2. **6-방향 3D BFS 지반 연결성 분석기 & 다이나믹 메쉬 붕괴 (`detect_and_collapse`)**:
+   - 512바이트 캐시 비트셋(`[u64; 64]`)을 활용하여 지반(`y <= anchor_y`)과 단절된 공중 부유 복셀을 수 마이크로초 내 탐색.
+   - 고립된 복셀들을 64B L1 정렬 `DynamicVoxelChunk` 강체로 분절하고, 질량 중심(COM) 기반으로 물리 낙하시킨 후 지면 고속 충돌 시 `VoxelShardPool` 미립자 파편으로 산산조각(Shatter) 파쇄.
+3. **Reversed-Z 3D 소프트웨어 래스터라이저 (`render_voxel_shards`, `render_dynamic_collapse_chunks`)**:
+   - 메카 본체, 지반 크레이터 메시, 파티클과 동일한 Reversed-Z 깊이 버퍼를 공유하여 완벽한 오클루전 판정 달성.
+   - 텀블링 회전각 기반의 페이싯 지향성 명암 라이팅 및 슬레이트 엣지 베벨 아웃라인으로 높은 시인성 제공.
+
 
 
 
