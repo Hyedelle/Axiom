@@ -85,3 +85,33 @@ fn test_voxel_championship_state_hash_determinism() {
     assert_eq!(d1.arena.total_solid, d2.arena.total_solid);
     assert_eq!(d1.telemetry(), d2.telemetry());
 }
+
+#[test]
+fn test_voxel_championship_collapse_and_expansion_integration() {
+    use axiom_game::expansion::{ExpansionBoss, ExpansionTracker};
+
+    let f0 = TournamentFighter::new(0, 1, b"ELPIS");
+    let f1 = TournamentFighter::new(1, 4, b"KRONOS");
+    let f2 = TournamentFighter::new(2, 2, b"THESEUS");
+    let f3 = TournamentFighter::new(3, 3, b"AETHER");
+
+    let expansion = ExpansionTracker::new(0x0041_584D, 1);
+    let mut director = VoxelChampionshipDirector::new(f0, f1, f2, f3, 0x55AA_1234)
+        .with_expansion(expansion);
+
+    assert!(!director.is_expansion_boss_unlocked(ExpansionBoss::Kronos));
+    director.unlock_expansion(ExpansionBoss::Kronos, 1700000000);
+    assert!(director.is_expansion_boss_unlocked(ExpansionBoss::Kronos));
+
+    let telem_init = director.telemetry();
+    assert_eq!(telem_init.expansion_flags, 1); // TitanChronicles bit 0 active
+
+    for _ in 0..300 {
+        director.step();
+    }
+
+    assert!(director.craters_carved > 0);
+    let telem_post = director.telemetry();
+    assert!(telem_post.state_hash != 0);
+    assert_eq!(telem_post.expansion_flags, 1);
+}

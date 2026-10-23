@@ -6,10 +6,12 @@
 //!
 //! Fully deterministic, zero floating-point arithmetic, cache-friendly 64-byte L1 telemetry.
 
+use axiom_core::voxel_collapse::DynamicCollapseSystem;
 use axiom_core::voxel_destruct::{VoxelVolume16, VOXEL_STONE};
 use axiom_core::voxel_shard::VoxelShardPool;
 use axiom_core::neural_ai::NeuralAiWeights;
 use crate::boxing::{ActionKind, BoxingEvent, BoxingRingEngine};
+use crate::expansion::{ExpansionBoss, ExpansionTracker};
 use crate::neural_fighter::NeuralFighterController;
 use crate::tournament::{BroadcastPhase, TournamentEngine, TournamentFighter};
 
@@ -27,13 +29,13 @@ pub struct VoxelChampionshipTelemetry {
     pub winner_id: u8,
 
     pub champion_id: u8,
-    pub _reserved1: u8,
+    pub expansion_flags: u8,
     pub damaged_voxels: u16,
     pub solid_voxels: u16,
     pub craters_carved: u16,
 
     pub debris_count: u16,
-    pub _reserved2: u16,
+    pub collapsed_chunks: u16,
     pub match_frame: u32,
 
     pub state_hash: u64,
@@ -55,6 +57,8 @@ pub struct VoxelChampionshipDirector {
     pub ring: BoxingRingEngine,
     pub arena: VoxelVolume16,
     pub shards: VoxelShardPool<128>,
+    pub collapse: DynamicCollapseSystem<16>,
+    pub expansion: ExpansionTracker,
     pub controller_a: NeuralFighterController,
     pub controller_b: NeuralFighterController,
     pub phase: BroadcastPhase,
@@ -79,6 +83,8 @@ impl VoxelChampionshipDirector {
         let ring = BoxingRingEngine::new(seed);
         let arena = VoxelVolume16::new_solid(VOXEL_STONE);
         let shards = VoxelShardPool::new(seed);
+        let collapse = DynamicCollapseSystem::new(seed);
+        let expansion = ExpansionTracker::new(0x0041_584D, 1);
 
         let mut weights_b = NeuralAiWeights::default();
         weights_b.b1[0] = 30;
@@ -90,6 +96,8 @@ impl VoxelChampionshipDirector {
             ring,
             arena,
             shards,
+            collapse,
+            expansion,
             controller_a: NeuralFighterController::new(NeuralAiWeights::default()),
             controller_b: NeuralFighterController::new(weights_b),
             phase: BroadcastPhase::MatchActive,
@@ -100,6 +108,22 @@ impl VoxelChampionshipDirector {
             spectator_count: 48,
             last_winner_id: 0xFF,
         }
+    }
+
+    /// Sets custom expansion tracker for DLC content integration.
+    pub fn with_expansion(mut self, expansion: ExpansionTracker) -> Self {
+        self.expansion = expansion;
+        self
+    }
+
+    /// Unlocks an expansion boss license.
+    pub fn unlock_expansion(&mut self, boss: ExpansionBoss, timestamp: u64) {
+        self.expansion.unlock_dlc(boss.required_dlc(), timestamp);
+    }
+
+    /// Checks if an expansion boss is unlocked.
+    pub fn is_expansion_boss_unlocked(&self, boss: ExpansionBoss) -> bool {
+        self.expansion.is_boss_unlocked(boss)
     }
 
     /// Advances the autonomous voxel championship simulation by 1 tick.
@@ -137,8 +161,9 @@ impl VoxelChampionshipDirector {
                 // 2. Step deterministic ring physics and capture events
                 let (ev0, ev1) = self.ring.step_pvp(action_a, action_b);
 
-                // Advance ballistic physics for active voxel shards
+                // Advance ballistic physics for active voxel shards & dynamic collapse
                 self.shards.step();
+                let (_bounces, _shatters) = self.collapse.step(Some(&mut self.shards));
 
                 // 3. Dynamic Terrain Cratering on heavy combat strikes
                 let mut crater_event = false;
@@ -150,6 +175,7 @@ impl VoxelChampionshipDirector {
                     let crater_z = ((self.match_frame * 7) % 12 + 2) as i16;
                     let radius: i16 = if action_a == ActionKind::Finisher { 4 } else { 2 };
                     self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
+                    let _ = self.collapse.detect_and_collapse(&mut self.arena, 0, [0, -45000, 0], 2048);
                     self.craters_carved += 1;
                     self.debris_count = self.shards.active_count as u16;
                     crater_event = true;
@@ -159,6 +185,7 @@ impl VoxelChampionshipDirector {
                     let crater_z = ((self.match_frame * 11) % 12 + 2) as i16;
                     let radius: i16 = if action_b == ActionKind::Finisher { 4 } else { 2 };
                     self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
+                    let _ = self.collapse.detect_and_collapse(&mut self.arena, 0, [0, -45000, 0], 2048);
                     self.craters_carved += 1;
                     self.debris_count = self.shards.active_count as u16;
                     crater_event = true;
@@ -244,6 +271,14 @@ impl VoxelChampionshipDirector {
         hash ^= shard_hash;
         hash = hash.wrapping_mul(0x100_0000_01B3);
 
+        let collapse_hash = self.collapse.compute_consensus_hash();
+        hash ^= collapse_hash;
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
+        let exp_hash = self.expansion.dlc_state.signature_hash;
+        hash ^= exp_hash;
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
         hash
     }
 
@@ -263,12 +298,12 @@ impl VoxelChampionshipDirector {
             fighter_b_hp: self.ring.opponent.hp.clamp(0, 100) as u8,
             winner_id: self.last_winner_id,
             champion_id: self.tournament.champion.map(|c| c.id).unwrap_or(0xFF),
-            _reserved1: 0,
+            expansion_flags: self.expansion.dlc_state.active_mask as u8,
             damaged_voxels: self.arena.damaged_count as u16,
             solid_voxels: self.arena.total_solid as u16,
             craters_carved: self.craters_carved,
             debris_count: self.debris_count,
-            _reserved2: 0,
+            collapsed_chunks: self.collapse.total_collapsed as u16,
             match_frame: self.match_frame,
             state_hash: self.compute_consensus_hash(),
             arena_checksum: (self.arena.damaged_count as u64) ^ ((self.arena.total_solid as u64) << 32),
