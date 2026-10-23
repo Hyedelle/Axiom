@@ -1,6 +1,6 @@
 # Axiom Engine Architecture Specification (docs/architecture.md)
 
-> **문서 버전:** 2.1.0  
+> **문서 버전:** 2.2.0  
 > **최종 수정일:** 2026-10-23  
 > **작성 주체:** Hyedelle (디렉터) & Antigravity (총괄 관제탑)  
 > **위치:** `crates/axiom-core` 및 관련 서브시스템 명세
@@ -688,6 +688,53 @@ Axiom Engine v2.1.0은 T-001부터 T-120까지 120개 누적 태스크를 집대
    - 4단계 연출(코어 과열 차징 ➔ 슈퍼노바 백열 타격 ➔ 상대방 붕괴 ➔ 승리 포효)을 64B 단일 구조체에서 완벽하게 통제.
 4. **120대 누적 마일스톤 단일 실행 파일 패키징**:
    - `tools/package.ps1`을 통해 0.8MB 미만의 네이티브 단일 바이너리(`mimic-the-show.exe`, `axiom.exe`) 및 웹 플레이어 번들을 원클릭 빌드.
+
+---
+
+## 24. INT8 Quantized Neural Network & 3D Voxel Terrain Destruction (v2.2.0)
+
+Axiom Engine v2.2.0은 서브마이크로초 강화학습 추론을 위한 **0-Float INT8 양자화 심층 신경망 추론 엔진**과 복싱 링 지면의 물리적 충격파 파괴 및 메카 부품 절단을 위한 **3D 복셀 파괴 및 기하 평면 절단 엔진**을 공식 도입한 메이저 기능 마일스톤입니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│     Axiom Neural AI & Voxel Destruction Release Architecture (v2.2.0)  │
+├────────────────────────────────────────────────────────────────────────┤
+│          64-Byte L1 Aligned INT8 Quantized Deep Neural Network         │
+│  - NeuralAiWeights (#[repr(C, align(64))]): size_of=320 (5 cachelines) │
+│  - INT8 weights (8x16 + 16x8), INT16 biases, i32 accumulator           │
+│  - CombatObservation: 8차원 고정소수점 전투 상태 관측 벡터              │
+│  - infer_action: 순수 정수 양자화 ReLU / 64 및 ArgMax 결정론 추론      │
+│  - NeuralFighterController (#[repr(C, align(64))]): size_of=384        │
+│    (6 cachelines) ➔ BoxingRingEngine 실시간 자율 대전 의사결정         │
+├────────────────────────────────────────────────────────────────────────┤
+│           3D Voxel Terrain Destruction & Mesh Severance Pipeline       │
+│  - VoxelVolume16 (#[repr(C, align(64))]): size_of=4160 (65 cachelines) │
+│    16x16x16 (4096 Voxels) 5대 머티리얼 (AIR, STONE, METAL, MOLTEN)     │
+│  - carve_sphere / carve_crater: 구형 충격파 파괴 및 용융 림 형성       │
+│  - raycast: 3D 정수 DDA 광선 추적 알고리즘                             │
+│  - SeverancePlane (#[repr(C, align(64))]): Q16.16 평면 및 선분 교차     │
+│  - extract_voxel_mesh: 복셀 그리드 외벽 ➔ PartMesh 동적 추출           │
+│  - sever_part_mesh: 3D 파츠 실시간 물리 절단 및 절단면 발광 UV 생성   │
+│  - Rasterizer3D::render_part: 단일 파츠 독립 래스터라이징 파이프라인   │
+├────────────────────────────────────────────────────────────────────────┤
+│                     Mimic The Show In-Game Integration                 │
+│  - DesktopGameView: 링 바닥 VoxelVolume16 상주                         │
+│  - NovaStrike 피니셔 타격 순간 동적 크레이터 파괴 및 실시간 3D 렌더링   │
+│  - 상대 메카 파츠(머리/팔) 실시간 물리 절단 및 탄도 궤적 비산 연출      │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 24.1 핵심 구조 및 기술적 특성
+1. **정수 양자화 신경망 추론 (`NeuralAiWeights`, `infer_action`)**:
+   - 가중치를 INT8, 바이어스를 INT16으로 양자화하고, 중간 누산기를 i32로 확장하여 부동소수점(`f32`/`f64`) 없이 완전 결정론적 순방향 전파를 수행.
+   - 320바이트 및 384바이트로 정확히 64B L1 캐시 라인 기하에 정렬되어 서브마이크로초 속도로 매 프레임 파이터의 최적 행동을 산출.
+2. **3D 복셀 지형 파괴 (`VoxelVolume16`)**:
+   - 16x16x16 그리드를 4160바이트(65개 L1 캐시 라인) 단일 연속 슬랩으로 관리.
+   - 구형 폭발 파괴와 지면 충격파 크레이터 파괴 시 6방향 공기층 인접면만을 검출하여 경량 3D 메시로 즉각 추출.
+3. **실시간 기하 평면 물리 절단 (`sever_part_mesh`)**:
+   - 3D 파츠 메시의 트라이앵글을 Q16.16 고정소수점 절단 평면을 기준으로 1:2 분할 보간.
+   - 절단 단면에 백열 주황 발광 UV를 자동 생성하고, 중력 가속도 기반의 포물선 탄도 궤적으로 비산 처리.
+
 
 
 

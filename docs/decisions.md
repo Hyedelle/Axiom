@@ -859,6 +859,59 @@
      - 전체 워크스페이스 `Cargo.toml` 버전을 v2.0.0에서 **v2.1.0**으로 판올림하고 공식 릴리즈 태그 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`, `tools/package.ps1`.
 
+---
+
+### [D-064] 64B L1 캐시 정렬 스팀 DLC 상태 머신 & 확장팩 추적기 (T-121)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 정렬 `DlcState`**: 64-bit FNV-1a 암호학적 위변조 탐지 서명, 4대 Steamworks 정규 DLC AppID 규격(`TitanChronicles`, `VoidFrontier`, `GoldenDecals`, `FoundryOverdrive`).
+  2. **확장팩 보스 게이팅 `ExpansionTracker`**: 확장 보스 2종(`KRONOS`, `AETHER`)의 라이선스 언락 머신 및 0-float 게임플레이 연동.
+- **영향:** `crates/axiom-core/src/dlc.rs`, `crates/axiom-game/src/expansion.rs`.
+
+---
+
+### [D-065] 크로스 플랫폼 Vulkan/DirectX 12 선택적 백엔드 및 모바일 타겟 검증 (T-122)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 정렬 `GpuPresenterConfig` & `PresentStats`**: 5대 프레젠테이션 백엔드(`SoftwareCpu`, `Vulkan`, `DirectX12`, `Metal`, `WebGpu`).
+  2. **4대 정수배/레터박스 스케일러**: `Nearest1x`, `Integer2x`, `Integer4x`, `FitAspectLetterbox` 16:9/16:10 디스플레이 자동 센터링.
+- **영향:** `crates/axiom-render/src/gpu_backend.rs`.
+
+---
+
+### [D-066] 64B L1 정렬 INT8 양자화 결정론 심층 신경망 추론 엔진 (T-123)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 정렬 `NeuralAiWeights` (320B, 5개 L1 캐시라인 슬랩)**: INT8 가중치, INT16 바이어스, i32 누산기, Quantized ReLU 순방향 전파.
+  2. **8차원 전투 관측 벡터 `CombatObservation` 및 `infer_action`**: 0-float 순수 정수 ArgMax 결정론 추론으로 서브마이크로초 액션 산출.
+  3. **64B L1 정렬 `NeuralFighterController` (384B, 6개 L1 캐시라인 슬랩)**: `BoxingRingEngine` 실시간 관측 추출 및 `ActionKind` 자율 대전 연동.
+- **영향:** `crates/axiom-core/src/neural_ai.rs`, `crates/axiom-game/src/neural_fighter.rs`.
+
+---
+
+### [D-067] 3D 복셀 지형 파괴 및 실시간 기하 평면 물리 절단 엔진 (T-124, T-125)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 정렬 `VoxelVolume16` (4160B, 65개 L1 캐시라인 슬랩)**: 16x16x16 3D 복셀 그리드, 구형 폭발 파괴(`carve_sphere`), 상부 지면 크레이터 파괴(`carve_crater`), 정수 3D DDA 광선 추적(`raycast`).
+  2. **64B L1 정렬 `SeverancePlane` & `sever_part_mesh`**: $N \cdot P + D = 0$ 절단 평면 선분 교차점 보간 및 상/하부 반공간 기하 분할, 절단면 발광 UV 자동 부여.
+  3. **`Rasterizer3D::render_part` 및 `mimic-the-show` 3D 피니셔 직결**: `NovaStrike` 임팩트 순간 동적 크레이터 파괴 메시 추출 및 상대 메카 파츠(머리/팔) 실시간 물리 절단·탄도 비산 시뮬레이션 연동.
+- **영향:** `crates/axiom-core/src/voxel_destruct.rs`, `crates/axiom-render/src/voxel_mesh.rs`, `crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-068] Axiom Engine v2.2.0 파괴 및 신경망 인공지능 마일스톤 공식 릴리즈 (T-126)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 64B L1 캐시 정렬 INT8 양자화 신경망 추론 엔진, 3D 복셀 지형 파괴, 실시간 기하 평면 물리 절단, 단일 파츠 래스터라이징 엔진을 종합 승인.
+  2. 전체 워크스페이스 버전을 v2.1.0에서 **v2.2.0**으로 공식 판올림하고 Git 태그 `v2.2.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
 
