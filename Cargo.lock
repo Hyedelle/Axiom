@@ -22,6 +22,7 @@ name = "axiom-game"
 version = "3.0.0"
 dependencies = [
  "axiom-core",
+ "axiom-net",
 ]
 
 [[package]]

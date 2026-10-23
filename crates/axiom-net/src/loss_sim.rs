@@ -1,6 +1,7 @@
 //! Simulated Network Pipeline with Deterministic Packet Loss and Latency (T-161).
 
 use crate::packet::NetPacket64;
+use alloc::vec::Vec;
 use axiom_core::Rng;
 
 /// Network simulation channel for verifying loss-recovery and rollback resilience.

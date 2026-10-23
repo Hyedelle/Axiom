@@ -7,5 +7,6 @@ license.workspace = true
 
 [dependencies]
 axiom-core = { path = "../axiom-core" }
+axiom-net = { path = "../axiom-net" }
 
 [dev-dependencies]

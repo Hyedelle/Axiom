@@ -14,6 +14,7 @@ pub mod expansion;
 pub mod factory;
 pub mod lobby;
 pub mod neural_fighter;
+pub mod network;
 pub mod schema_catalog;
 pub mod tournament;
 pub mod voxel_tournament;
@@ -42,6 +43,13 @@ pub use tournament::{
     NO_NEXT_MATCH,
 };
 pub use voxel_tournament::{VoxelChampionshipDirector, VoxelChampionshipTelemetry};
+pub use network::{
+    compute_world_hash, step_physical_world, NetworkMatchDirector, PhysicalWorldSnapshot,
+    PlayerPhysicalState64, ARENA_RADIUS_MM, INPUT_DASH, INPUT_DOWN, INPUT_GUARD,
+    INPUT_HEAVY_ATTACK, INPUT_LEFT, INPUT_LIGHT_ATTACK, INPUT_RIGHT, INPUT_UP, MOVE_SPEED_MMS,
+    PLAYER_RADIUS_MM, STATE_DASH, STATE_GUARD, STATE_HEAVY_ATTACK, STATE_HIT_STUN, STATE_IDLE,
+    STATE_KNOCKDOWN, STATE_LIGHT_ATTACK, STATE_MOVE,
+};
 
 pub use factory::{
     Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, FilterInserter,

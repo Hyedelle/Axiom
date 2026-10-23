@@ -7,6 +7,9 @@
 //! - **Instantaneous Speculative Rollback**: Rewinds and resimulates divergent state across high-latency peers.
 //! - **64-bit FNV-1a Consensus**: Automated desync detection across 16 peers.
 
+#![no_std]
+extern crate alloc;
+
 pub mod loss_sim;
 pub mod packet;
 pub mod rollback;
@@ -14,12 +17,13 @@ pub mod telemetry;
 
 pub use loss_sim::NetworkLossSimulator;
 pub use packet::{NetPacket64, INPUT_WINDOW_FRAMES, MAX_PEERS, NET_WIRE_MAGIC};
-pub use rollback::{DistributedRollbackSession, NetError, RollbackStepResult};
+pub use rollback::{DistributedRollbackSession, NetError, RollbackStepResult, DEFAULT_NET_BUFFER_FRAMES};
 pub use telemetry::NetTelemetry64;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
 
     #[test]
     fn test_packet_size_and_alignment() {
