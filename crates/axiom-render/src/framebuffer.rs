@@ -54,6 +54,49 @@ impl FrameBuffer {
         }
     }
 
+    /// Blits a source framebuffer into this framebuffer at `(dest_x, dest_y)` with boundary clipping.
+    pub fn blit(&mut self, src: &FrameBuffer, dest_x: i32, dest_y: i32) {
+        for sy in 0..src.height {
+            let dy = dest_y + sy as i32;
+            if dy < 0 || dy >= self.height as i32 {
+                continue;
+            }
+            let s_row = sy * src.width;
+            let d_row = dy as usize * self.width;
+
+            for sx in 0..src.width {
+                let dx = dest_x + sx as i32;
+                if dx < 0 || dx >= self.width as i32 {
+                    continue;
+                }
+                self.pixels[d_row + dx as usize] = src.pixels[s_row + sx];
+            }
+        }
+    }
+
+    /// Blits non-keyed pixels from a source framebuffer into this framebuffer.
+    pub fn blit_keyed(&mut self, src: &FrameBuffer, dest_x: i32, dest_y: i32, key_color: u32) {
+        for sy in 0..src.height {
+            let dy = dest_y + sy as i32;
+            if dy < 0 || dy >= self.height as i32 {
+                continue;
+            }
+            let s_row = sy * src.width;
+            let d_row = dy as usize * self.width;
+
+            for sx in 0..src.width {
+                let dx = dest_x + sx as i32;
+                if dx < 0 || dx >= self.width as i32 {
+                    continue;
+                }
+                let color = src.pixels[s_row + sx];
+                if color != key_color {
+                    self.pixels[d_row + dx as usize] = color;
+                }
+            }
+        }
+    }
+
     /// Renders a 16x16 ARGB sprite onto the framebuffer with alpha testing (`alpha > 0`)
     /// and boundary clipping.
     pub fn draw_sprite_16x16(&mut self, x: i32, y: i32, sprite: &[u32; 256]) {

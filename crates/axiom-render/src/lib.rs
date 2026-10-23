@@ -9,6 +9,7 @@ pub mod framebuffer;
 pub mod kinematics3d;
 pub mod math3d;
 pub mod mesh3d;
+pub mod newspaper;
 pub mod particles3d;
 pub mod raster3d;
 pub mod sprites;
@@ -21,6 +22,9 @@ pub use kinematics3d::{
 };
 pub use math3d::{cos_bams, sin_bams, Mat4Fixed, Vec3Fixed};
 pub use mesh3d::{parse_glb, MechaModel3D, PartMesh, Vertex3D};
+pub use newspaper::{
+    apply_newsprint_filter, draw_newspaper_photo_frame, NewspaperGravureConfig, PhotoFilter,
+};
 pub use particles3d::{Particle3D, ParticleSystem3D};
 pub use raster3d::{CelShadingPalette, Rasterizer3D};
 pub use sprites::*;
