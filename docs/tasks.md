@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-131: Axiom Engine v2.3.0 자율 챔피언십 & 복셀 사운드스케이프 종합 감사 릴리즈** (`crates/axiom-game`, `docs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-132: Axiom 3D 복셀 메카 지형 파괴 실시간 관성 조각(Voxel Shard) 탄도 물리 엔진** (`crates/axiom-core`, `crates/axiom-render`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-133: Mimic The Show 챔피언십 복셀 아레나 관성 조각 비산 및 탄도 충돌 연동** (`mimic-the-show`, `crates/axiom-game`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-131: Axiom Engine v2.3.0 자율 챔피언십 & 복셀 사운드스케이프 종합 감사 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-069]~[D-073], `docs/audit-report.md` [AUDIT-20261023-v2.3.0], 64B L1 캐시 정렬 3D 복셀 맵 컨테이너 `.axvm` [`AxvmHeader`, 5대 절차적 프리셋, FNV-1a 체크섬 변조 방어], WebGL/WASM 3D 복셀 파괴 웹 시뮬레이터 및 50-Op 실시간 벤치마크 뷰어, 0-Float 22,050Hz 지진성 서브베이스 충격파 사운드스케이프 및 3D 입체 음향 반향 오디오, 64B L1 정렬 `VoxelChampionshipTelemetry` 및 자율 3D 복셀 챔피언십 디렉터 `VoxelChampionshipDirector`, 130대 통합 상용 패키징 빌더 `tools/package.ps1` [2.02MB 단일 아카이브, SHA-256 검증], 워크스페이스 v2.3.0 공식 판올림 및 Git 태그 `v2.3.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-130: Axiom 130대 통합 대형 마일스톤 및 자율 토너먼트 3D 복셀 아레나 챔피언십** (`crates/axiom-game/src/voxel_tournament.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_voxel_tournament.rs`, `tools/package.ps1`, `dist/axiom-v2.2.0-unified-milestone.zip` [2.02 MB, SHA-256 검증], `dist/.../bin/mimic-the-show.exe` [0.86 MB, 60 FPS 네이티브 메카 복싱 로그라이트 단일 바이너리], `dist/.../bin/axiom.exe` [0.85 MB, 팩토리 RPG / 10만 NPC / 워크숍 / 복셀 CLI], `dist/.../maps/` [5대 절차적 복셀 지형 컨테이너 .axvm 프리셋 번들], `dist/.../web/` [WASM 3D 복셀 파괴 스튜디오, Replay, Audio, WebRTC], 0-Float 64-Byte L1 캐시 라인 정렬 `VoxelChampionshipTelemetry` [#[repr(C, align(64))], exact 64-byte telemetry slab], 자율 4-파이터 챔피언십 엔진 `VoxelChampionshipDirector` [INT8 양자화 신경망 추론 `NeuralFighterController`, 타격 순간 동적 지반 크레이터 파괴 `carve_crater`, 파괴 복셀/크레이터/파편 실시간 집계 및 64-bit FNV-1a 상태 합의 검증], 78개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-129: Axiom 3D 복셀 파괴 물리 파티클 사운드 및 입체 음향 반향 연동** (`crates/axiom-wasm/src/audio.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/tests/test_audio_engine.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom_wasm.wasm`, `web/index.html`, `mimic-the-show/src/sound.rs`, `mimic-the-show/src/view.rs`, 0-Float 22,050Hz 합성 2대 신규 사운드 [`SoundKind::VoxelBlast` 80->28Hz 지진성 서브베이스 충격파+암석 분쇄 800ms, `SoundKind::DebrisScatter` 미립자 파편 바닥 탄성 충돌 350ms], 3-Tap 지하 공간 잔향(`Arena Reverb`, 850 permille) 및 좌우 스테레오 패닝 `compute_spatial_stereo`, WASM C-ABI 2대 엔드포인트 [`axiom_audio_play_voxel_blast`, `axiom_audio_play_debris_bounce`], 웹 뷰어 클릭 파괴 실시간 사운드스케이프 직결 `playVoxelBlastSfx`, `mimic-the-show` 피니셔 노바 스트라이크 지반 크레이터 파괴음 및 절단 파츠 바닥 탄성 반발 사운드 연동, 16개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-128: WebGL/WASM 3D 복셀 파괴 웹 시뮬레이터 및 실시간 벤치마크 뷰어** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom_wasm.wasm`, `web/index.html`, WASM C-ABI 11개 엔드포인트 [`axiom_voxel_init`, `axiom_voxel_carve_sphere`, `axiom_voxel_carve_crater`, `axiom_voxel_step`, `axiom_voxel_render`, `axiom_voxel_get_framebuffer_ptr/len`, `axiom_voxel_get_solid/damaged/triangles`, `axiom_voxel_benchmark`, `axiom_voxel_alloc_axvm_buffer`, `axiom_voxel_load_staged_axvm`, `axiom_voxel_export_axvm`], 웹 플레이어 💥 **3D Voxel Destruction Studio** [5대 프리셋 Flat/Crater/Bunker/Ruins/Volcanic, 캔버스 클릭 실시간 충격파 크레이터 파괴, 마우스 360° 턴테이블, 50-Op 벤치마크 모달, .axvm 파일 익스포트 및 드래그 앤 드롭 인제스터, 실시간 Solid/Damaged/Tris/RenderMs HUD], 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

@@ -911,6 +911,60 @@
   2. 전체 워크스페이스 버전을 v2.1.0에서 **v2.2.0**으로 공식 판올림하고 Git 태그 `v2.2.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-069] 64B L1 캐시 정렬 3D 복셀 맵 바이너리 컨테이너 (`AxvmHeader`) 및 CLI 에디터 (T-127)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 정렬 `AxvmHeader` (#[repr(C, align(64))], exact 64 bytes)**: magic, version, dim_x/y/z, preset_id, solid_voxels, damaged_count, FNV-1a checksum, timestamp, name.
+  2. **무할당 고속 바이너리 컨테이너 `.axvm`**: 5대 절차적 프리셋(`FlatArena`, `CrateredArena`, `FortifiedBunker`, `MonolithRuins`, `VolcanicVent`) 직렬화/역직렬화 및 체크섬 변조 실시간 탐지.
+  3. **`axiom voxel list/export/inspect` CLI 도구군**: 단면 ASCII 래스터 뷰어 및 지형 익스포터 구축.
+- **영향:** `crates/axiom-render/src/voxel_map.rs`, `crates/axiom-cli/src/voxel_cli.rs`.
+
+---
+
+### [D-070] WebGL/WASM 3D 복셀 지형 파괴 실시간 시뮬레이터 및 벤치마크 뷰어 (T-128)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **WASM C-ABI 11개 엔드포인트 (`axiom_voxel_*`)**: 지형 초기화, 구형/크레이터 파괴, 스텝, 렌더링, 프레임버퍼 바인딩, 통계 조회, 50-Op 벤치마크, .axvm 익스포트/임포트.
+  2. **웹 플레이어 💥 3D Voxel Destruction Studio**: 5대 프리셋 전환, 캔버스 클릭 실시간 충격파 크레이터 파괴, 마우스 360° 턴테이블, .axvm 파일 익스포트 및 드래그 앤 드롭 인제스터.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-071] 0-Float 22,050Hz 복셀 지진성 충격파 사운드스케이프 및 3D 입체 음향 반향 (T-129)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **0-Float PCM 합성 2종**: `SoundKind::VoxelBlast`(Kind 14, 80->28Hz 서브베이스 붐+암석 분쇄 800ms) 및 `SoundKind::DebrisScatter`(Kind 15, 미립자 파편 바닥 탄성 충돌 350ms).
+  2. **3D 입체 음향 반향 파이프라인**: 3-탭 아레나 콤 피드백 리버브(850 permille) 및 거리 감쇠/좌우 스테레오 패닝 `compute_spatial_stereo`.
+  3. **WASM AudioWorklet 및 `mimic-the-show` 직결**: 웹 캔버스 클릭 파괴음, 피니셔 지반 크레이터 파괴음, 절단 파츠 지면 탄성 반발 사운드 연동.
+- **영향:** `crates/axiom-wasm/src/audio.rs`, `mimic-the-show/src/sound.rs`, `mimic-the-show/src/view.rs`, `web/index.html`.
+
+---
+
+### [D-072] 64B L1 캐시 정렬 자율 토너먼트 3D 복셀 아레나 챔피언십 엔진 (T-130)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64-Byte L1 정렬 `VoxelChampionshipTelemetry` (exact 64B slab)**: 매치 상태, 라운드, 양측 체력, 파괴 복셀, 크레이터, 비산 파편 수 및 64-bit FNV-1a 상태 합의 해시 실시간 중계.
+  2. **자율 3D 복셀 챔피언십 디렉터 `VoxelChampionshipDirector`**: 4-파이터 싱글 엘리미네이션 브래킷, INT8 양자화 신경망 추론 `NeuralFighterController`, 유효 타격 순간 지반 동적 크레이터 파괴(`carve_crater`) 자율 진행.
+  3. **130대 통합 상용 패키징 빌더 (`tools/package.ps1`)**: 단일 배포 아카이브 `dist/axiom-v2.2.0-unified-milestone.zip`(2.02MB), 5대 .axvm 프리셋, 웹 플레이어 스위트 완비.
+- **영향:** `crates/axiom-game/src/voxel_tournament.rs`, `tools/package.ps1`.
+
+---
+
+### [D-073] Axiom Engine v2.3.0 자율 챔피언십 & 복셀 사운드스케이프 종합 감사 릴리즈 (T-131)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 64B L1 캐시 정렬 3D 복셀 맵 컨테이너(`.axvm`), WebGL/WASM 3D 복셀 스튜디오, 0-Float 입체 음향 반향 오디오, 자율 3D 복셀 챔피언십 엔진을 종합 승인.
+  2. 전체 워크스페이스 버전을 v2.2.0에서 **v2.3.0**으로 공식 판올림하고 Git 태그 `v2.3.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
 

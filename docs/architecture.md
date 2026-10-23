@@ -735,6 +735,49 @@ Axiom Engine v2.2.0은 서브마이크로초 강화학습 추론을 위한 **0-F
    - 3D 파츠 메시의 트라이앵글을 Q16.16 고정소수점 절단 평면을 기준으로 1:2 분할 보간.
    - 절단 단면에 백열 주황 발광 UV를 자동 생성하고, 중력 가속도 기반의 포물선 탄도 궤적으로 비산 처리.
 
+---
+
+## 25. Autonomous Voxel Championship & Procedural Destruction Soundscape (v2.3.0)
+
+Axiom Engine v2.3.0은 자율 AI 대전과 실시간 지형 파괴, 입체 음향 반향을 단일 통합 루프로 결합한 **자율 3D 복셀 아레나 챔피언십 엔진**과 **0-Float 절차적 사운드스케이프**의 공식 완성 릴리즈입니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│               Axiom Engine v2.3.0 Championship Architecture            │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Autonomous Voxel Championship Engine (crates/axiom-game)]             │
+│  - 64B L1 Cache Aligned VoxelChampionshipTelemetry                     │
+│  - 4-Fighter Knockout Bracket: Quarterfinal ➔ Semifinal ➔ Grand Final   │
+│  - NeuralFighterController INT8 Quantized Inference Action Selection   │
+│  - Contact-Frame Terrain Cratering on VoxelVolume16 Arena              │
+│  - 64-bit FNV-1a Deterministic Consensus State Hash Across Matches     │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Procedural Destruction Soundscape & Spatial Reverb]                   │
+│  - 0-Float 22,050Hz Multi-Layer PCM Synthesis (VoxelBlast, Debris)     │
+│  - 3-Tap Cavernous Arena Reverb & Inverse Distance Stereo Panning      │
+│  - Dual Output: Desktop WinMM PlaySoundW & WASM AudioWorklet Streaming │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Production Distribution Packaging (tools/package.ps1)]                │
+│  - Single ZIP Archive: dist/axiom-v2.2.0-unified-milestone.zip (2.02MB)│
+│  - Binaries: mimic-the-show.exe (0.86MB), axiom.exe (0.85MB)           │
+│  - Bundled 5 Procedural .axvm Voxel Arena Containers (maps/)           │
+│  - Web Player Suite with 3D Voxel Studio & AudioWorklet (web/)         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 25.1 핵심 구조 및 기술적 특성
+1. **64B L1 캐시 라인 정렬 챔피언십 텔레메트리 (`VoxelChampionshipTelemetry`)**:
+   - 정확히 64바이트 L1 캐시 라인 단일 슬랩으로 구성 (`size_of == 64, align_of == 64`).
+   - 매치 상태, 라운드, 양측 체력, 파괴된 복셀 수, 크레이터 카운트, 비산 파편 수, 상태 해시를 무할당 고속 브로드캐스트.
+2. **자율 3D 복셀 챔피언십 디렉터 (`VoxelChampionshipDirector`)**:
+   - 싱글 엘리미네이션 4-파이터 토너먼트를 자율적으로 제어하며, 신경망 추론과 타격 물리, 링 지반 크레이터 파괴를 실시간 연동.
+   - 매치 종료 시 다음 라운드 진출 및 최종 챔피언 대관식을 자동 진행하고, 모든 상태를 64-bit FNV-1a 해시로 합의 검증.
+3. **0-Float 복셀 지진성 충격파 사운드스케이프**:
+   - `SoundKind::VoxelBlast`(Kind 14): 80->28Hz 서브베이스 붐과 암석 분쇄 바디, 동굴 잔향 테일을 합성 (~800ms).
+   - `SoundKind::DebrisScatter`(Kind 15): LCG 필터링 암석 노이즈와 탄성 충돌 클릭 펄스를 합성 (~350ms).
+   - 데스크톱 WinMM 및 브라우저 AudioWorklet 양단에서 부동소수점 없이 동일한 오디오 경험 보장.
+
+
 
 
 
