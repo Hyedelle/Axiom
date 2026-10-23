@@ -313,6 +313,118 @@ impl FrameBuffer {
         }
     }
 
+    /// Draws a radial soft ellipse with pure integer falloff and alpha blending.
+    /// Ideal for ambient occlusion contact shadows under boots, floor lighting, and halos.
+    pub fn draw_ellipse_blend(&mut self, cx: i32, cy: i32, rx: i32, ry: i32, color: u32) {
+        if rx <= 0 || ry <= 0 {
+            return;
+        }
+        let base_a = (color >> 24) & 0xFF;
+        if base_a == 0 {
+            return;
+        }
+        let cr = (color >> 16) & 0xFF;
+        let cg = (color >> 8) & 0xFF;
+        let cb = color & 0xFF;
+
+        let rx_sq = (rx as i64) * (rx as i64);
+        let ry_sq = (ry as i64) * (ry as i64);
+
+        let y_min = (cy - ry).max(0);
+        let y_max = (cy + ry).min(self.height as i32 - 1);
+        let x_min = (cx - rx).max(0);
+        let x_max = (cx + rx).min(self.width as i32 - 1);
+
+        for py in y_min..=y_max {
+            let dy = (py - cy) as i64;
+            let dy_sq = dy * dy;
+            let row_offset = py as usize * self.width;
+
+            for px in x_min..=x_max {
+                let dx = (px - cx) as i64;
+                let dx_sq = dx * dx;
+
+                // Normalized squared distance scaled by 65536
+                let d = (dx_sq * 65536) / rx_sq + (dy_sq * 65536) / ry_sq;
+                if d < 65536 {
+                    let falloff = 65536 - d; // 65536 at center, 0 at perimeter
+                    let cur_a = ((base_a as i64 * falloff) / 65536) as u32;
+                    if cur_a == 0 {
+                        continue;
+                    }
+                    let inv_a = 255 - cur_a;
+
+                    let idx = row_offset + px as usize;
+                    let bg = self.pixels[idx];
+                    let br = (bg >> 16) & 0xFF;
+                    let bg_g = (bg >> 8) & 0xFF;
+                    let bb = bg & 0xFF;
+
+                    let out_r = (cr * cur_a + br * inv_a) / 255;
+                    let out_g = (cg * cur_a + bg_g * inv_a) / 255;
+                    let out_b = (cb * cur_a + bb * inv_a) / 255;
+
+                    self.pixels[idx] = (0xFF << 24) | (out_r << 16) | (out_g << 8) | out_b;
+                }
+            }
+        }
+    }
+
+    /// Draws a vertical volumetric light beam/cone trapezoid with linear vertical falloff.
+    pub fn draw_cone_light_blend(
+        &mut self,
+        top_cx: i32,
+        top_y: i32,
+        top_w: i32,
+        bot_cx: i32,
+        bot_y: i32,
+        bot_w: i32,
+        color: u32,
+    ) {
+        if bot_y <= top_y {
+            return;
+        }
+        let base_a = (color >> 24) & 0xFF;
+        if base_a == 0 {
+            return;
+        }
+        let cr = (color >> 16) & 0xFF;
+        let cg = (color >> 8) & 0xFF;
+        let cb = color & 0xFF;
+
+        let total_h = (bot_y - top_y) as i64;
+        let y_start = top_y.max(0);
+        let y_end = bot_y.min(self.height as i32 - 1);
+
+        for py in y_start..=y_end {
+            let prog = (py - top_y) as i64; // 0..total_h
+            let cx = top_cx as i64 + ((bot_cx - top_cx) as i64 * prog) / total_h;
+            let half_w = (top_w as i64 + ((bot_w - top_w) as i64 * prog) / total_h) / 2;
+
+            // Light beam fades slightly as it expands downward
+            let cur_a = ((base_a as i64 * (total_h * 2 - prog)) / (total_h * 2)) as u32;
+            let inv_a = 255 - cur_a;
+
+            let x_start = (cx - half_w).max(0);
+            let x_end = (cx + half_w).min(self.width as i64 - 1);
+            let row_offset = py as usize * self.width;
+
+            for px in x_start..=x_end {
+                let idx = row_offset + px as usize;
+                let bg = self.pixels[idx];
+                let br = (bg >> 16) & 0xFF;
+                let bg_g = (bg >> 8) & 0xFF;
+                let bb = bg & 0xFF;
+
+                let out_r = (cr * cur_a + br * inv_a) / 255;
+                let out_g = (cg * cur_a + bg_g * inv_a) / 255;
+                let out_b = (cb * cur_a + bb * inv_a) / 255;
+
+                self.pixels[idx] = (0xFF << 24) | (out_r << 16) | (out_g << 8) | out_b;
+            }
+        }
+    }
+
     /// Renders a single 3x5 font character.
     pub fn draw_char(&mut self, c: char, x: i32, y: i32, color: u32) {
         let glyph = glyph_3x5(c);
@@ -606,5 +718,41 @@ mod tests {
         assert_eq!(up.pixels[2 * 4 + 3], 0xFFAABBCC);
         assert_eq!(up.pixels[3 * 4 + 2], 0xFFAABBCC);
         assert_eq!(up.pixels[3 * 4 + 3], 0xFFAABBCC);
+    }
+
+    #[test]
+    fn test_draw_ellipse_blend_falloff() {
+        let mut fb = FrameBuffer::new(50, 50);
+        fb.clear(0xFFFFFFFF); // White background
+
+        // Draw black contact shadow ellipse centered at (25, 25), rx=10, ry=5
+        fb.draw_ellipse_blend(25, 25, 10, 5, 0xC0000000);
+
+        // Center should be darkest
+        let center_px = fb.pixels[25 * 50 + 25];
+        let cr = (center_px >> 16) & 0xFF;
+        assert!(cr < 100, "Center of contact shadow must be dark, got {}", cr);
+
+        // Corner of bounding box outside ellipse should remain white
+        let outside_px = fb.pixels[15 * 50 + 15];
+        assert_eq!(outside_px, 0xFFFFFFFF, "Outside ellipse must remain white");
+    }
+
+    #[test]
+    fn test_draw_cone_light_blend() {
+        let mut fb = FrameBuffer::new(60, 60);
+        fb.clear(0xFF000000); // Black background
+
+        // Draw brass cone light from top (30, 0) w=10 to bottom (30, 40) w=30
+        fb.draw_cone_light_blend(30, 0, 10, 30, 40, 30, 0x40FED7AA);
+
+        // Center ray should be illuminated
+        let center_px = fb.pixels[20 * 60 + 30];
+        let cr = (center_px >> 16) & 0xFF;
+        assert!(cr > 0, "Cone light must illuminate center path");
+
+        // Edge outside cone should remain black
+        let edge_px = fb.pixels[20 * 60 + 5];
+        assert_eq!(edge_px, 0xFF000000, "Outside cone light must remain black");
     }
 }
