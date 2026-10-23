@@ -8,20 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-23 18:50 KST
-- **감사 대상:** Axiom Engine v1.9.0 스팀 클라우드 세이브(Steam Cloud Save), WASM 3D 리플레이 웹 플레이어 & .axrp 뷰어 생태계 종합 감사 (`axiom-core`, `axiom-cli`, `axiom-wasm`, `mimic-the-show`, `web`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 CloudSaveHeader, 원자적 동기화 매니저(CloudSyncManager), WASM 3D 리플레이 웹 뷰어 올패스 (v1.9.0 공식 승인)**
+- **일시:** 2026-10-23 19:25 KST
+- **감사 대상:** Axiom Engine v2.0.0 스팀 업적(Steam Achievements) & 메카 커스텀 페인팅 데칼 에디터 마일스톤 종합 감사 (`axiom-game`, `axiom-render`, `axiom-wasm`, `mimic-the-show`, `web`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 AchievementState, 12대 스팀웍스 정규 업적 & 인게임 골든 토스트 HUD 팝업, 0-Float 2D 텍스처 페인팅 엔진, 절차적 7대 데칼 스튜디오, WASM 2D-3D 실시간 바인딩 올패스 (v2.0.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **64-Byte L1 캐시 라인 정렬 헤더 (`CloudSaveHeader`)**: 64-bit FNV-1a 무결성 체크섬, 이산 유닉스 에포크 초(Seconds), 시뮬레이션 상태 해시를 담은 무패딩 64B POD 헤더 검증 올패스.
-  2. **크래시 프리 원자적 교체 (`atomic_write`)**: 임시 파일 작성 후 OS 원자적 파일 교체(`fs::rename`)를 수행하여 세이브 도중 비정상 종료 시에도 파일 오손 영구 방어.
-  3. **양방향 충돌 해결기 (`resolve_sync_conflict`)**: 내용 일치 시 불필요한 전송을 건너뛰고, 타임스탬프와 진행도를 기반으로 로컬과 스팀 클라우드 간 최신 버전을 100% 결정론적으로 합의.
-  4. **WASM C-ABI 리플레이 플레이어 엔진 (`WasmReplayPlayer`)**: O(1) 프레임 입력 인덱싱, 2인 대칭 대전 물리 평가, <0.05ms 서브밀리초 임의 프레임 탐색(`axiom_replay_seek`) 및 16개 엔드포인트 실장 및 1,070 KB WASM 번들 컴파일 완료.
-  5. **웹 플레이어 3D 리플레이 컨트롤 바 (`replayActionBar`)**: 재생/일시정지 토글, 프레임 단위 전진/후진 스텝퍼, 1x~4x 가변 배속 가속기, 실시간 타임라인 슬라이더 스크러빙 및 커스텀 `.axrp` 파일 드래그 앤 드롭 업로더 연동.
-  6. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
+  1. **64-Byte L1 캐시 라인 정렬 업적 상태 머신 (`AchievementState`)**: 업적 비트마스크(4B), 9개 텔레메트리 카운터(36B), 64-bit FNV-1a 체크섬(8B), 16B 패딩으로 캐시 미스 0을 보증하는 초경량 64B POD 구조체 실장.
+  2. **0-Float FNV-1a 변조 검출 및 무결성 검증**: 매 갱신 시 상태 해시를 재계산하여 메모리 해킹 및 세이브 파일 조작을 구조적으로 차단.
+  3. **스팀 스타일 온스크린 골든 토스트 HUD 팝업 (`render_achievement_toast`)**: 3초(180프레임) 슬라이드 애니메이션 스팀 스타일 골든 보더 배지 팝업 탑재 및 `saves/achievements.bin` 영구 누적 직렬화 완성.
+  4. **결정론 2D 텍스처 래스터라이징 원형 (`TextureMap`)**: 부동소수점을 완전히 배제하고 브러시 스트로크, 브레젠험 라인 보간, 경계 스택 기반 플러드 필, 스케일링 데칼 스탬퍼를 순수 정수 산술로 구축.
+  5. **7대 절차적 스팀웍스 데칼 템플릿**: Star, Hazard, Skull, Number01, Sponsor, Reticle, CheckeredFlag 7종 데칼 절차적 생성 알고리즘 탑재.
+  6. **WASM 2D 캔버스 ➔ 3D 소프트웨어 래스터라이저 실시간 바인딩**: 웹 플레이어에서 2D 캔버스 조작 즉시 3D 메카 소프트웨어 래스터라이저에 60 FPS 실시간 텍스처 매핑 렌더링.
+  7. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261023-v1.9.0] Axiom Engine v1.9.0 스팀 클라우드 세이브(Steam Cloud Save), WASM 3D 리플레이 웹 플레이어 & .axrp 뷰어 생태계 종합 감사
+- **일시:** 2026-10-23 18:50 KST
+- **판정:** 🟢 **ALL CLEAR (v1.9.0 공식 승인)**
+- **검증:** Valve Steam Auto-Cloud 호환 크래시 프리 원자적 세이브 동기화 엔진(CloudSyncManager), 64B L1 캐시 정렬 CloudSaveHeader, WASM 3D 리플레이 웹 플레이어 및 가변 배속 스크러버, `.axrp` 드래그 앤 드롭 업로더 올패스.
 
 ### [AUDIT-20261023-v1.8.0] Axiom Engine v1.8.0 스팀 워크숍 모딩 생태계, 초저용량 3D 리플레이 & WebRTC 토너먼트 종합 감사
 - **일시:** 2026-10-23 18:30 KST

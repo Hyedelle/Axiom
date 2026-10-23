@@ -604,5 +604,47 @@ Axiom Engine v1.9.0은 Valve의 Steam Auto-Cloud와 100% 호환되는 크래시 
    - 별도의 데스크톱 클라이언트 없이도 웹 브라우저에서 `.axrp` 경기 파일을 열어 3D 소프트웨어 래스터라이저로 시청 가능.
    - 1프레임 단위 전진/후진 및 슬라이더 스크러빙 시 <0.05ms 서브밀리초 탐색을 실현하여 완벽한 e스포츠 VOD 분석 환경 제공.
 
+---
+
+## 22. Steam Achievements & Mecha Custom Painting Decal Studio (v2.0.0)
+
+Axiom Engine v2.0.0은 Valve Steamworks `ISteamUserStats`와 100% 호환되는 64-Byte L1 캐시 정렬 스팀 업적 상태 머신(`AchievementState`, `AchievementTracker`), FNV-1a 변조 방지 체크섬, 인게임 3초 슬라이드 애니메이션 골든 토스트 HUD 팝업, 그리고 웹 브라우저에서 2D 텍스처 캔버스를 조작하는 즉시 Juan Pineda 8x8 타일 비닝 3D 소프트웨어 래스터라이저 표면에 실시간 텍스처가 매핑되는 **메카 커스텀 페인팅 및 풀 바디 텍스처 데칼 스튜디오**를 완성했습니다.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│     Axiom Steam Achievements & Decal Studio Architecture (v2.0.0)      │
+├────────────────────────────────────────────────────────────────────────┤
+│             64-Byte L1 Cache Aligned Steam Achievement State           │
+│  - AchievementState (#[repr(C, align(64))]): 정확히 64B L1 캐시 상주   │
+│  - 32-bit 업적 해금 비트마스크 + 9종 텔레메트리 누적 카운터 (36B)        │
+│  - 64-bit FNV-1a 무결성 체크섬: 런타임 메모리 변조 및 치트 즉각 무효화 │
+│  - 12대 스팀웍스 정규 업적 (FirstBlood, CleanSweep, TitanSlayer 등)     │
+│  - 3초(180f) 슬라이드 애니메이션 온스크린 골든 토스트 HUD 팝업 렌더러  │
+│  - saves/achievements.bin 및 StsSeasonSave 다회차 영구 누적 직렬화     │
+├────────────────────────────────────────────────────────────────────────┤
+│          Deterministic 2D Texture Painting Engine (TextureMap)         │
+│  - 0-Float 순수 정수 산술: paint_brush (원형 브러시 스트로크)          │
+│  - draw_line: 브레젠험(Bresenham) 정수 보간 브러시 라인 드로잉          │
+│  - flood_fill: 경계 스택(Stack) 기반 무재귀 O(N) 캔버스 플러드 필      │
+│  - stamp_decal: 알파 블렌딩 및 고정소수점 스케일링 스탬퍼               │
+│  - 7대 절차적 데칼: Star, Hazard, Skull, Number01, Sponsor, Reticle 등 │
+│  - PartMesh::create_box: 6개 면 쿼드에 정규화 Box UV 자동 부여         │
+├────────────────────────────────────────────────────────────────────────┤
+│          WASM 2D Canvas ➔ 3D Software Rasterizer Live Binding          │
+│  - WASM C-ABI 10개 텍스처 엔드포인트 (init, get_ptr, paint, stamp 등)  │
+│  - 웹 플레이어: 🎨 Custom Painter & Decal Studio 뷰포트 완비            │
+│  - 2D 픽셀 캔버스 조작 즉시 3D 메카 소프트웨어 래스터라이저 실시간 매핑│
+│  - 컬러 피커, 프리셋 스와치, 브러시 크기 슬라이더, PNG 원클릭 다운로드 │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 22.1 핵심 구조 및 기술적 특성
+1. **64B L1 캐시 정렬 스팀 업적 엔진 (`AchievementTracker`)**:
+   * 업적 해금 상태와 텔레메트리 통계가 단일 64바이트 L1 캐시 라인에 상주하여 매 펀치, 가드, 피격마다 호출되어도 오버헤드가 0에 수렴.
+   * `render_achievement_toast`를 통해 스팀 네이티브 오버레이 없이도 독립형 게임 클라이언트에서 미려한 골든 알림 팝업 제공.
+2. **2D 텍스처 페인터 ➔ 3D 소프트웨어 래스터라이저 실시간 바인딩**:
+   * 유저가 붓질을 하거나 스폰서 로고 데칼을 찍는 즉시 CPU 3D 래스터라이저의 텍스처 버퍼가 갱신되어 360° 턴테이블 메카 표면에 60 FPS로 실시간 투영.
+   * 제작한 커스텀 텍스처는 스팀 워크숍 부품 패키징(`.axmod`) 규격과 호환되는 PNG 이미지로 즉각 다운로드 가능.
+
 
 

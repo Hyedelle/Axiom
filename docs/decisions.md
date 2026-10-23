@@ -789,6 +789,38 @@
   2. 전체 워크스페이스 버전을 v1.8.0에서 **v1.9.0**으로 공식 판올림하고 Git 태그 `v1.9.0`을 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-058] 64B L1 캐시 정렬 스팀 업적 상태 머신 (`AchievementState`) 및 FNV-1a 변조 검증 (T-115)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64바이트 L1 캐시 라인 단일 버퍼 상주 (`#[repr(C, align(64))]`)**: 업적 비트마스크(4B), 9개 텔레메트리 카운터(36B), 64-bit FNV-1a 체크섬(8B), 16B 패딩으로 캐시 미스 0을 달성하는 초경량 업적 상태 머신 실장.
+  2. **0-Float FNV-1a 변조 탐지 및 무결성 검증**: 매 갱신 시 상태 해시를 재계산하여 메모리 해킹 및 세이브 파일 조작을 구조적으로 차단.
+  3. **3초(180프레임) 슬라이드 애니메이션 스팀 온스크린 골든 토스트 HUD 팝업**: 순수 정수 알파 블렌딩 렌더러 `render_achievement_toast` 및 `saves/achievements.bin` 영구 누적 직렬화 완성.
+- **영향:** `crates/axiom-game/src/achievement.rs`, `crates/axiom-game/src/lib.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-059] 0-Float 2D 메카 커스텀 페인팅 엔진 & 절차적 데칼 스튜디오 (T-116)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **결정론 2D 텍스처 래스터라이징 원형 (`TextureMap`)**: 부동소수점을 완전히 배제하고 브러시 스트로크, 브레젠험 라인 보간, 경계 스택 기반 플러드 필, 스케일링 데칼 스탬퍼를 순수 정수 산술로 구축.
+  2. **7대 절차적 스팀웍스 데칼 템플릿**: `Star Badge`, `Hazard Stripes`, `Skull Stencil`, `Racing 01`, `AXIOM Sponsor`, `Target Reticle`, `Checkered Flag` 7종 데칼 절차적 생성 알고리즘 탑재.
+  3. **WASM 2D 캔버스 ➔ 3D 소프트웨어 래스터라이저 실시간 바인딩**: 웹 플레이어에서 2D 캔버스 조작 즉시 3D 메카 소프트웨어 래스터라이저에 60 FPS 실시간 텍스처 매핑 렌더링.
+- **영향:** `crates/axiom-render/src/texture.rs`, `crates/axiom-render/src/mesh3d.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-060] Axiom Engine v2.0.0 스팀 업적 & 데칼 에디터 마일스톤 공식 릴리즈 (T-117)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 64B L1 캐시 정렬 스팀 업적 상태 머신, 인게임 골든 토스트 팝업, 0-Float 2D 메카 텍스처 페인팅 엔진, 절차적 7대 데칼 스튜디오, WASM 2D-3D 실시간 바인딩 파이프라인을 통합 승인.
+  2. 전체 워크스페이스 버전을 v1.9.0에서 **v2.0.0**으로 공식 판올림하고 Git 태그 `v2.0.0`을 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
 
 
 
