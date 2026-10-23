@@ -33,11 +33,14 @@ use axiom_game::lobby::{
 use axiom_game::tournament::{
     TournamentBroadcastTelemetry, TournamentDirector, TournamentEngine, TournamentFighter,
 };
+use axiom_core::voxel_destruct::{VoxelVolume16, VOXEL_AIR, VOXEL_DIM, VOXEL_METAL, VOXEL_MOLTEN, VOXEL_STONE};
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
-use axiom_render::mesh3d::{parse_glb, MechaModel3D};
+use axiom_render::mesh3d::{parse_glb, MechaModel3D, PartMesh};
 use axiom_render::raster3d::{CelShadingPalette, Rasterizer3D};
 use axiom_render::texture::{DecalKind, TextureMap};
+use axiom_render::voxel_map::{deserialize_axvm, generate_voxel_preset, serialize_axvm, VoxelPreset};
+use axiom_render::voxel_mesh::extract_voxel_mesh;
 use axiom_render::{cos_bams, sin_bams, FrameBuffer};
 
 #[allow(static_mut_refs)]
@@ -4053,6 +4056,272 @@ pub extern "C" fn axiom_leaderboard_get_rank(id_lo: u32, id_hi: u32) -> u32 {
     lb.rank_of(steam_id).map(|r| r as u32).unwrap_or(0)
 }
 
+// ---------------------------------------------------------------------------
+// 3D Destructible Voxel Terrain Studio & Real-time Benchmark Engine (T-128)
+// ---------------------------------------------------------------------------
+
+struct WasmVoxelEngine {
+    volume: VoxelVolume16,
+    framebuffer: FrameBuffer,
+    rasterizer: Rasterizer3D,
+    extracted_mesh: Option<PartMesh>,
+    yaw_bam: u8,
+    pitch_bam: u8,
+    cam_dist: Fixed,
+    focal_length: i64,
+    last_triangles: u32,
+    preset_id: u32,
+    staged_axvm: Vec<u8>,
+}
+
+#[allow(static_mut_refs)]
+static mut VOXEL_ENGINE: Option<WasmVoxelEngine> = None;
+
+#[cfg(test)]
+fn voxel_engine_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap()
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_init(width: u32, height: u32, preset_id: u32, seed: u32) {
+    let preset = match preset_id {
+        0 => VoxelPreset::FlatArena,
+        1 => VoxelPreset::CrateredArena,
+        2 => VoxelPreset::FortifiedBunker,
+        3 => VoxelPreset::MonolithRuins,
+        4 => VoxelPreset::VolcanicVent,
+        _ => VoxelPreset::CrateredArena,
+    };
+    let volume = generate_voxel_preset(preset, seed as u64);
+    let mesh = extract_voxel_mesh("voxel_scene", &volume, Fixed::from_raw(2048));
+    let tris = mesh.triangle_count() as u32;
+
+    let mut rasterizer = Rasterizer3D::new(width as usize, height as usize);
+    rasterizer.light_dir = Vec3Fixed::new(
+        Fixed::from_raw(32768),
+        Fixed::from_raw(49152),
+        Fixed::from_raw(-32768),
+    );
+
+    let engine = WasmVoxelEngine {
+        volume,
+        framebuffer: FrameBuffer::new(width as usize, height as usize),
+        rasterizer,
+        extracted_mesh: Some(mesh),
+        yaw_bam: 24,
+        pitch_bam: 236,
+        cam_dist: Fixed::from_raw(262144), // 4.0m
+        focal_length: 220,
+        last_triangles: tris,
+        preset_id,
+        staged_axvm: Vec::new(),
+    };
+
+    unsafe {
+        VOXEL_ENGINE = Some(engine);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_carve_sphere(
+    cx: i32,
+    cy: i32,
+    cz: i32,
+    radius: i32,
+    fill_material: u32,
+) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+    let carved = eng.volume.carve_sphere(
+        cx as i16,
+        cy as i16,
+        cz as i16,
+        radius as i16,
+        fill_material as u8,
+    );
+    let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+    eng.last_triangles = mesh.triangle_count() as u32;
+    eng.extracted_mesh = Some(mesh);
+    carved
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_carve_crater(cx: i32, cz: i32, depth: i32, radius: i32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+    let carved = eng.volume.carve_crater(cx as i16, cz as i16, depth as i16, radius as i16);
+    let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+    eng.last_triangles = mesh.triangle_count() as u32;
+    eng.extracted_mesh = Some(mesh);
+    carved
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_step(yaw_delta: i32, pitch_delta: i32) {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return,
+    };
+    eng.yaw_bam = (eng.yaw_bam as i32 + yaw_delta).rem_euclid(256) as u8;
+    eng.pitch_bam = (eng.pitch_bam as i32 + pitch_delta).clamp(180, 255) as u8;
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_render() -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    eng.framebuffer.clear(0xFF0F172A); // Dark slate background
+    eng.rasterizer.clear_depth();
+
+    let mesh = match &eng.extracted_mesh {
+        Some(m) => m,
+        None => return 0,
+    };
+
+    let rot_y = Mat4Fixed::from_rotation_y(eng.yaw_bam);
+    let rot_x = Mat4Fixed::from_rotation_x(eng.pitch_bam);
+    let trans = Mat4Fixed::from_translation(Vec3Fixed::from_raw(0, 0, 15000));
+    let world_mat = trans.mul_mat(&rot_x.mul_mat(&rot_y));
+
+    eng.rasterizer.render_part(
+        &mut eng.framebuffer,
+        mesh,
+        &world_mat,
+        eng.cam_dist,
+        eng.focal_length,
+    );
+
+    eng.last_triangles
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_framebuffer_ptr() -> *const u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.framebuffer.pixels.as_ptr())
+            .unwrap_or(core::ptr::null())
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_framebuffer_len() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.framebuffer.pixels.len() as u32)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_solid_count() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.volume.total_solid)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_damaged_count() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.volume.damaged_count)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_triangles() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.last_triangles)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_benchmark(iterations: u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let mut test_vol = eng.volume;
+    let mut total_tris = 0u32;
+
+    for i in 0..iterations {
+        let cx = ((i * 3) % 12 + 2) as i16;
+        let cz = ((i * 5) % 12 + 2) as i16;
+        test_vol.carve_crater(cx, cz, 3, 4);
+        let m = extract_voxel_mesh("bench", &test_vol, Fixed::from_raw(2048));
+        total_tris = total_tris.wrapping_add(m.triangle_count() as u32);
+    }
+
+    total_tris
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_alloc_axvm_buffer(len: u32) -> *mut u8 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return core::ptr::null_mut(),
+    };
+    eng.staged_axvm.resize(len as usize, 0);
+    eng.staged_axvm.as_mut_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_load_staged_axvm(len: u32) -> i32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+    if len as usize > eng.staged_axvm.len() {
+        return 0;
+    }
+    match deserialize_axvm(&eng.staged_axvm[..len as usize]) {
+        Ok((header, volume)) => {
+            eng.volume = volume;
+            eng.preset_id = header.preset_id as u32;
+            let mesh = extract_voxel_mesh("loaded_axvm", &eng.volume, Fixed::from_raw(2048));
+            eng.last_triangles = mesh.triangle_count() as u32;
+            eng.extracted_mesh = Some(mesh);
+            1
+        }
+        Err(_) => 0,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_export_axvm(out_ptr: *mut u8, max_len: u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_ref() } {
+        Some(e) => e,
+        None => return 0,
+    };
+    if out_ptr.is_null() || max_len < 4160 {
+        return 0;
+    }
+    let bytes = serialize_axvm("WASM Export", eng.preset_id as u16, &eng.volume, 1729700000);
+    let copy_len = bytes.len().min(max_len as usize);
+    unsafe {
+        core::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, copy_len);
+    }
+    copy_len as u32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4763,5 +5032,50 @@ mod tests {
         assert_eq!(m_stats[2], 1250);
         assert_eq!(m_stats[3], 1); // Player2
         assert_eq!(m_stats[4], 1); // Ready
+    }
+
+    #[test]
+    fn test_voxel_destruction_wasm_bindings() {
+        let _g = voxel_engine_lock();
+
+        // 1. Initialize Bunker
+        axiom_voxel_init(128, 128, 2, 777);
+        assert!(!axiom_voxel_get_framebuffer_ptr().is_null());
+        assert_eq!(axiom_voxel_get_framebuffer_len(), 128 * 128);
+        let solid_init = axiom_voxel_get_solid_count();
+        assert!(solid_init > 0);
+        let tris_init = axiom_voxel_get_triangles();
+        assert!(tris_init > 0);
+
+        // 2. Render initial frame
+        let rendered_tris = axiom_voxel_render();
+        assert_eq!(rendered_tris, tris_init);
+
+        // 3. Step camera rotation
+        axiom_voxel_step(16, -10);
+
+        // 4. Carve sphere blast into bunker floor
+        let carved = axiom_voxel_carve_sphere(8, 3, 8, 3, 0);
+        assert!(carved > 0);
+        assert!(axiom_voxel_get_solid_count() < solid_init);
+        assert_eq!(axiom_voxel_get_damaged_count(), carved);
+
+        // 5. Run benchmark
+        let bench_result = axiom_voxel_benchmark(5);
+        assert!(bench_result > 0);
+
+        // 6. Export .axvm
+        let mut export_buf = [0u8; 4160];
+        let exported_len = axiom_voxel_export_axvm(export_buf.as_mut_ptr(), 4160);
+        assert_eq!(exported_len, 4160);
+
+        // 7. Load staged .axvm
+        let alloc_ptr = axiom_voxel_alloc_axvm_buffer(4160);
+        assert!(!alloc_ptr.is_null());
+        unsafe {
+            core::ptr::copy_nonoverlapping(export_buf.as_ptr(), alloc_ptr, 4160);
+        }
+        let load_ok = axiom_voxel_load_staged_axvm(4160);
+        assert_eq!(load_ok, 1);
     }
 }
