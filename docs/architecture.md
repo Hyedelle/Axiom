@@ -1294,6 +1294,52 @@ Axiom 210대 과제(T-182 ~ T-187)에서는 엔진의 헌법(0-Float, 64-Byte L1
    - `dispatch_events_with_jobs` 및 `filter_entities_with_jobs`를 통해 Chase-Lev 워커 풀에 N-배치 작업을 분산하여 락 없이 이벤트를 병렬 처리합니다.
    - `mimic-the-show`의 `DesktopGameView`에 `DeterministicEventBus<64>` 및 `dispatch_event_bus_pipeline`을 탑재하여 16-슬랩 스택 무할당 배치 배출을 통해 공간 음향, 2D/3D 파티클 비산, 카메라 임팩트 셰이크 및 `F3` HUD 카드 텔레메트리를 실시간 연동합니다.
 
+---
+
+## 38. Axiom 220대: 차세대 공간 해싱 & 브로드페이즈 충돌 감지 가속 엔진 (v3.6.0)
+
+Axiom 220대 과제(T-188 ~ T-193)에서는 엔진의 헌법(0-Float, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 어레이)을 철저히 사수하며, 수천 개 엔티티 간 $O(N^2)$ 충돌 전수 조사를 $O(N)$으로 가속하는 **3D 공간 해싱 그리드(`SpatialHashGrid<TABLE_CAP, CELL_CAP>`)**와 중복 충돌 쌍을 동적 할당 없이 0-힙으로 제거하는 **사전식 최소 겹침 규칙(Lexicographical Minimum Overlap Rule)**, 그리고 멀티스레드 워커 풀 병렬 디스패치 파이프라인을 구축했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│       Axiom 220-Series Spatial Hashing & Broadphase Architecture            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (AabbSlab64 & SpatialCell64)]        │
+│    - AabbSlab64: Natural 64B Alignment (8B mask/data, 4B coords/flags)      │
+│    - SpatialCell64<CAP = 14>: Fixed 64B Cell with 14 inline entity slots    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Wang-Coprime 3D Spatial Hash & Flat Array Grid]                         │
+│    - 3-Prime Coprime (73856093, 19349663, 83492791) + Wang Finalizer Mix   │
+│    - 0-Heap Flat Array: SpatialHashGrid<TABLE_CAP = 1024, CELL_CAP = 14>    │
+│    - Power-of-Two Bitmask Modulo: bucket = hash & (TABLE_CAP - 1)           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [0-Heap Duplicate Elimination & Event Bus Physics Pipeline]              │
+│    - Lexicographical Minimum Overlap Rule: 0-HashSet Pair Deduplication    │
+│    - CollisionPair64: Canonical Ordered Pair ((min << 32) | max)            │
+│    - emit_collision_pairs_to_event_bus: channel::PHYSICS | 0x0220           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Job System Parallel Broadphase & Production Integration]                │
+│    - dispatch_broadphase_with_jobs: N-Worker Parallel Slab Chunk Dispatch   │
+│    - WASM Studio: 🌐 220 Spatial Broadphase (64B Slabs) Modal (1.30 MB)     │
+│    - Mimic The Show: DesktopGameView 64-Bucket Grid & F3 HUD Radar Contact  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 38.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 AABB 슬랩 (`AabbSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 L1 캐시 라인을 차지하며, 8바이트 필드(`layer_mask`, `user_data`)를 선두에 배치하고 4바이트 정수 좌표계(`min/max XYZ mm`, `entity_id`, `generation`, `flags`)와 12바이트 예약 패딩을 정렬하여 컴파일러 임시 패딩 없는 자연 정렬 64B 슬랩을 구현했습니다.
+2. **Wang 3-Prime 코프라임 3D 정수 공간 해시 함수 (`spatial_hash_3d`)**:
+   - Matthias Müller 알고리즘 기반 대형 소수 3-곱셈(`73856093`, `19349663`, `83492791`)과 Wang Integer Hash Finalizer 비트 믹싱을 결합하여, 음수 좌표 및 대각선 셀 클러스터링 환경에서도 테이블 버킷 전역에 완벽한 균등 분산도를 달성했습니다.
+3. **사전식 최소 겹침 규칙 (Lexicographical Minimum Overlap Rule)**:
+   - 두 AABB가 여러 공간 셀에 걸쳐 중복 교차할 때, 겹침 영역의 최소 정수 셀 좌표 `(cx, cy, cz)`에서만 충돌 쌍(`CollisionPair64`)을 등록함으로써, `HashSet`이나 동적 힙 할당 없이 $O(1)$ 공간 복잡도로 100% 중복 쌍을 완벽 제거했습니다.
+4. **결정론적 분산 이벤트 버스 및 비동기 워커 풀 파이프라인 결합**:
+   - 검출된 충돌 쌍은 `EVENT_BROADPHASE_PAIR = 0x0220` 및 `channel::PHYSICS` 채널로 `DeterministicEventBus`에 0-힙 방출되어 사운드, 파티클, 강체 역학 물리 솔버로 즉시 전달됩니다.
+   - `dispatch_broadphase_with_jobs`를 통해 활성 엔티티 슬랩을 N개 워커 배치로 분할하고 Chase-Lev 워커 풀에서 무잠금 병렬 검출을 수행합니다.
+5. **WASM 웹 스튜디오 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **🌐 220 Spatial Broadphase (64B Slabs)** 전용 모달을 연동하여 1.30 MB WASM 바이너리 상에서 실시간 벤치마크 및 64비트 FNV-1a 상태 합의 체크섬을 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `SpatialHashGrid<64, 14>`를 탑재하여 챔피언십 링 복싱 물리와 16-인 배틀로얄 HUD 레이더에 실시간 충돌 접촉 경고를 일체화했습니다.
+
+
 
 
 

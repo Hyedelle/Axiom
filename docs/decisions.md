@@ -1517,6 +1517,48 @@
   3. 전체 워크스페이스 버전을 v3.4.0에서 **v3.5.0**으로 공식 판올림하고 `dist/axiom-v3.5.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.5.0` 발행.
 - **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-125] 0-Float 64B L1 캐시 정렬 바운딩 박스 슬랩 AabbSlab64 및 공간 셀 SpatialCell64 (T-188, T-189)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 구조체 `AabbSlab64` 구현: 8바이트 필드(`layer_mask`, `user_data`)를 선두에 두고 4바이트 좌표(`min_x/y/z`, `max_x/y/z`), 식별자(`entity_id`, `generation`, `flags`), 12바이트 예약 패딩을 정렬하여 컴파일러 암시적 패딩 없는 자연 정렬 64B 슬랩 완성.
+  2. `#[repr(C, align(64))]` 구조체 `SpatialCell64<CAP = 14>` 구현: 버킷당 최대 14개 `u32` 엔티티 ID 슬롯을 인라인 보유하는 고정 64B 슬랩.
+- **영향:** `crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/src/lib.rs`.
+
+---
+
+### [D-126] 3-Prime Coprime + Wang Integer Finalizer 3D 공간 해시 함수 및 0-힙 SpatialHashGrid (T-189)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 대형 소수 3-곱셈(`73856093`, `19349663`, `83492791`)과 Wang Integer Hash Finalizer 비트 믹싱을 결합한 3D 정수 해시 함수 `spatial_hash_3d` 채택. 음수 좌표 및 대각선 셀 클러스터 전역에서 균등 분포 달성.
+  2. 0-힙 플랫 배열 해시 테이블 `SpatialHashGrid<TABLE_CAP, CELL_CAP>` 구현. 2의 거듭제곱 비트마스크 모듈로 인덱싱 및 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash` 탑재.
+- **영향:** `crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/tests/test_spatial_grid.rs`.
+
+---
+
+### [D-127] 사전식 최소 겹침 규칙(Lexicographical Minimum Overlap Rule) 기반 0-할당 중복 쌍 제거 (T-189, T-190)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 여러 공간 셀에 걸쳐 중복 교차하는 두 AABB에 대해, 겹침 영역의 최소 정수 셀 좌표 `(cx, cy, cz)`에서만 충돌 쌍(`CollisionPair64`)을 등록하는 사전식 최소 겹침 규칙 채택. 동적 힙 `HashSet` 없이 $O(1)$ 공간 복잡도로 100% 중복 쌍 제거.
+  2. `emit_collision_pairs_to_event_bus`: 검출된 충돌 쌍을 `EVENT_BROADPHASE_PAIR = 0x0220` 및 `channel::PHYSICS` 채널로 `DeterministicEventBus`에 0-힙 방출하여 GGPO 롤백 지원.
+- **영향:** `crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-128] 멀티스레드 잡 시스템 브로드페이즈 분할, WASM 쇼케이스, Mimic The Show 결합 및 공식 릴리즈 v3.6.0 (T-190, T-191, T-192, T-193)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `dispatch_broadphase_with_jobs`: 엔티티 슬랩 N-배치 분할 후 Chase-Lev 워커 풀에 병렬 디스패치.
+  2. WASM C-ABI 신규 엔드포인트 `axiom_spatial_bench_broadphase` 및 웹 3D 복셀 스튜디오 🌐 **220 Spatial Broadphase (64B Slabs)** 대화형 모달 배포 (1.30 MB WASM).
+  3. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `SpatialHashGrid<64, 14>` 내장, `step_broadphase_pipeline`을 통한 실시간 복싱 히트박스 브로드페이즈 및 F3 HUD 카드(`Grid: 64 Buckets | Pairs: {} | 64B`), 56x56 미니 레이더 충돌 경고 인디케이터, 하단 `[GRID: {}P]` 연동.
+  4. 전체 워크스페이스 버전을 v3.5.0에서 **v3.6.0**으로 공식 판올림하고 `dist/axiom-v3.6.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.6.0` 발행.
+- **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
 
 
 
