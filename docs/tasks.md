@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-164: Mimic The Show 16-인 배틀로얄 분산 롤백 넷코드 관전/HUD 및 대형 마일스톤 통합** (`mimic-the-show/src/view.rs`, `crates/axiom-game/src/network.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-165: Axiom 170대 차세대 GPU 가속 & 분산 롤백 넷코드 공식 릴리즈 v3.1.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-166: Axiom 180대 WebGPU Compute 실시간 복셀 광선 추적(Raymarching) 렌더러 기반 연구** (`crates/axiom-render/src/gpu_backend.rs`, `crates/axiom-core/src/voxel_destruct.rs`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-164: Mimic The Show 16-인 배틀로얄 분산 롤백 넷코드 관전/HUD 및 대형 마일스톤 통합** (`mimic-the-show/src/view.rs`, `crates/axiom-game/src/network.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `mimic-the-show/Cargo.toml`, 16-플레이어 P2P 배틀로얄 분산 롤백 넷코드 시뮬레이션 파이프라인 일체화 [`NetworkMatchDirector`], 글로벌 F3 핫키 [16-PEER DISTRIBUTED ROLLBACK: 33k TPS | 16/16 CONSENSUS | 0 DESYNC] 토글 및 보라색 배너 알림, 16-플레이어 원형 레이더 미니맵 [56x56] 및 실시간 패킷 손실/지연/롤백 횟수/디싱크 모니터링 HUD 카드, 인게임 조작 [Jab/Guard/Move] 실시간 물리 패킷 인젝션, 19개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-163: Axiom 170대 GPU Compute 셰이더 및 분산 롤백 넷코드 통합 벤치마크 & WASM 스튜디오 쇼케이스** (`crates/axiom-render/src/gpu_backend.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_net_bench_rollback` [16-피어 롤백 벤치마크, 15% 손실/66ms 지연 하 16/16 전원 합의 및 0 디싱크 실시간 계측] 및 `axiom_gpu_bench_compute` [WebGPU/Vulkan/DX12/Metal 64B L1 슬랩 디스패치 서술자], 웹 3D 복셀 스튜디오 🌐 **16-Peer Netcode (33k TPS)** 및 ⚡ **GPU Compute (WebGPU)** 인터랙티브 모달 & 텔레메트리 HUD 연동, 1.26 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-162: Axiom 분산 롤백 넷코드 16-플레이어 물리 상태 동기화 및 패킷 손실 방어** (`crates/axiom-net/src/rollback.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-game/tests/test_network_match.rs`, 0-Float 64B L1 캐시 정렬 물리 엔티티 슬랩 `PlayerPhysicalState64` [#[repr(C, align(64))], exact 64B slab, 위치/속도/체력/스태미나/피격경직/히트카운트/가드], 16-플레이어 물리 월드 스냅샷 `PhysicalWorldSnapshot` [정확히 17개 64B L1 슬랩 = 1,088B], 원형 경기장 경계 클램핑 [ARENA_RADIUS_MM = 6,000mm], 탄성 분리 충돌 및 타격 판정 [Jab 45 dmg, Heavy 110 dmg, 가드 시 75% 뎀감], 16-플레이어 완전 그물망 스냅샷 롤백 엔진 `NetworkMatchDirector`, 20% 극심한 패킷 손실 및 66ms 지연 하 16대 피어 전원 100% 비트 일치 물리 합의 입증 [위치/체력/FNV-1a 해시 전원 일치, 0 Desync], 4개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-161: Axiom 170대 차세대 GPU 가속 & 분산 롤백 넷코드 아키텍처 연구** (`crates/axiom-net`, `crates/axiom-render`, `crates/axiom-cli`, 0-Float 64B L1 캐시 정렬 분산 롤백 세션 `DistributedRollbackSession` [#[repr(C, align(64))] `NetPacket64` & `NetTelemetry64` 64바이트 와이어 패킷/텔레메트리], 16-플레이어 P2P 완전 그물망 [Full-Mesh] 무잠금 비트 결정론 롤백 아키텍처, 8-프레임 슬라이딩 윈도우 중복 패킷 전송을 통한 15% 패킷 손실 자동 복구 및 무정지 스트리밍, 4-프레임[66ms] 지연 환경 하 휴리스틱 입력 예측 및 투기적 롤백 재시뮬레이션 [528,905 프레임 무결성 재시뮬레이션], 64-bit FNV-1a 상태 합의 비트 일치 검증 [16/16 전원 합의 달성, 0 Desync 이벤트], 33,797+ Peer-Frames/sec 초고속 넷코드 처리량, GPU 컴퓨트 디스패치 서술자 `VoxelComputeDispatch64` [정확히 64B L1 슬랩 유지], `axiom net bench` CLI 벤치마크 도구군, 5개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
