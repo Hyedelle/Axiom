@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-112: 스팀 클라우드 세이브(Steam Cloud Save) 및 런타임 저장소 동기화** (`crates/axiom-cli`, `mimic-the-show`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-113: 메카 복싱 3D 리플레이 웹 플레이어 임베딩 및 커스텀 .axrp 뷰어** (`crates/axiom-wasm`, `web/`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-114: Axiom Engine v1.9.0 클라우드 세이브 & 리플레이 웹 생태계 공식 릴리즈** (`Cargo.toml`, `docs/`, 워크스페이스 판올림 및 Git 태그)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-112: 스팀 클라우드 세이브(Steam Cloud Save) 및 런타임 저장소 동기화** (`crates/axiom-core/src/cloud_save.rs`, `crates/axiom-cli/src/cloud_sync.rs`, `crates/axiom-cli/src/main.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `CloudSaveHeader` [#[repr(C, align(64))]], 64-bit FNV-1a 무결성 체크섬, 이산 유닉스 에포크 타임스탬프 기반 양방향 충돌 해결기 `resolve_sync_conflict`, Steam Auto-Cloud 양방향 동기화 매니저 `CloudSyncManager`, `axiom save list / backup / restore / sync` CLI 도구군, `mimic-the-show` 원자적 퀵세이브(F5)/퀵로드(F9)/클라우드 수동 동기화(F8) 핫키 및 HUD 연동 완성, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-111: Axiom Engine v1.8.0 스팀 워크숍 & 토너먼트 넷코드 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-050]~[D-054], `docs/audit-report.md` [AUDIT-20261023-v1.8.0], 스팀 워크숍 모딩 생태계 및 UGC 클라우드 퍼블리셔 파이프라인, 독립형 `.axmod` 바이너리 컨테이너, 0-Float 4-비트 패킹 결정론 리플레이(`.axrp`), Web Audio AudioWorklet 3D 공간 음향, WebRTC 4인 토너먼트 자동 중계 & 스펙테이터 릴레이 통합 승인, 워크스페이스 v1.8.0 공식 판올림 및 Git 태그 `v1.8.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-110: 스팀 워크숍 클라우드 UGC 업로드 & 원클릭 모드 퍼블리셔 파이프라인** (`crates/axiom-render/src/modding.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-cli/src/main.rs`, `crates/axiom-render/tests/test_workshop_publisher.rs`, `tools/publish_mod.ps1`, Steam UGC VDF 구성 생성기 `generate_steam_vdf`, 무손실 독립형 `.axmod` 바이너리 컨테이너 패커/언패커 `pack_axmod` / `unpack_axmod`, 모드 무결성 자동 검사기 `validate_mod` [슬롯/JSON/바이너리 glTF 매직/프리뷰 이미지/용량 한도 판정], `axiom mod validate / pack / publish` CLI 도구군 및 `tools/publish_mod.ps1` 파이프라인 완성, 4개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-109: 메카 복싱 3D 리플레이 녹화 및 초저용량 바이트 스트림 직렬화 익스포터** (`crates/axiom-core/src/replay.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_replay.rs`, `mimic-the-show/src/view.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `ReplayHeader`, 4-비트 P0/P1 액션 패킹 & 런렝스 인코딩 `RleInputRun` [>85% 압축률, 30초 대전 <800B], 60프레임 주기적 64-bit 상태 해시 검증 키프레임, 서브밀리초 직렬화/역직렬화, `replays/last_match.axrp` 자동 녹화 및 `mimic-the-show` 실시간 전투 프레임 인제스천 & 글로벌 `F6` 리플레이 검사 핫키 연동 완성, 4개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

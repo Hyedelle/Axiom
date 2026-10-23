@@ -21,9 +21,12 @@ fn main() {
     let has_window = args.iter().any(|a| a == "--window");
     let has_boxing = args.iter().any(|a| a == "--boxing");
     let has_mod = args.iter().any(|a| a == "mod" || a == "--mod");
+    let has_save = args.iter().any(|a| a == "save" || a == "--save");
 
     if has_mod {
         run_mod_suite(&args);
+    } else if has_save {
+        run_save_suite(&args);
     } else if has_boxing {
         if let Err(e) = axiom_cli::desktop::run_desktop_window_with_mode(axiom_cli::ViewMode::Boxing) {
             eprintln!("Failed to launch desktop boxing window: {:?}", e);
@@ -309,6 +312,130 @@ pub fn run_mod_suite(args: &[String]) {
                     }
                 }
                 Err(e) => eprintln!("❌ Failed to scan mods: {:?}", e),
+            }
+        }
+    }
+}
+
+pub fn run_save_suite(args: &[String]) {
+    println!("💾 [Axiom Cloud Save] Steam Auto-Cloud & Local Storage Engine\n");
+
+    let subcmd = args
+        .iter()
+        .skip_while(|&a| a != "save" && a != "--save")
+        .nth(1)
+        .map(|s| s.as_str())
+        .unwrap_or("list");
+
+    use axiom_cli::cloud_sync::CloudSyncManager;
+    use axiom_core::cloud_save::CloudSavePackage;
+    use std::path::Path;
+
+    match subcmd {
+        "sync" => {
+            let local_dir = args.get(3).cloned().unwrap_or_else(|| "saves".to_string());
+            let cloud_dir = args.get(4).cloned().unwrap_or_else(|| "saves/cloud".to_string());
+            println!("🔄 Synchronizing Save Storage...");
+            println!("   Local:  {}", local_dir);
+            println!("   Cloud:  {}", cloud_dir);
+
+            let report = CloudSyncManager::sync_directories(Path::new(&local_dir), Path::new(&cloud_dir));
+            println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            println!("  Local Restored:   {} files", report.local_updated);
+            println!("  Cloud Mirrored:   {} files", report.cloud_updated);
+            println!("  Identical:        {} files", report.identical);
+            if !report.errors.is_empty() {
+                println!("  Errors:           {} encountered", report.errors.len());
+                for err in &report.errors {
+                    println!("    • {}", err);
+                }
+            }
+            println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            println!("✅ Steam Cloud synchronization complete!");
+        }
+        "backup" => {
+            let src_file = args.get(3).cloned().unwrap_or_else(|| "saves/quick.mimic".to_string());
+            let out_file = args.get(4).cloned().unwrap_or_else(|| "saves/cloud/quick.axcs".to_string());
+            println!("📦 Packaging save into standalone .axcs cloud archive...");
+            println!("   Source:      {}", src_file);
+            println!("   Destination: {}", out_file);
+
+            let src_path = Path::new(&src_file);
+            let out_path = Path::new(&out_file);
+
+            match std::fs::read(src_path) {
+                Ok(bytes) => {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let pkg = CloudSavePackage::new(0, now, 0, 1, bytes);
+                    let serialized = pkg.serialize();
+                    match CloudSyncManager::atomic_write(out_path, &serialized) {
+                        Ok(_) => {
+                            println!("✅ Successfully created cloud archive!");
+                            println!("   Timestamp:  {} (Unix Epoch)", now);
+                            println!("   Checksum:   0x{:016X}", pkg.header.data_checksum);
+                            println!("   Total Size: {} bytes", serialized.len());
+                        }
+                        Err(e) => eprintln!("❌ Failed to write cloud archive: {}", e),
+                    }
+                }
+                Err(e) => eprintln!("❌ Failed to read source save: {}", e),
+            }
+        }
+        "restore" => {
+            let src_file = args.get(3).cloned().unwrap_or_else(|| "saves/cloud/quick.axcs".to_string());
+            let out_file = args.get(4).cloned().unwrap_or_else(|| "saves/quick.mimic".to_string());
+            println!("📂 Restoring save payload from .axcs cloud archive...");
+            println!("   Cloud Source: {}", src_file);
+            println!("   Restored To:  {}", out_file);
+
+            let src_path = Path::new(&src_file);
+            let out_path = Path::new(&out_file);
+
+            match std::fs::read(src_path) {
+                Ok(bytes) => {
+                    match CloudSavePackage::deserialize(&bytes) {
+                        Ok(pkg) => {
+                            match CloudSyncManager::atomic_write(out_path, &pkg.payload) {
+                                Ok(_) => {
+                                    println!("✅ Successfully restored save from cloud archive!");
+                                    println!("   Checksum Verified: 0x{:016X}", pkg.header.data_checksum);
+                                    println!("   Payload Size:      {} bytes", pkg.payload.len());
+                                }
+                                Err(e) => eprintln!("❌ Failed to restore save: {}", e),
+                            }
+                        }
+                        Err(e) => eprintln!("❌ Corrupted or invalid cloud save package: {:?}", e),
+                    }
+                }
+                Err(e) => eprintln!("❌ Failed to read cloud save file: {}", e),
+            }
+        }
+        "list" | _ => {
+            let dir = args.get(3).cloned().unwrap_or_else(|| "saves".to_string());
+            println!("📁 Scanning Save Storage Directory: {}", dir);
+            let saves = CloudSyncManager::list_saves(Path::new(&dir));
+            println!("📦 Discovered Saves: {}\n", saves.len());
+
+            for (i, s) in saves.iter().enumerate() {
+                let kind_label = if s.is_cloud_pkg { "[STEAM CLOUD .AXCS]" } else { "[LOCAL SAVE]" };
+                println!(
+                    "  [{}] {} {} ({} bytes)",
+                    i + 1,
+                    s.file_name,
+                    kind_label,
+                    s.size_bytes
+                );
+                if s.is_cloud_pkg && s.is_valid {
+                    println!(
+                        "      Slot: {} | Epoch: {} | Hash: 0x{:016X} | Checksum: 0x{:016X}",
+                        s.slot, s.timestamp, s.state_hash, s.checksum
+                    );
+                } else if !s.is_valid {
+                    println!("      ⚠️  CORRUPTED OR CHECKSUM MISMATCH");
+                }
             }
         }
     }

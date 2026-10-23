@@ -4,6 +4,7 @@
 
 pub mod balancer;
 pub mod boxing_view;
+pub mod cloud_sync;
 pub mod coop;
 pub mod desktop;
 pub mod replayer;
@@ -16,6 +17,7 @@ pub mod world_view;
 
 pub use balancer::{MatchStats, MonteCarloBalancer};
 pub use boxing_view::BoxingView;
+pub use cloud_sync::{CloudSyncManager, SaveFileInfo, SyncReport};
 pub use coop::{MultiplayerRaidPeer, RaidCommand, BOSS_ID, HERO_1_ID, HERO_2_ID};
 pub use desktop::{
     run_desktop_window, DesktopEngine, ProfilerMetrics, SaveFileHeader, ViewMode, DT_FIXED,

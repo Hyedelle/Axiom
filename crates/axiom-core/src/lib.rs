@@ -10,6 +10,7 @@
 
 pub mod audio;
 pub mod chunk;
+pub mod cloud_save;
 pub mod combat;
 pub mod effector;
 pub mod entity;
@@ -48,6 +49,10 @@ pub use chunk::{
     ChunkDeltaMap, ChunkHeader, ChunkManager, ChunkSlot, ChunkStreamStats, CHUNK_INDEX_BUCKETS,
     DEFAULT_CHUNK_SIZE, DEFAULT_DELTA_CAPACITY, DEFAULT_MAX_CHUNKS, DEFAULT_SPAWN_MIN_OPEN_AREA,
     DEFAULT_VIEW_RADIUS, SPAWN_WINDOW_MAX,
+};
+pub use cloud_save::{
+    resolve_sync_conflict, CloudSaveError, CloudSaveHeader, CloudSavePackage, SyncResolution,
+    CLOUD_SAVE_MAGIC, CLOUD_SAVE_VERSION,
 };
 pub use combat::{BattleArena, CombatUnit, DEFAULT_MAX_UNITS};
 pub use effector::{
