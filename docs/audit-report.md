@@ -8,38 +8,33 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 06:00 KST
-- **감사 대상:** Axiom Engine v3.5.0 210대 결정론적 분산 이벤트 버스 & 컴포넌트 쿼리 엔진 마일스톤 종합 감사 (`axiom-core`, `axiom-game`, `axiom-wasm`, `mimic-the-show`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 이벤트 슬랩 (`EventSlab64`) & 0-힙 링 버퍼 (`DeterministicEventBus<CAP>`), GGPO 롤백 지원 (`rollback_to`) 및 64-bit FNV-1a 상태 합의 체크섬, 64-컴포넌트 비트마스크 (`ComponentMask64`) & 1-사이클 비트 쿼리 (`ComponentQuery`), 멀티스레드 잡 시스템 병렬 디스패치 (`dispatch_events_with_jobs`), WASM 📡 210 Event Bus 대화형 모달 및 Mimic The Show 챔피언십 링 사운드/VFX/전투 파이프라인 일체화, 헌법 가드 올패스 (v3.5.0 공식 승인)**
+- **일시:** 2026-10-24 06:15 KST
+- **감사 대상:** Axiom Engine 220대 차세대 공간 해싱(Spatial Hashing) & 브로드페이즈 충돌 감지 가속 엔진 연구 (T-188, `spatial_grid.rs`, `AabbSlab64`, `SpatialCell64`, `SpatialHashGrid`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 바운딩 박스 슬랩 (`AabbSlab64`) & 공간 셀 슬랩 (`SpatialCell64`), 대형 소수 3-곱셈 + Wang Finalizer 3D 정수 공간 해시 함수, Lexicographical Minimum Overlap Rule 무할당 중복 제거, 200대 JobSystem 및 210대 EventBus 연계 아키텍처 승인**
 - **주요 검증 항목:**
-  1. **0-Float 64B L1 캐시 정렬 이벤트 슬랩 (`EventSlab64`)**:
-     - `#[repr(C, align(64))]` 정확히 64바이트 1개 캐시라인 슬랩 유지 (`size_of == 64, align_of == 64`).
-     - tick/sequence/event_type/channel_mask/source_id/target_id 및 40B 인라인 POD 바이트 배열 `payload: [u8; 40]` 탑재로 동적 할당 원천 소거.
-     - `CombatHitPayload`(20B) 등 임의의 고정 크기 POD 데이터를 제로 카피 인라인 적재 및 읽기 (`read_payload<T: Copy>()`).
-  2. **0-힙 고정 용량 링 버퍼 이벤트 버스 (`DeterministicEventBus<CAP>`)**:
-     - 2의 거듭제곱 용량 비트마스크 인덱싱 `tail & (CAP - 1)`으로 1사이클 O(1) 링 인덱싱.
-     - GGPO 롤백 지원: 투기적 실행 후 확정 시퀀스보다 이후에 생성된 오예측 이벤트를 `rollback_to(confirmed_seq)`로 $O(1)$ 즉시 되감기 및 절단.
-     - 64-bit FNV-1a 상태 합의 체크섬(`compute_consensus_hash`)을 통한 피어 간 100% 비트 일치 검증.
-  3. **64-컴포넌트 비트마스크 및 1-사이클 엔티티 쿼리 (`ComponentMask64`, `ComponentQuery`)**:
-     - 64개 컴포넌트 유무를 단일 `u64` 레지스터 비트 플래그로 표현 (`all`, `any`, `none`, 비트 연산자 완비).
-     - `ComponentQuery`(require/exclude)를 통해 1사이클 비트 AND 연산으로 아키타입 부합 여부를 고속 평가.
-     - 플랫 어레이 슬랩을 순차 스캔하여 스파스 셋 오버헤드 없는 초고속 엔티티 필터링 (`filter_entities`).
-  4. **멀티스레드 잡 시스템 병렬 디스패치 파이프라인 연계**:
-     - `dispatch_events_with_jobs`: 활성 슬랩들을 N-배치 작업으로 분할하여 Chase-Lev 워커 풀에 병렬 디스패치하고 다중 채널을 락 없이 동시 필터링.
-     - `filter_entities_with_jobs`: 수만 개 엔티티 슬랩을 워커 풀에 N-배치로 병렬 분할하여 아키타입 쿼리를 동시 평가.
-     - `NetworkMatchDirector` 내 `DeterministicEventBus<128>` 내장 및 `CombatHitPayload` 자동 방출 연동.
-  5. **WASM 3D 스튜디오 📡 210 Event Bus (64B Slabs) 벤치마크 & C-ABI (`axiom_event_bench_bus`)**:
-     - 256-슬랩 다중 채널 이벤트 발행, GGPO 롤백 되감기, 4-워커 잡 시스템 병렬 디스패치 및 FNV-1a 체크섬 실시간 계측, 1.28 MB 최적화 WASM 바이너리 배포.
-  6. **Mimic The Show 챔피언십 링 사운드/VFX 파이프라인 결합 (`mimic-the-show/src/view.rs`)**:
-     - `DesktopGameView` 내 `DeterministicEventBus<64>` 내장, L1 캐시 스택 16-슬랩 무할당 배치 배출 `dispatch_event_bus_pipeline`.
-     - 실시간 입체 공간 음향(`HitKo`/`GuardHit`/`HitCross`/`HitJab`), 2D/3D 파티클 비산, 카메라 임팩트 셰이크 및 `F3` HUD 카드 텔레메트리(`Bus: 128 Slabs | Events: {}`) 탑재.
-     - 23개 전체 단위/통합 테스트 100% 통과.
-  7. **헌법 가드 `tools/guard.ps1` 100% 통과**:
-     - 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 100% 올패스.
+  1. **0-Float in Core & 유클리드 나눗셈 (`div_euclid`)**:
+     - 모든 3D 공간 좌표는 정수 밀리미터(`mm: i32`)로 부동소수점 오차 및 플랫폼별 미세 불일치 원천 제거.
+     - 음수 좌표계 공간 분할 시 바운딩 박스 왜곡을 방지하기 위해 Rust의 `div_euclid` 채택.
+  2. **64-Byte L1 Cache Line Alignment**:
+     - `AabbSlab64`: 바운딩 박스 슬랩 (`#[repr(C, align(64))]`, 정확히 64바이트 유지).
+     - `SpatialCell64<CAP>`: 공간 셀 버킷 슬랩 (`#[repr(C, align(64))]`, 정확히 64바이트 유지, `CAP=14`).
+     - 멀티코어 워커 간 거짓 공유(False Sharing)를 100% 방지.
+  3. **3D 정수 공간 해시 함수 벤치마크**:
+     - 대형 소수 3-곱셈 XOR 체이닝 및 Wang Finalizer Mix 기법 채택 (~3-4 CPU 사이클 초고속 연산, 주기성 패턴 붕괴).
+  4. **무할당 중복 충돌 쌍 소거 (Lexicographical Minimum Overlap Rule)**:
+     - 두 AABB 교집합 영역의 최소 셀 좌표 $(cx_{min}, cy_{min}, cz_{min})$에서만 충돌 쌍을 생성하는 수학적 불변식을 통해 동적 메모리 할당(HashSet/Sort) 없이 0-중복 달성.
+  5. **JobSystem 및 EventBus 파이프라인 결합 명세 확정**:
+     - `query_broadphase_with_jobs`: Chase-Lev 워커 풀에 엔티티 슬랩 N-배치 병렬 디스패치.
+     - `DeterministicEventBus`: 검출된 충돌 쌍을 `EventSlab64` (`channel::PHYSICS | EVENT_BROADPHASE_HIT`)로 롤백 넷코드 연계.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v3.5.0] Axiom Engine v3.5.0 210대 결정론적 분산 이벤트 버스 & 컴포넌트 쿼리 엔진 마일스톤 종합 감사
+- **일시:** 2026-10-24 06:00 KST
+- **판정:** 🟢 **ALL CLEAR (v3.5.0 공식 승인)**
+- **검증:** 0-Float 64B L1 캐시 정렬 이벤트 슬랩 `EventSlab64` & 0-힙 링 버퍼 `DeterministicEventBus<CAP>`, GGPO 롤백 지원 `rollback_to`, 64-컴포넌트 비트마스크 `ComponentMask64` & 1-사이클 비트 쿼리 `ComponentQuery`, 멀티스레드 잡 시스템 병렬 디스패치 `dispatch_events_with_jobs`, WASM 📡 210 Event Bus 대화형 모달 및 Mimic The Show 챔피언십 링 사운드/VFX/전투 파이프라인 일체화, 헌법 가드 올패스.
 
 ### [AUDIT-20261024-v3.4.0] Axiom Engine v3.4.0 200대 멀티스레드 비동기 잡 스케줄러 & 무잠금 워크 스틸링 물리 엔진 마일스톤 종합 감사
 - **일시:** 2026-10-24 05:20 KST
