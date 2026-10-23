@@ -13,7 +13,7 @@ pub mod particles3d;
 pub mod raster3d;
 pub mod sprites;
 
-pub use camera3d::Camera3D;
+pub use camera3d::{Camera3D, CameraShot};
 pub use cutin::{render_cutin_overlay, CutinKind};
 pub use framebuffer::{upscale_nearest_2x, FrameBuffer};
 pub use kinematics3d::{

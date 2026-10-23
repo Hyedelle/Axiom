@@ -6,6 +6,9 @@ use axiom_render::FrameBuffer;
 
 #[test]
 fn test_camera_punch_zoom_and_kinematics() {
+    assert_eq!(std::mem::size_of::<Camera3D>(), 64, "Camera3D must be exactly 64 bytes");
+    assert_eq!(std::mem::align_of::<Camera3D>(), 64, "Camera3D must be 64-byte aligned");
+
     let mut cam = Camera3D::default();
     let initial_dist = cam.effective_distance();
 
@@ -13,7 +16,15 @@ fn test_camera_punch_zoom_and_kinematics() {
     cam.trigger_punch_zoom(Fixed::from_int(1));
     assert!(cam.effective_distance() < initial_dist, "Punch zoom must reduce distance");
 
-    // Kinematic spring decay
+    // Impact shake trigger
+    cam.trigger_impact_shake(8);
+    assert_ne!(cam.shake_x, 0);
+
+    // Camera shot mode transition
+    cam.set_shot_mode(axiom_render::camera3d::CameraShot::PlayerCorner);
+    assert_eq!(cam.target_yaw, 18);
+
+    // Kinematic spring decay and yaw interpolation
     for _ in 0..30 {
         cam.step_kinematics();
     }
@@ -22,6 +33,8 @@ fn test_camera_punch_zoom_and_kinematics() {
         initial_dist,
         "Camera must return to initial distance after spring decay"
     );
+    assert_eq!(cam.orbit_yaw, 18, "Camera yaw must interpolate to target");
+    assert_eq!(cam.shake_x, 0, "Shake must decay to zero");
 }
 
 #[test]
@@ -79,4 +92,24 @@ fn test_debris_and_ground_bounce() {
         }
     }
     assert!(bounced, "Debris particle must bounce upward off the floor");
+}
+
+#[test]
+fn test_camera_view_matrix_and_shot_presets() {
+    let mut cam = Camera3D::default();
+    cam.orbit_yaw = 0;
+    cam.orbit_pitch = 0;
+
+    let vm = cam.compute_view_matrix();
+    let pt = cam.target;
+    let pt_trans = vm.transform_point(pt);
+
+    // Target point must be invariant under view rotation around target
+    assert_eq!(pt_trans.x.raw(), pt.x.raw());
+    assert_eq!(pt_trans.y.raw(), pt.y.raw());
+    assert_eq!(pt_trans.z.raw(), pt.z.raw());
+
+    // Switch to Knockdown low angle
+    cam.set_shot_mode(axiom_render::camera3d::CameraShot::KnockdownLowAngle);
+    assert_eq!(cam.target_pitch, 250);
 }
