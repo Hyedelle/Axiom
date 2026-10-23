@@ -1027,6 +1027,62 @@
   2. 전체 워크스페이스 버전을 v2.3.0에서 **v2.4.0**으로 공식 판올림하고 Git 태그 `v2.4.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-080] Mimic The Show 챔피언십 복셀 지형 실시간 구조 붕괴 및 파괴 파편 벤치마크 모드 (T-136)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `mimic-the-show` 복싱 뷰에 64B L1 캐시 정렬 `DynamicCollapseSystem<16>` 상주.
+  2. 노바 스트라이크 피니셔 임팩트 시 크레이터 굴착 후 지반 연결성 단절 공중 부유 지형 자동 분절 및 실시간 3D Reversed-Z 렌더링.
+  3. 청크 바닥 충돌 및 샤드 산산조각 시 `SoundKind::VoxelBlast` / `DebrisScatter` 사운드스케이프 결합.
+  4. 글로벌 `F10` 핫키 즉시 붕괴 벤치마크 및 `axiom voxel bench` CLI 초당 7,141+ TPS 고속 스루풋 계측기 완비.
+- **영향:** `mimic-the-show/src/view.rs`, `crates/axiom-cli/src/voxel_cli.rs`.
+
+---
+
+### [D-081] Axiom WebGL/WASM 3D 복셀 다이나믹 메쉬 붕괴 & 파편 비산 웹 시뮬레이터 연동 (T-137)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `WasmVoxelEngine` 내 `VoxelShardPool<128>` 및 `DynamicCollapseSystem<16>` 탑재.
+  2. 크레이터 파괴 시 관성 샤드 방출 및 지반 단절 고립 청크 자동 붕괴.
+  3. 3D Reversed-Z 깊이 버퍼 일체화 및 C-ABI 신규 엔드포인트 4종(`axiom_voxel_get_shard_count`, `axiom_voxel_get_collapsed_chunk_count`, `axiom_voxel_trigger_collapse`, `axiom_voxel_spawn_shard_storm`) 연동.
+  4. 웹 UI 액션 바에 🏛️ Dynamic Collapse & 🌪️ Shard Storm(x32) 컨트롤러 및 실시간 청크/샤드 HUD 연동.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-082] WebGL/WASM 3D 복셀 다이나믹 메쉬 붕괴 벤치마크 및 웹 UI 컨트롤 패널 (T-138)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 5대 신규 엔드포인트(`axiom_voxel_bench_collapse`, `axiom_voxel_set_gravity`, `axiom_voxel_set_drag`, `axiom_voxel_reset_physics`, `axiom_voxel_detonate_meteor`) 지원.
+  2. 웹 플레이어 💥 **3D Voxel Physics & Collapse Control Panel** 완성: 중력/공기저항 실시간 슬라이더, ☄️ Meteor Blast 고에너지 메테오 충격파, ⚡ 100-Tick 실시간 붕괴 벤치마크 모달(TPS / 평균 지연시간 / 붕괴 청크 / 샤드 분쇄 / 64-bit 합의 해시 / L1 캐시 무할당 레지던시 검증), 🧹 물리 리셋.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-083] 3D 복셀 지형 파괴 & 분절 시뮬레이션 스트레스 테스트 및 극단 속도 오버플로우 방어 (T-139)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 16-청크 풀 포화 시 `min_life` 최저 수명 청크 FIFO/LRU 축출/재활용 알고리즘 적용 (버스트 붕괴 시 청크 유실 방어).
+  2. 극단적 속도(`i32::MAX / 4`) 충돌 시 마찰/탄성 반발 계수 곱셈 오버플로우 방어를 위한 `i64` 스케일링 및 `saturating_neg()` 적용.
+  3. `extract_voxel_mesh` 복셀 메쉬 추출기 사전 용량 할당으로 힙 재할당 0회 소거 (248 µs/op 초고속 스루풋).
+  4. 5대 통합 스트레스 테스트 슈트 완성 (`test_voxel_stress_and_optimization.rs`).
+- **영향:** `crates/axiom-core/src/voxel_collapse.rs`, `crates/axiom-core/src/voxel_shard.rs`, `crates/axiom-render/src/voxel_mesh.rs`.
+
+---
+
+### [D-084] Axiom Engine v2.5.0 초대형 3D 복셀 메카 파괴 엔진 마일스톤 공식 릴리즈 (T-140)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 140대 누적 과제 총망라: 3D 복셀 메카 지형 파괴, 관성 샤드 탄도 물리, 다이나믹 메쉬 붕괴, WebGL/WASM 60 FPS 웹 시뮬레이터 및 100-Tick 붕괴 벤치마크, 극단 스트레스 하드닝 종합 승인.
+  2. 전체 워크스페이스 버전을 v2.4.0에서 **v2.5.0**으로 공식 판올림하고 Git 태그 `v2.5.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
 
 
 

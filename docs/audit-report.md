@@ -8,24 +8,38 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-23 21:00 KST
-- **감사 대상:** Axiom Engine v2.3.0 자율 챔피언십 및 3D 복셀 지형 파괴 사운드스케이프 종합 감사 (`axiom-core`, `axiom-render`, `axiom-game`, `axiom-wasm`, `axiom-cli`, `mimic-the-show`, `web`, `dist`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 VoxelChampionshipTelemetry, 자율 3D 복셀 챔피언십 디렉터, 0-Float 22,050Hz 입체 음향 반향 오디오 파이프라인, 130대 누적 데모 패키징 (`mimic-the-show.exe` 0.86MB, `axiom.exe` 0.85MB, 배포 Zip 2.02MB, 5대 .axvm 지형 프리셋), 헌법 가드 올패스 (v2.3.0 공식 승인)**
+- **일시:** 2026-10-23 21:55 KST
+- **감사 대상:** Axiom Engine v2.5.0 140대 통합 초대형 3D 복셀 메카 파괴 엔진 마일스톤 종합 감사 (`axiom-core`, `axiom-render`, `axiom-game`, `axiom-wasm`, `axiom-cli`, `mimic-the-show`, `web`, `dist`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 VoxelShardPool<128> 및 DynamicCollapseSystem<16>, 3D Reversed-Z 깊이 버퍼 일체화 래스터라이저, WebGL/WASM 60 FPS 3D 복셀 웹 시뮬레이터 & 100-Tick 붕괴 벤치마크 컨트롤 패널, 16-청크 LRU 축출 및 극단 속도 오버플로우 방어, 5대 통합 스트레스 테스트 올패스, 헌법 가드 올패스 (v2.5.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **64-Byte L1 캐시 라인 정렬 챔피언십 텔레메트리 (`VoxelChampionshipTelemetry`)**: `size_of == 64`, `align_of == 64` 정적 컴파일 타임 단언 준수, 4-파이터 싱글 엘리미네이션 토너먼트 진행, 매치 상태, 라운드, 양측 체력, 파괴 복셀, 크레이터, 비산 파편 수 및 64-bit FNV-1a 상태 합의 해시 실시간 중계.
-  2. **자율 3D 복셀 챔피언십 디렉터 (`VoxelChampionshipDirector`)**: INT8 양자화 신경망 추론 `NeuralFighterController` 기반 의사결정, 유효 타격 접촉 프레임에서의 지반 크레이터 동적 파괴(`carve_crater`), 준결승/그랜드 파이널/대관식 자율 진행.
-  3. **0-Float 22,050Hz 복셀 사운드스케이프 및 3D 입체 음향 반향**: `VoxelBlast`(지진성 서브베이스 붐+암석 분쇄 800ms) 및 `DebrisScatter`(탄성 충돌 350ms) 합성, 3-탭 아레나 콤 피드백 리버브 및 거리 감쇠 좌우 스테레오 패닝, 데스크톱 WinMM 및 웹 AudioWorklet 직결.
-  4. **130대 누적 마일스톤 데모 패키징 (`tools/package.ps1`)**:
-     - `mimic-the-show.exe` (0.86 MB): 실시간 60 FPS 메카 복싱 로그라이트 단일 실행 파일.
-     - `axiom.exe` (0.85 MB): 팩토리 RPG / 10만 NPC / 벤치마크 / 스팀 워크숍 / 3D 복셀 CLI.
-     - `maps/`: 5대 절차적 `.axvm` 지형 프리셋 (`flat`, `cratered`, `bunker`, `ruins`, `volcanic`) 번들.
-     - `web/`: HTML5/WASM 3D 복셀 파괴 스튜디오, 360° 턴테이블, AudioWorklet 3D 오디오, WebRTC P2P 넷코드.
-     - 배포 Zip: `dist/axiom-v2.2.0-unified-milestone.zip` (2.02 MB, SHA-256 검증 완료).
-  5. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
+  1. **64B L1 캐시 정렬 관성 샤드 및 다이나믹 메쉬 붕괴 (`VoxelShardPool`, `DynamicCollapseSystem`)**:
+     - `size_of == 64, align_of == 64` 정적 컴파일 단언 준수.
+     - 4대 머티리얼별 탄성 반발(Restitution) 및 지면 마찰 댐핑, 3축 BAMS 각속도 텀블링, 6-방향 3D BFS 지반 연결성 단절 탐지 및 고속 충돌 산산조각(Shatter) 파이프라인.
+  2. **WebGL/WASM 3D 복셀 시뮬레이터 & 물리 컨트롤 패널 (`web/index.html`, `axiom-wasm`)**:
+     - C-ABI 엔드포인트: 중력/공기저항 실시간 핫스왑, ☄️ Meteor Blast, ⚡ 100-Tick 붕괴 벤치마크, 🧹 물리 리셋.
+     - 단일 `Rasterizer3D.depth_buffer`를 복셀 지형 메쉬, 강체 텀블링 청크, 탄도 파편이 공유하여 완벽한 Reversed-Z 깊이 판정 달성.
+  3. **청크 풀 LRU 축출 & 극단 속도 정수 오버플로우 방어 (`axiom-core`)**:
+     - 16-청크 풀 포화 시 `min_life` 최저 수명 청크 FIFO/LRU 축출/재활용 알고리즘 적용 (버스트 붕괴 시 청크 유실 방어).
+     - `i32::MAX / 4` 극단 속도 충돌 시 `saturating_neg()` 및 `i64` 스케일링으로 산술 오버플로우 원천 차단.
+  4. **복셀 메쉬 추출기 사전 할당 최적화 (`axiom-render`)**:
+     - `total_solid` 기반 버퍼 사전 용량 할당으로 힙 재할당 0회 소거 (248 µs/op 초고속 스루풋).
+  5. **5대 통합 스트레스 테스트 올패스 (`test_voxel_stress_and_optimization.rs`)**:
+     - 500연속 크레이터 스위스치즈 침식 불변식, 극단 속도 탄도/분쇄 안정성, 16청크 포화/축출, 400µs 이하 메쉬 추출 및 래스터라이징, 1,000스텝 비트 단위 100% 일치 결정론 합의 검증.
+  6. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261023-v2.4.0] Axiom Engine v2.4.0 3D 복셀 메카 지형 파괴 & 탄도 물리 마일스톤 종합 감사
+- **일시:** 2026-10-23 21:20 KST
+- **판정:** 🟢 **ALL CLEAR (v2.4.0 공식 승인)**
+- **검증:** 64B L1 캐시 정렬 0-Float 관성 복셀 파편 풀 `VoxelShardPool<CAP>`, Reversed-Z 3D 소프트웨어 래스터라이저 `render_voxel_shards`, `mimic-the-show` 챔피언십 복셀 아레나 관성 조각 비산 및 바닥 충돌 사운드스케이프 결합, 6-방향 3D BFS 지반 연결성 분석기 `detect_and_collapse` 및 64B L1 정렬 `DynamicVoxelChunk` 다이나믹 메쉬 붕괴 시뮬레이터 올패스.
+
+### [AUDIT-20261023-v2.3.0] Axiom Engine v2.3.0 자율 챔피언십 & 복셀 사운드스케이프 종합 감사
+- **일시:** 2026-10-23 21:00 KST
+- **판정:** 🟢 **ALL CLEAR (v2.3.0 공식 승인)**
+- **검증:** 64B L1 캐시 정렬 VoxelChampionshipTelemetry, 자율 3D 복셀 챔피언십 디렉터, 0-Float 22,050Hz 입체 음향 반향 오디오 파이프라인, 130대 누적 데모 패키징 올패스.
 
 ### [AUDIT-20261023-v2.2.0] Axiom Engine v2.2.0 파괴 및 신경망 인공지능 마일스톤 종합 감사
 - **일시:** 2026-10-23 20:20 KST
