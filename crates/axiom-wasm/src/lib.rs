@@ -4883,6 +4883,82 @@ pub extern "C" fn axiom_voxel_bench_extreme(steps: u32, out_stats: *mut u32) -> 
     iterations
 }
 
+#[no_mangle]
+pub extern "C" fn axiom_voxel_bench_fluid(steps: u32, out_stats: *mut u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let iterations = steps.clamp(1, 10_000);
+    let mut total_quenched = 0u32;
+    let mut total_relaxed = 0u32;
+    let mut total_phase_transitions = 0u32;
+
+    for step in 0..iterations {
+        if step % 50 == 0 {
+            let cx = ((step * 7) % 16) as usize;
+            let cz = ((step * 11) % 16) as usize;
+            let peak_t = 800 + ((step % 200) as u16);
+            let peak_s = 700 + ((step % 250) as u16);
+            eng.thermal.inject_thermal_pulse(cx, 2, cz, 2, peak_t, peak_s);
+        }
+
+        if step % 25 == 0 {
+            let fx = ((step * 7) % 16) as usize;
+            let fz = ((step * 11) % 16) as usize;
+            eng.fluid.inject_fluid(&mut eng.volume, fx, 2, fz, 220);
+        }
+
+        let (q_temp, r_stress) = eng.fluid.relax_thermal_and_stress(&mut eng.thermal);
+        total_quenched += q_temp;
+        total_relaxed += r_stress;
+
+        let _ = eng.fluid.step_fluid(&mut eng.volume, Some(&eng.thermal), 25);
+
+        let res = eng.thermal.step_thermal_and_collapse_advanced(
+            &mut eng.volume,
+            &mut eng.collapse,
+            15,
+            1,
+            [-16384, 0, -16384],
+            2048,
+        );
+        total_phase_transitions += res.phase_transitions;
+
+        let (_c, _sh) = eng.collapse.step(Some(&mut eng.shards));
+        eng.shards.step();
+    }
+
+    let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+    eng.last_triangles = mesh.triangle_count() as u32;
+    eng.extracted_mesh = Some(mesh);
+
+    if !out_stats.is_null() {
+        let mut hash: u64 = 0xCBF2_9CE4_8422_2325;
+        hash ^= eng.fluid.compute_consensus_hash();
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+        hash ^= eng.thermal.compute_consensus_hash();
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+        hash ^= eng.collapse.compute_consensus_hash();
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+        hash ^= eng.shards.compute_consensus_hash();
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
+        unsafe {
+            *out_stats.add(0) = iterations;
+            *out_stats.add(1) = eng.fluid.total_infiltrated;
+            *out_stats.add(2) = total_quenched;
+            *out_stats.add(3) = total_relaxed;
+            *out_stats.add(4) = total_phase_transitions;
+            *out_stats.add(5) = (hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(6) = (hash >> 32) as u32;
+        }
+    }
+
+    iterations
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

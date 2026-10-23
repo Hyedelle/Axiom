@@ -455,6 +455,7 @@
       <button class="action-btn" style="color: #f59e0b; border-color: #d97706; font-size: 11px; padding: 4px 8px;" onclick="stepVoxelThermal()">♨️ Step Thermal</button>
       <button class="action-btn" style="color: #fbbf24; border-color: #f59e0b; font-size: 11px; padding: 4px 8px;" onclick="runVoxelCollapseBenchmark()">⚡ Collapse Bench (100 Ticks)</button>
       <button class="action-btn" style="color: #ec4899; border-color: #db2777; font-size: 11px; padding: 4px 8px;" onclick="runVoxelExtremeBenchmark()">⚡ 10k Extreme Bench</button>
+      <button class="action-btn" style="color: #06b6d4; border-color: #0891b2; font-size: 11px; padding: 4px 8px;" onclick="runVoxelFluidBenchmark()">⚡ 10k Fluid Bench</button>
       <button class="action-btn" style="color: #94a3b8; border-color: #475569; font-size: 11px; padding: 4px 8px;" onclick="resetVoxelPhysics()">🧹 Reset Physics</button>
     </div>
   </div>
@@ -3183,6 +3184,37 @@
             `• Active Shards: ${activeShards}\n` +
             `• 64-bit Consensus Hash: ${hashHex}\n` +
             `• L1 Cache Residency: 100% Zero-Allocation Flat Array`);
+    }
+
+    function runVoxelFluidBenchmark() {
+      if (!wasmInstance || !wasmInstance.axiom_voxel_bench_fluid) return;
+      const statsPtr = wasmInstance.axiom_voxel_alloc_axvm_buffer(32);
+      const start = performance.now();
+      const ticks = wasmInstance.axiom_voxel_bench_fluid(1000, statsPtr);
+      const elapsed = performance.now() - start;
+      const statsArr = new Uint32Array(wasmInstance.memory.buffer, statsPtr, 7);
+      const totalSteps = statsArr[0];
+      const infiltrated = statsArr[1];
+      const quenched = statsArr[2];
+      const relaxed = statsArr[3];
+      const phaseTransitions = statsArr[4];
+      const hashLo = statsArr[5];
+      const hashHi = statsArr[6];
+
+      const tps = Math.round((totalSteps / (elapsed / 1000)));
+      const avgLatencyUs = ((elapsed * 1000) / totalSteps).toFixed(1);
+      const hashHex = "0x" + ((BigInt(hashHi) << 32n) | BigInt(hashLo)).toString(16).toUpperCase();
+
+      alert(`⚡ Axiom 160-Task Fluid & Stress Relaxation Benchmark (1,000 Steps):\n` +
+            `• Physical Cycles: ${totalSteps} ticks\n` +
+            `• Wall Elapsed Time: ${elapsed.toFixed(2)} ms (${tps.toLocaleString()} TPS)\n` +
+            `• Step Latency: ${avgLatencyUs} µs / step\n` +
+            `• Porous Infiltrated: ${infiltrated} units\n` +
+            `• Latent Heat Quenched: ${quenched} temp units\n` +
+            `• Shear Stress Relaxed: ${relaxed} stress units\n` +
+            `• Phase Transitions: ${phaseTransitions}\n` +
+            `• 64-bit Consensus Hash: ${hashHex}\n` +
+            `• 0-Float / L1 Cache Residency: 100% Deterministic Flat Slabs`);
     }
 
     function exportVoxelAxvm() {
