@@ -515,4 +515,40 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
             true
         }
     }
+
+    /// Returns the connected peer bitmask from the NAT traversal session.
+    pub fn nat_connected_mask(&self) -> u16 {
+        if let Some(ref nat) = self.session.nat_session {
+            nat.connected_mask
+        } else {
+            0xFFFF
+        }
+    }
+
+    /// Returns the NAT probe counts (total_probes_sent, total_probes_received).
+    pub fn nat_probe_counts(&self) -> (u32, u32) {
+        if let Some(ref nat) = self.session.nat_session {
+            (nat.total_probes_sent, nat.total_probes_received)
+        } else {
+            (0, 0)
+        }
+    }
+
+    /// Returns the direct round-trip latency in microseconds for a specific peer.
+    pub fn nat_peer_rtt_micros(&self, peer_id: usize) -> u32 {
+        if let Some(ref nat) = self.session.nat_session {
+            if peer_id < 16 {
+                nat.peer_candidates[peer_id].rtt_micros
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    }
+
+    /// Returns true if NAT traversal is enabled on this match director.
+    pub fn is_nat_enabled(&self) -> bool {
+        self.session.nat_session.is_some()
+    }
 }
