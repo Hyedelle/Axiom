@@ -61,3 +61,32 @@ fn test_render_thermal_glow_rasterization() {
     let cr = (center_pixel >> 16) & 0xFF;
     assert!(cr > 0, "Thermal emissive pixels must be written to framebuffer");
 }
+
+#[test]
+fn test_thermal_render_under_heavy_saturation() {
+    use axiom_core::voxel_destruct::VOXEL_TOTAL;
+
+    let mut fb = FrameBuffer::new(704, 544);
+    let mut depth_buffer = vec![i32::MIN; 704 * 544];
+
+    let mut thermal = ThermalStressField16::new();
+    // Saturate all 4,096 cells with extreme incandescent heat (990°C)
+    for i in 0..VOXEL_TOTAL {
+        thermal.temp[i] = 990;
+    }
+
+    let vp = Mat4Fixed::from_translation(Vec3Fixed::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(20)));
+    let start = std::time::Instant::now();
+    let rendered = render_thermal_glow(
+        &mut fb,
+        &mut depth_buffer,
+        &vp,
+        &thermal,
+        Fixed::from_int(1),
+        Vec3Fixed::ZERO,
+    );
+    let elapsed = start.elapsed();
+
+    assert!(rendered > 0, "Thermal rasterizer must process saturated glow voxels");
+    assert!(elapsed.as_millis() < 50, "Full-volume 4,096-voxel glow rendering must complete in < 50ms");
+}
