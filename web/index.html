@@ -447,8 +447,10 @@
       <input type="range" id="voxDragSlider" min="950" max="999" value="985" step="5" style="width: 80px; accent-color: #a78bfa;" oninput="updateVoxelDrag(this.value)">
       <span id="voxDragVal" style="color: #a78bfa; font-family: monospace; width: 44px;">985‰</span>
     </div>
-    <div style="display: flex; gap: 6px;">
+    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
       <button class="action-btn" style="color: #f97316; border-color: #ea580c; font-size: 11px; padding: 4px 8px;" onclick="detonateVoxelMeteor()">☄️ Meteor Blast</button>
+      <button class="action-btn" style="color: #ef4444; border-color: #dc2626; font-size: 11px; padding: 4px 8px;" onclick="applyVoxelThermalBlast()">🔥 Thermal Blast (950°C)</button>
+      <button class="action-btn" style="color: #f59e0b; border-color: #d97706; font-size: 11px; padding: 4px 8px;" onclick="stepVoxelThermal()">♨️ Step Thermal</button>
       <button class="action-btn" style="color: #fbbf24; border-color: #f59e0b; font-size: 11px; padding: 4px 8px;" onclick="runVoxelCollapseBenchmark()">⚡ Collapse Bench (100 Ticks)</button>
       <button class="action-btn" style="color: #94a3b8; border-color: #475569; font-size: 11px; padding: 4px 8px;" onclick="resetVoxelPhysics()">🧹 Reset Physics</button>
     </div>
@@ -2681,12 +2683,16 @@
         const tris = wasmInstance.axiom_voxel_get_triangles ? wasmInstance.axiom_voxel_get_triangles() : 0;
         const shards = wasmInstance.axiom_voxel_get_shard_count ? wasmInstance.axiom_voxel_get_shard_count() : 0;
         const chunks = wasmInstance.axiom_voxel_get_collapsed_chunk_count ? wasmInstance.axiom_voxel_get_collapsed_chunk_count() : 0;
+        const maxTemp = wasmInstance.axiom_voxel_get_max_temperature ? wasmInstance.axiom_voxel_get_max_temperature() : 20;
+        const molten = wasmInstance.axiom_voxel_get_thermal_transitions ? wasmInstance.axiom_voxel_get_thermal_transitions() : 0;
 
         document.getElementById('hudDetail').innerHTML =
           `<span class="blue">Solid:</span> <span class="blue">${solid}</span> | ` +
           `<span class="red">Damaged:</span> <span class="red">${damaged}</span> | ` +
           `<span class="gold">Chunks:</span> <span class="gold">${chunks}</span> | ` +
           `<span style="color:#c084fc">Shards:</span> <span style="color:#c084fc">${shards}</span> | ` +
+          `<span style="color:#f97316">Temp:</span> <span style="color:#f97316">${maxTemp}°C</span> | ` +
+          `<span style="color:#ef4444">Molten:</span> <span style="color:#ef4444">${molten}</span> | ` +
           `<span class="gold">Tris:</span> <span class="gold">${tris.toLocaleString()}</span> | ` +
           `<span class="green">Render:</span> <span class="green">${renderMs}ms</span>`;
       }
@@ -3001,6 +3007,23 @@
       }
     }
 
+    function applyVoxelThermalBlast() {
+      if (wasmInstance && wasmInstance.axiom_voxel_apply_thermal_pulse) {
+        const peakT = wasmInstance.axiom_voxel_apply_thermal_pulse(8, 6, 8, 4, 980, 900);
+        playVoxelBlastSfx(8, 8, 5);
+      }
+    }
+
+    function stepVoxelThermal() {
+      if (wasmInstance && wasmInstance.axiom_voxel_step_thermal) {
+        const packed = wasmInstance.axiom_voxel_step_thermal(50);
+        const chunks = (packed >> 16) & 0xFF;
+        if (chunks > 0) {
+          playVoxelBlastSfx(8, 8, 3);
+        }
+      }
+    }
+
     function triggerVoxelDynamicCollapse() {
       if (wasmInstance && wasmInstance.axiom_voxel_trigger_collapse) {
         const collapsed = wasmInstance.axiom_voxel_trigger_collapse(0);
@@ -3052,6 +3075,23 @@
       if (wasmInstance && wasmInstance.axiom_voxel_detonate_meteor) {
         wasmInstance.axiom_voxel_detonate_meteor(8, 8, 5, 48);
         playVoxelBlastSfx(8, 8, 6);
+      }
+    }
+
+    function applyVoxelThermalBlast() {
+      if (wasmInstance && wasmInstance.axiom_voxel_apply_thermal_pulse) {
+        const peakT = wasmInstance.axiom_voxel_apply_thermal_pulse(8, 6, 8, 4, 980, 900);
+        playVoxelBlastSfx(8, 8, 5);
+      }
+    }
+
+    function stepVoxelThermal() {
+      if (wasmInstance && wasmInstance.axiom_voxel_step_thermal) {
+        const packed = wasmInstance.axiom_voxel_step_thermal(50);
+        const chunks = (packed >> 16) & 0xFF;
+        if (chunks > 0) {
+          playVoxelBlastSfx(8, 8, 3);
+        }
       }
     }
 

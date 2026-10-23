@@ -47,8 +47,8 @@ pub mod voxel_shard;
 pub mod world_time_machine;
 
 pub use thermal_stress::{
-    ThermalStressField16, TEMP_AMBIENT, TEMP_INCANDESCENT_THRESHOLD, TEMP_PHASE_MELT_THRESHOLD,
-    TEMP_WARM_THRESHOLD, STRESS_FRACTURE_THRESHOLD,
+    ThermalCollapseResult, ThermalStressField16, TEMP_AMBIENT, TEMP_INCANDESCENT_THRESHOLD,
+    TEMP_PHASE_MELT_THRESHOLD, TEMP_WARM_THRESHOLD, STRESS_FRACTURE_THRESHOLD,
 };
 
 pub use audio::{

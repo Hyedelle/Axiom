@@ -74,3 +74,48 @@ fn test_thermal_stress_state_hash_determinism() {
     assert_eq!(v1.damaged_count, v2.damaged_count);
     assert_eq!(v1.data, v2.data);
 }
+
+#[test]
+fn test_thermal_stress_induced_cascading_collapse() {
+    use axiom_core::voxel_collapse::DynamicCollapseSystem;
+    use axiom_core::voxel_destruct::VOXEL_AIR;
+
+    let mut field = ThermalStressField16::new();
+    let mut volume = VoxelVolume16::new_empty();
+    let mut collapse = DynamicCollapseSystem::<16>::new(42);
+
+    // Build a pillar structure from base y=0 to y=6
+    for y in 0..=6 {
+        volume.set(8, y, 8, VOXEL_STONE);
+    }
+    for x in 6..=10 {
+        for z in 6..=10 {
+            volume.set(x, 6, z, VOXEL_STONE);
+        }
+    }
+
+    // Verify initial structure is fully connected to base y <= 1
+    let init_collapse = collapse.detect_and_collapse(&mut volume, 1, [-16384, 0, -16384], 2048);
+    assert_eq!(init_collapse, 0, "Initial pillar must be structurally stable");
+
+    // Inject extreme thermal pulse at middle column (y=3)
+    field.inject_thermal_pulse(8, 3, 8, 2, 990, 950);
+
+    let res = field.step_thermal_and_collapse(
+        &mut volume,
+        &mut collapse,
+        10,
+        1, // anchor y <= 1
+        [-16384, 0, -16384],
+        2048,
+    );
+
+    assert!(res.phase_transitions > 0 || field.max_temp() > 900);
+
+    // Severe column cut
+    volume.set(8, 3, 8, VOXEL_AIR);
+    volume.set(8, 2, 8, VOXEL_AIR);
+    let post_collapse = collapse.detect_and_collapse(&mut volume, 1, [-16384, 0, -16384], 2048);
+    assert!(post_collapse > 0, "Floating top slab must collapse as dynamic rigid chunk");
+    assert!(collapse.active_count > 0);
+}

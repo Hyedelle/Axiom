@@ -4,6 +4,7 @@
 //! lattices for 16x16x16 voxel volumes. Features 6-neighbor Laplacian thermal diffusion,
 //! cooling dissipation, and dynamic material phase transitions (Stone -> Molten).
 
+use crate::voxel_collapse::DynamicCollapseSystem;
 use crate::voxel_destruct::{VoxelVolume16, VOXEL_AIR, VOXEL_DIM, VOXEL_MOLTEN, VOXEL_STONE, VOXEL_TOTAL};
 
 pub const TEMP_AMBIENT: u16 = 20;
@@ -11,6 +12,14 @@ pub const TEMP_WARM_THRESHOLD: u16 = 300;
 pub const TEMP_INCANDESCENT_THRESHOLD: u16 = 700;
 pub const TEMP_PHASE_MELT_THRESHOLD: u16 = 750;
 pub const STRESS_FRACTURE_THRESHOLD: u16 = 800;
+
+/// Result of an integrated thermal diffusion, phase transition, and structural collapse step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThermalCollapseResult {
+    pub phase_transitions: u32,
+    pub fractures_triggered: u32,
+    pub collapsed_chunks: usize,
+}
 
 /// 16,448-byte (257 x 64B L1 Cache Lines) 16x16x16 Thermal & Stress Field.
 #[repr(C, align(64))]
@@ -187,6 +196,51 @@ impl ThermalStressField16 {
 
         self.temp = next_temp;
         (new_transitions, new_fractures)
+    }
+
+    /// Executes 1 tick of thermal diffusion, cooling, and material phase transition.
+    ///
+    /// If any phase transitions (melting) or stress fractures occurred, automatically
+    /// runs connected component analysis on `collapse_system` to detach floating structures.
+    pub fn step_thermal_and_collapse<const MAX_CHUNKS: usize>(
+        &mut self,
+        volume: &mut VoxelVolume16,
+        collapse_system: &mut DynamicCollapseSystem<MAX_CHUNKS>,
+        cooling_rate_permille: u16,
+        anchor_y: i16,
+        world_origin_q16: [i32; 3],
+        voxel_scale_q16: i32,
+    ) -> ThermalCollapseResult {
+        let (phase_transitions, fractures_triggered) =
+            self.step_thermal_diffusion(volume, cooling_rate_permille);
+
+        let collapsed_chunks = if phase_transitions > 0 || fractures_triggered > 0 {
+            collapse_system.detect_and_collapse(
+                volume,
+                anchor_y,
+                world_origin_q16,
+                voxel_scale_q16,
+            )
+        } else {
+            0
+        };
+
+        ThermalCollapseResult {
+            phase_transitions,
+            fractures_triggered,
+            collapsed_chunks,
+        }
+    }
+
+    /// Returns the maximum temperature across all cells in the lattice.
+    pub fn max_temp(&self) -> u16 {
+        let mut m = 0u16;
+        for &t in self.temp.iter() {
+            if t > m {
+                m = t;
+            }
+        }
+        m
     }
 
     /// Computes full 64-bit FNV-1a consensus state hash across thermal and stress fields.

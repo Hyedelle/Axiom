@@ -44,6 +44,8 @@ use axiom_render::voxel_collapse_render::render_dynamic_collapse_chunks;
 use axiom_render::voxel_map::{deserialize_axvm, generate_voxel_preset, serialize_axvm, VoxelPreset};
 use axiom_render::voxel_mesh::extract_voxel_mesh;
 use axiom_render::voxel_shard_render::render_voxel_shards;
+use axiom_core::thermal_stress::ThermalStressField16;
+use axiom_render::thermal_render::render_thermal_glow;
 use axiom_render::{cos_bams, sin_bams, FrameBuffer};
 
 #[allow(static_mut_refs)]
@@ -4097,6 +4099,7 @@ struct WasmVoxelEngine {
     staged_axvm: Vec<u8>,
     shards: VoxelShardPool<128>,
     collapse: DynamicCollapseSystem<16>,
+    thermal: ThermalStressField16,
 }
 
 #[allow(static_mut_refs)]
@@ -4148,6 +4151,7 @@ pub extern "C" fn axiom_voxel_init(width: u32, height: u32, preset_id: u32, seed
         staged_axvm: Vec::new(),
         shards,
         collapse,
+        thermal: ThermalStressField16::new(),
     };
 
     unsafe {
@@ -4281,6 +4285,22 @@ pub extern "C" fn axiom_voxel_render() -> u32 {
         &world_mat,
         eng.cam_dist,
         eng.focal_length,
+    );
+
+    let voxel_scale = Fixed::from_raw(2048);
+    let world_origin = Vec3Fixed::new(
+        Fixed::from_raw(-16384),
+        Fixed::ZERO,
+        Fixed::from_raw(-16384),
+    );
+
+    render_thermal_glow(
+        &mut eng.framebuffer,
+        &mut eng.rasterizer.depth_buffer,
+        &world_mat,
+        &eng.thermal,
+        voxel_scale,
+        world_origin,
     );
 
     eng.last_triangles
@@ -4591,6 +4611,116 @@ pub extern "C" fn axiom_voxel_export_axvm(out_ptr: *mut u8, max_len: u32) -> u32
         core::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, copy_len);
     }
     copy_len as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_apply_thermal_pulse(
+    cx: i32,
+    cy: i32,
+    cz: i32,
+    radius: i32,
+    peak_temp: u32,
+    peak_stress: u32,
+) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let cx_u = cx.clamp(0, 15) as usize;
+    let cy_u = cy.clamp(0, 15) as usize;
+    let cz_u = cz.clamp(0, 15) as usize;
+    let r_u = radius.clamp(1, 15) as usize;
+
+    eng.thermal.inject_thermal_pulse(
+        cx_u,
+        cy_u,
+        cz_u,
+        r_u,
+        peak_temp.min(1000) as u16,
+        peak_stress.min(1000) as u16,
+    );
+
+    let res = eng.thermal.step_thermal_and_collapse(
+        &mut eng.volume,
+        &mut eng.collapse,
+        50, // 5% default cooling
+        0,
+        [-16384, 0, -16384],
+        2048,
+    );
+
+    if res.phase_transitions > 0 || res.fractures_triggered > 0 || res.collapsed_chunks > 0 {
+        let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+        eng.last_triangles = mesh.triangle_count() as u32;
+        eng.extracted_mesh = Some(mesh);
+    }
+
+    eng.thermal.max_temp() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_step_thermal(cooling_permille: u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    let res = eng.thermal.step_thermal_and_collapse(
+        &mut eng.volume,
+        &mut eng.collapse,
+        cooling_permille.min(1000) as u16,
+        0,
+        [-16384, 0, -16384],
+        2048,
+    );
+
+    if res.phase_transitions > 0 || res.fractures_triggered > 0 || res.collapsed_chunks > 0 {
+        let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
+        eng.last_triangles = mesh.triangle_count() as u32;
+        eng.extracted_mesh = Some(mesh);
+    }
+
+    (res.phase_transitions.min(255) as u32)
+        | ((res.fractures_triggered.min(255) as u32) << 8)
+        | (((res.collapsed_chunks as u32).min(255)) << 16)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_max_temperature() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.thermal.max_temp() as u32)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_thermal_transitions() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.thermal.phase_transitions)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_thermal_fractures() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.thermal.fractures_triggered)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_reset_thermal() {
+    if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
+        eng.thermal = ThermalStressField16::new();
+    }
 }
 
 #[cfg(test)]
@@ -5391,5 +5521,34 @@ mod tests {
         }
         let load_ok = axiom_voxel_load_staged_axvm(4160);
         assert_eq!(load_ok, 1);
+    }
+
+    #[test]
+    fn test_wasm_voxel_thermal_stress_and_collapse_bindings() {
+        let _g = voxel_engine_lock();
+
+        // 1. Init Bunker Scene
+        axiom_voxel_init(128, 128, 2, 888);
+        assert_eq!(axiom_voxel_get_max_temperature(), 20); // Room ambient
+        assert_eq!(axiom_voxel_get_thermal_transitions(), 0);
+
+        // 2. Inject 950°C high-energy thermal pulse into bunker center
+        let max_t = axiom_voxel_apply_thermal_pulse(8, 4, 8, 3, 950, 850);
+        assert!(max_t >= 400, "Diffused temperature must remain significantly elevated");
+        assert!(axiom_voxel_get_max_temperature() >= 400);
+
+        // 3. Step thermal diffusion with cooling
+        let packed_step = axiom_voxel_step_thermal(40);
+        let transitions = packed_step & 0xFF;
+        let fractures = (packed_step >> 8) & 0xFF;
+        assert!(transitions > 0 || fractures > 0 || axiom_voxel_get_max_temperature() > 20);
+
+        // 4. Render with thermal glow
+        let rendered_tris = axiom_voxel_render();
+        assert!(rendered_tris > 0);
+
+        // 5. Reset thermal
+        axiom_voxel_reset_thermal();
+        assert_eq!(axiom_voxel_get_max_temperature(), 20);
     }
 }
