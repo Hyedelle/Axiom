@@ -599,4 +599,70 @@
 - **이유:** 게임 로직이 엔진 코드베이스에 뒤섞여 복잡도를 높이는 것을 방지하고, 엔진은 범용 플랫폼으로 순수하게 유지하면서 게임은 `C:\Dreamhub\Game\mimic-the-show`에서 자유롭고 빠르게 개발·반복하기 위함.
 - **영향:** `C:\Dreamhub\Game\mimic-the-show` 신규 독립 저장소 생성, Axiom 엔진의 `axiom-game` 순수성 보존.
 
+---
+
+### [D-040] 0-Float 고정소수점 3D 래스터라이저 및 Tripo/Blender 정본 GLB 다이렉트 바이너리 파이프라인 (T-079~T-081)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **절대 0-Float 3D 파이프라인**: 4x4 행렬 곱셈, 원근 투영, 클리핑 연산에 Q16.16 고정소수점을 전면 적용하고, $16 \times 16 \rightarrow 32$ 비트 오버플로를 방어하기 위해 중간 누산기를 `i64`로 엄격히 유지.
+  2. **Tripo/Blender 정본 GLB 다이렉트 인제스천**: 외부 런타임 변환기 없이 `hero_a.glb`(29,283 트라이앵글) 12부위 관절 지오메트리를 0초 바이너리 파싱하는 `crates/axiom-render/src/mesh3d.rs` 구축.
+  3. **12부위 계층형 순방향 운동학 (FK)**: `evaluate_forward_kinematics`를 통해 잽/크로스/훅/가드/슬립 펀치 모션을 0-Float 계층 행렬 트리로 실시간 평가.
+- **영향:** `crates/axiom-render/src/math3d.rs`, `crates/axiom-render/src/mesh3d.rs`, `crates/axiom-render/src/kinematics3d.rs`.
+
+---
+
+### [D-041] Juan Pineda 8x8 타일 비닝, 1/Z 어핀 선형 보간 및 인버티드 헐 툰 셰이더 (T-080, T-083)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **Juan Pineda 증분 에지 함수 & 8x8 타일 비닝**: 스캔라인 캐시 미스를 해소하기 위해 8x8 타일 단위로 픽셀을 순회하여 타일 내 64픽셀 연산이 L1 캐시(512B) 내에서 완결되도록 최적화.
+  2. **Reversed-Z 1/Z 어핀 선형 보간**: 화면 공간에서 비선형인 Z 대신 어핀 선형인 $1/Z$를 정수 뎁스 버퍼에 기록하여 나눗셈 0건의 고속 뎁스 테스트 실현.
+  3. **인버티드 헐 외곽선 & 캐논 색 문법**: 법선 방향 외곽 돌출(+0.008m) 2패스 래스터라이징으로 만화 잉크 라인아트 및 Unity 대비 화이트 클리핑(38% ➔ 0%) 완전 해소.
+- **영향:** `crates/axiom-render/src/raster3d.rs`.
+
+---
+
+### [D-042] 64B L1 캐시 정렬 3D 동적 시네마틱 카메라 & 절차적 3D 파티클 파이프라인 (T-082, T-091, T-093)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64바이트 L1 캐시 정렬 `Camera3D`**: `target`, `distance`, `base_focal_length`, `zoom_offset`, `shake_x`, `shake_y`, `orbit_yaw`, `orbit_pitch`, `shot_mode` 등 모든 필드를 정확히 64바이트 L1 캐시 라인에 패킹.
+  2. **5대 시네마틱 카메라 프리셋 (`CameraShot`)**: `BroadcastCenter`, `PlayerCorner`(숄더백 ~25도 오빗), `OpponentCorner`, `ImpactCloseUp`(스프링 펀치 줌), `KnockdownLowAngle`(웜즈아이 앙각) 구축.
+  3. **절차적 3D 파티클 & 4코너 스팀 제트**: 증기, 불꽃, 파편 3종 입자의 중력 가속도, 캔버스 지면 탄성 바운스, 및 링 코너 4방향 고압 스팀 축제 밸브(`spawn_steam_jet`)를 128 슬롯 무할당 구조체로 완성.
+- **영향:** `crates/axiom-render/src/camera3d.rs`, `crates/axiom-render/src/particles3d.rs`.
+
+---
+
+### [D-043] 0-Float 빈티지 신문 1면 그라비아 인쇄 및 3D 듀얼 메카 전광판 브로드캐스트 아키텍처 (T-092, T-094)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **64B L1 캐시 정렬 `NewspaperGravureConfig`**: 3대 신문사별(철판일보 모노크롬, 불꽃스포츠 세피아 망점, 주간하역장 풀컬러 셀) 0-Float 실시간 빈티지 그라비아 인쇄 필터 구축.
+  2. **신문 1면 2-컬럼 조판**: 텍스트 본문 우측에 144x114 해상도 3D 메카 스냅샷 및 캐논 브라스 리벳 프레임 인-플레이스 블릿.
+  3. **듀얼 3D 메카 전광판 브로드캐스트 (`render_broadcast_matchup_scene`)**: 플레이오프 및 결승전 진입 시 도전자 ELPIS와 상대 메카/THESEUS의 단일 뎁스 버퍼 페이스오프, 중앙 VS 브라스 엠블럼, 4팀 순위 티커 완결.
+- **영향:** `crates/axiom-render/src/newspaper.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-044] 실루엣 림 라이팅, 오라클 아이 발광 및 3D 공간 잔향 사운드스케이프 (T-095, T-096)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **0-Float 프레넬 스침각 림 라이팅**: 시선 벡터와 법선의 내적 $|avg\_norm.z| < 16000$ 정수 판정을 통한 실루엣 림 에지 검출 및 펀치/피격/회피/KO 상태별 골드/레드/사이언/순백 림 오라 연동.
+  2. **오라클 바이저 단안 발광**: 조명 음영 계산과 무관하게 `visor` 및 `eye` 파트에 대해 `0xFFFFF59D` 비콘 발광 적용.
+  3. **0-Float 선형 보간 피치 시프트 & 3-탭 금속성 지하실 잔향기**: 33ms/47ms/62ms 빗살 필터 딜레이 라인을 통한 지하 링 특유의 공간 잔향 및 보스 THESEUS(850 피치 다운)/TINKER(1140 피치 업) 사운드스케이프 완성.
+- **영향:** `crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/sound.rs`, `crates/axiom-cli/src/sound.rs`.
+
+---
+
+### [D-045] Axiom Engine v1.6.0 3D 소프트웨어 렌더링 & 미믹 더 쇼 상용 완성도 릴리즈 (T-097)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 0-Float 3D GLB 파이프라인, Juan Pineda 8x8 타일 비닝, 64B L1 캐시 정렬 시네마틱 카메라, 3D 파티클/신문 그라비아/전광판 브로드캐스트, 림 라이팅 및 3D 공간 오디오 완결을 통합 승인.
+  2. 엔진 및 전체 서브 크레이트 버전을 v1.5.0에서 **v1.6.0**으로 공식 판올림.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 

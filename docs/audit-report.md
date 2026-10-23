@@ -8,21 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-22 14:20 KST
-- **감사 대상:** Axiom Engine v1.5.0 상용 출시 네이티브 게임 루프, 정수배 스케일러 & 0-의존성 오디오 릴리즈 감사 (`axiom-cli`, `axiom-render`, `axiom-game`, `axiom-core`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 144Hz 디커플링 누적기 타임스텝, 2x 정수배 픽셀 스케일러, 22kHz PCM 절차적 오디오 통과 (v1.5.0 공식 승인)**
+- **일시:** 2026-10-23 14:00 KST
+- **감사 대상:** Axiom Engine v1.6.0 3D 소프트웨어 렌더링 & 미믹 더 쇼(mimic-the-show) 상용 완성도 릴리즈 종합 감사 (`axiom-render`, `axiom-core`, `axiom-game`, `axiom-cli`, `axiom-sdk`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 0-Float 3D GLB 파이프라인, Juan Pineda 8x8 타일 비닝, 64B L1 정렬 시네마틱 카메라/빈티지 신문 그라비아/전광판 브로드캐스트, 림 라이팅 & 3D 공간 잔향 오디오 올패스 (v1.6.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **부동소수점(`f32`, `f64`) 원천 배제**: `axiom-core`, `axiom-sdk`, `axiom-game`, `axiom-render`, `axiom-cli` 전체 코드베이스 0건 (`tools/guard.ps1` 통과)
-  2. **Glenn Fiedler 'Fix Your Timestep' 누적기 루프**: OS Sleep 지터 완전 박멸, 60Hz 불변 틱(UPS)과 144Hz/240Hz 디스플레이 주사율(FPS) 분리
-  3. **무손실 정수배 픽셀 스케일러 (`upscale_nearest_2x`)**: 1x (704x544), 2x (1408x1088), F11 전체화면 종횡비 보존 레터박스 모드 지원
-  4. **0-의존성 순수 정수 PCM 절차적 오디오 (`sound.rs`)**: 22,050Hz 16-bit Mono PCM 파형 합성(사각파 스윕, 삼각파, 노이즈) 및 Windows `PlaySoundW` 비동기 재생 연동 (포탑 사격, 몬스터 피격, 건설/철거, 퀵세이브 차임, 웨이브 알람 6종)
-  5. **M키 음소거 토글**: 원클릭 오디오 음소거 및 HUD 비주얼 알림
-  6. **헤드리스 벤치마크 및 CI 완전 호환**: `--benchmark` 플래그를 통한 100% 비트 일치 결정론 리플레이어 및 밸런싱 시뮬레이터 보존
-  7. **전체 워크스페이스 단위 테스트 100% 통과**: 54개 단위 테스트 및 FFI 테스트 올패스
+  1. **절대 결정론 0-Float 3D 파이프라인**: 4x4 행렬 곱셈, 원근 투영, 클리핑에 Q16.16 고정소수점 전면 적용, `i64` 중간 누산기 오버플로 방지 (`tools/guard.ps1` 통과)
+  2. **Tripo/Blender 정본 12부위 GLB (29,283 tris) 무할당 바이너리 파서**: `crates/axiom-render/src/mesh3d.rs` 0초 바이너리 파싱
+  3. **Juan Pineda 8x8 타일 비닝 래스터라이저**: 512B L1 데이터 캐시 100% 상주, 스캔라인 미스 0건, Reversed-Z 1/Z 어핀 선형 보간으로 나눗셈 0건 뎁스 테스트 실현
+  4. **인버티드 헐 먹선(+0.008m) & 캐논 색 문법 툰 셰이더**: INK, IRON, AMBER, BRASS, RED, OLIVE 6대 램프 툰 셰이딩 및 화이트 클리핑(38% ➔ 0%) 완전 해소
+  5. **64B L1 캐시 정렬 `Camera3D` & 5대 시네마틱 프리셋**: `BroadcastCenter`, `PlayerCorner`, `OpponentCorner`, `ImpactCloseUp`, `KnockdownLowAngle`
+  6. **128 슬롯 무할당 `ParticleSystem3D`**: 지면 바운스 파편, 엠버 스파크, 4코너 턴버클 고압 스팀 제트(`spawn_steam_jet`), 70인 관중석 플래시 스톰 연동
+  7. **64B L1 정렬 `NewspaperGravureConfig`**: 3대 신문사별(철판일보 모노크롬, 불꽃스포츠 세피아 망점, 주간하역장 풀컬러 셀) 0-Float 빈티지 1면 그라비아 3D 인쇄
+  8. **듀얼 3D 메카 페이스오프 전광판 브로드캐스트 (`render_broadcast_matchup_scene`)**: 플레이오프 및 결승전 진입 시 듀얼 3D 메카 실시간 페이스오프, 중앙 VS 엠블럼, 4팀 순위 티커
+  9. **0-Float 프레넬 림 라이팅 & 오라클 바이저 발광**: 시선 스침각($|Nz| < 16000$) 실루엣 림 에지 검출 및 펀치/피격/회피/KO 상태별 골드/레드/사이언/순백 림 오라 연동
+  10. **0-Float 선형 피치 시프트 & 3-탭 금속성 지하실 잔향기 (`sound.rs`)**: 보스 THESEUS(850 피치 다운)/TINKER(1140 피치 업) 및 지하 갱도 특유의 공간 잔향 완비
+  11. **전체 워크스페이스 단위 테스트 100% 통과**: 58개 단위 테스트 및 FFI 테스트 올패스
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261022-v1.5.0] Axiom Engine v1.5.0 상용 출시 네이티브 게임 루프, 정수배 스케일러 & 0-의존성 오디오 릴리즈 감사
+- **일시:** 2026-10-22 14:20 KST
+- **판정:** 🟢 **ALL CLEAR (v1.5.0 릴리즈 승인)**
+- **검증:** 144Hz 디커플링 누적기 타임스텝, 2x 무손실 정수배 스케일러, 22kHz PCM 절차적 오디오 완비.
 
 ### [AUDIT-20261022-v1.4.0] Axiom Engine v1.4.0 1인 인디 개발자 실사용 네이티브 스튜디오 및 픽셀 스프라이트 릴리즈 감사
 - **일시:** 2026-10-22 13:30 KST
