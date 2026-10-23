@@ -54,3 +54,29 @@ fn test_particles_spawn_decay_and_render() {
     }
     assert_eq!(ps.active_count, 0, "All particles must expire after their lifetime");
 }
+
+#[test]
+fn test_debris_and_ground_bounce() {
+    let mut ps = ParticleSystem3D::<32>::new(1337);
+    ps.floor_y = Fixed::from_raw(-15000); // Floor close below spawn
+
+    // Spawn 5 pieces of armor debris from (0, 0, 0)
+    ps.spawn_debris(Vec3Fixed::ZERO, 5, 0xFF8A2B17);
+    assert_eq!(ps.active_count, 5);
+
+    // Downward trajectory under gravity and bounce
+    let mut bounced = false;
+    for _ in 0..25 {
+        ps.step_kinematics();
+        for p in &ps.particles {
+            if p.is_active {
+                // Must never sink below floor
+                assert!(p.pos.y >= ps.floor_y, "Particle must not sink below floor");
+                if p.pos.y == ps.floor_y && p.vel.y > Fixed::ZERO {
+                    bounced = true;
+                }
+            }
+        }
+    }
+    assert!(bounced, "Debris particle must bounce upward off the floor");
+}
