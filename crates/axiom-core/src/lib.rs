@@ -15,6 +15,7 @@ pub mod combat;
 pub mod dlc;
 pub mod effector;
 pub mod entity;
+pub mod event_bus;
 pub mod fixed;
 pub mod fluid;
 pub mod grid_netcode;
@@ -62,6 +63,10 @@ pub use job_system::{
 };
 pub use worker_pool::{
     WorkStealingDeque, WorkerPoolCoordinator, WorkerTelemetry64, DEQUE_CAPACITY,
+};
+pub use event_bus::{
+    channel, component, filter_entities, ComponentMask64, ComponentQuery, DeterministicEventBus,
+    EventSlab64, DEFAULT_EVENT_CAPACITY,
 };
 
 pub use audio::{
