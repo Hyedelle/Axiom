@@ -10,6 +10,7 @@ pub mod boxing;
 pub mod boxing_netcode;
 pub mod card;
 pub mod defense;
+pub mod expansion;
 pub mod factory;
 pub mod lobby;
 pub mod schema_catalog;
@@ -27,6 +28,7 @@ pub use boxing_netcode::{
     NETBOX_WIRE_MAGIC,
 };
 pub use card::{CardKind, DeckState, TacticalCard};
+pub use expansion::{ExpansionBoss, ExpansionTracker};
 pub use lobby::{
     calculate_elo, LeaderboardEntry, LeaderboardTable, LobbyMember, LobbyRole, LobbyState,
     SteamLobby, DEFAULT_ELO, ELO_K_FACTOR, MAX_LOBBY_MEMBERS,

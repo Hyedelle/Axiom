@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-121: 스팀 클라우드 & 워크숍 통합 사후 확장팩 (Steam DLC / Next Frontier)** (`crates/axiom-core`, `crates/axiom-game`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-122: 크로스 플랫폼 Vulkan/DirectX 12 선택적 백엔드 및 모바일 타겟 검증** (`crates/axiom-render`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-123: AI 대전 파이터 인공지능 강화학습 모델 추론 엔진 통합** (`crates/axiom-core`, `crates/axiom-game`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-121: 스팀 클라우드 & 워크숍 통합 사후 확장팩 (Steam DLC / Next Frontier)** (`crates/axiom-core/src/dlc.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_dlc.rs`, `crates/axiom-game/src/expansion.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_expansion.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `DlcState` [#[repr(C, align(64))], owned_mask, active_mask, steam_app_id, build_id, install_timestamp, 64-bit FNV-1a 암호학적 서명 체크섬 `signature_hash`], 4대 Steamworks 정규 DLC AppID 규격 [`TitanChronicles`, `VoidFrontier`, `GoldenDecals`, `FoundryOverdrive`], DLC 소유권 위변조 실시간 방어 및 런타임 라이선스 언락 머신, 64B L1 캐시 정렬 게임플레이 확장 추적기 `ExpansionTracker`, 신규 챔피언십 보스 2종 [`KRONOS (180 HP, Titan Smash)`, `AETHER (140 HP, Phase Cloak)`] DLC 게이팅 및 해금 연동, 5개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-120: Axiom 120대 통합 최종 마일스톤 데모 패키징 및 스팀 상점 페이지 에셋 빌더** (`tools/package.ps1`, `docs/steam-store-assets.md`, `Cargo.toml`, `dist/axiom-v2.1.0-unified-milestone.zip` [1.98 MB, SHA-256 검증], `dist/.../bin/mimic-the-show.exe` [0.84 MB, 60 FPS 네이티브 메카 복싱 로그라이트 단일 바이너리], `dist/.../bin/axiom.exe` [0.82 MB, 팩토리 RPG / 10만 NPC / 워크숍 CLI], `dist/.../web/` [1.08 MB WASM 7대 통합 웹 플레이어 & WebRTC P2P 롤백 넷코드], 스팀 상점 페이지 공식 명세 `docs/steam-store-assets.md` [5대 캡슐 규격, 영문/국문 소개문, 0-Float CPU 래스터라이저 시스템 요구사항], 전체 워크스페이스 v2.1.0 공식 판올림 및 Git 태그 `v2.1.0` 준비, `tools/guard.ps1` 통과)
 - [x] **T-119: 3D 관절 애니메이션 블렌딩 트리 및 메카 시네마틱 피니셔 연출** (`crates/axiom-render/src/kinematics3d.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_animation_blend_and_finisher.rs`, `mimic-the-show/src/view.rs`, 0-Float 결정론 Q16.16 & BAMS 각도 보간기 [`lerp_vec3_permille`, `lerp_bams_permille`], 가중치 기반 다관절 상태 블렌더 `AnimBlendTree`, 64B L1 캐시 라인 정렬 시네마틱 피니셔 시퀀서 `CinematicFinisherDirector` [#[repr(C, align(64))], WindupCharging ➔ NovaStrike ➔ DecapitateRecoil ➔ VictoryRoar], 카메라 클로즈업/로우앵글 오빗/화면 셰이크(최대 18)/40개 황금 파편 스파크 폭발/슈퍼노바 백열 림 라이트/사운드스케이프 동기화, `mimic-the-show` 3D 뷰포트 실시간 피니셔 연출 완결, 6개 단위 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-118: 스팀 멀티플레이어 로비(Steam Lobby / P2P Relay) 및 글로벌 랭킹 리더보드 연동** (`crates/axiom-game/src/lobby.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_lobby.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom-wasm.wasm`, 0-Float 64-Byte L1 캐시 라인 정렬 `LeaderboardEntry` [#[repr(C, align(64))], steam_id, rating, matches_won/lost, kos, flawless, streaks, moniker], 0-Float 순수 정수 ELO 레이팅 엔진 `calculate_elo`, 64인 무할당 삽입 정렬 랭킹 테이블 `LeaderboardTable<64>`, P2P 8인 룸 상태 머신 `SteamLobby<8>` [P1, P2, Spectators], WASM C-ABI 17개 엔드포인트 [`axiom_lobby_*`, `axiom_leaderboard_*`], 웹 플레이어 🥇 **Global Steam ELO Leaderboard** & 👥 **Steam Multiplayer Lobby** 모달 뷰포트 연동 [티어 뱃지 Grandmaster/Platinum/Gold/Silver/Bronze, 랭킹/전적/연승 스트릭 테이블, 실시간 가상 매치 시뮬레이션, 8-슬롯 룸 브로커 레디 체크 및 매치 스타트], 8개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

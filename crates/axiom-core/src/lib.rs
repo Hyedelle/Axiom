@@ -12,6 +12,7 @@ pub mod audio;
 pub mod chunk;
 pub mod cloud_save;
 pub mod combat;
+pub mod dlc;
 pub mod effector;
 pub mod entity;
 pub mod fixed;
@@ -55,6 +56,7 @@ pub use cloud_save::{
     CLOUD_SAVE_MAGIC, CLOUD_SAVE_VERSION,
 };
 pub use combat::{BattleArena, CombatUnit, DEFAULT_MAX_UNITS};
+pub use dlc::{DlcId, DlcState};
 pub use effector::{
     ActiveStatus, AtbArena, AtbUnit, CombatEffector, Element, StatusKind, ATB_MAX_GAUGE,
     MAX_ACTIVE_UNITS, MAX_STATUS_EFFECTS,
