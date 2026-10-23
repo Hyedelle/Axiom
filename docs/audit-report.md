@@ -8,26 +8,31 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 06:40 KST
-- **감사 대상:** Axiom Engine 220대 공간 해싱 & 브로드페이즈 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-191, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `crates/axiom-wasm/index.html`, `axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI `axiom_spatial_bench_broadphase` 무결성 검증, 64-엔티티 3D 공간 클러스터 브로드페이즈 충돌 검출 및 컨센서스 해시 산출, 4-워커 잡 디스패치 및 이벤트 버스 발행 파이프라인 무결성, 웹 스튜디오 🌐 220 Spatial Broadphase 대화형 쇼케이스 연동, 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 06:50 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 3D 공간 해시 브로드페이즈 물리/히트박스 및 HUD 레이더 결합 (T-192, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `crates/axiom-game/src/network.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 64-버킷 `SpatialHashGrid<64, 14>` 탑재, `step_broadphase_pipeline` 싱글플레이/16-인 배틀로얄 브로드페이즈 파이프라인 연계, `step_broadphase` 동기/비동기 잡 스케줄러 분기 보장, F3 HUD 카드 `Grid: 64 Buckets | Pairs: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 충돌 경고 인디케이터, 하단 컨트롤 바 `[GRID: {}P]` 연동, 24개 게임 단위/통합 테스트 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **C-ABI 브로드페이즈 벤치마크 인터페이스 (`axiom_spatial_bench_broadphase`)**:
-     - 4~128개 3D 엔티티 슬랩(`AabbSlab64`)에 대해 Wang 3-Prime 공간 해시 그리드 적재 및 `query_all_collision_pairs` 수행.
-     - `CollisionPair64` 충돌 쌍을 `DeterministicEventBus`에 발행하고 `WorkerPoolCoordinator` 4-워커 잡 디스패치 수행.
-     - 64비트 FNV-1a 그리드 및 이벤트 버스 합성 결정론 체크섬을 `out_stats`에 정확히 반환.
-  2. **WASM 릴리즈 바이너리 무결 컴파일 및 동기화**:
-     - `cargo build --release -p axiom-wasm --target wasm32-unknown-unknown` 완료 (1,299,790 Bytes).
-     - `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, `crates/axiom-wasm/axiom_wasm.wasm` 일체 동기화 완료.
-  3. **웹 스튜디오 대화형 쇼케이스 (`web/index.html`, `crates/axiom-wasm/index.html`)**:
-     - 🌐 **220 Spatial Broadphase (64B Slabs)** 전용 액션 버튼 및 `runSpatialBroadphaseBenchmark` JS 함수 추가.
-     - 엔티티 수, 검출된 활성 충돌 쌍, 초당 엔티티 검사 처리량, 64비트 컨센서스 해시 HUD 알림 연동.
-  4. **인라인 통합 테스트 및 헌법 가드 검증**:
-     - `crates/axiom-wasm` 인라인 테스트 `test_wasm_net_and_gpu_compute_bindings` 9번 항목 완벽 통과.
+  1. **`DesktopGameView` 공간 해시 그리드 구조체 확장**:
+     - 64B L1 캐시 정렬 `SpatialHashGrid<64, 14>` 및 실시간 감지 카운터 `broadphase_pairs_count` 탑재.
+     - 0-Heap 고정 크기 버킷 구조로 프레임 드랍 0 µs 달성.
+  2. **싱글플레이 및 16-인 멀티플레이 브로드페이즈 통합 (`step_broadphase_pipeline`)**:
+     - 싱글플레이: 링 경기장 내 플레이어와 상대 선수의 3D AABB 슬랩을 평가하고 충돌 쌍 감지.
+     - 16-인 멀티플레이: `is_job_scheduler_active`에 따라 `step_broadphase_with_jobs` 워커 풀 분할 또는 `step_broadphase` 동기 폴백 실행.
+  3. **F3 HUD 텔레메트리 카드 & 미니 레이더 시각화**:
+     - 16-인 배틀로얄 HUD 카드에 `Grid: 64 Buckets | Pairs: {} | 64B` 출력.
+     - 56x56 미니 레이더에 활성 충돌 쌍 감지 시 우상단 Cyan(`0xFF06B6D4`) 경고 점등.
+     - 하단 컨트롤 바에 `[GRID: {}P]` 인디케이터 상시 노출.
+  4. **단위 및 통합 테스트 검증**:
+     - `mimic-the-show` 24개 전역 단위/통합 테스트 100% 통과 (`test_view_3d_spatial_grid_and_broadphase_collision` 검증).
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T191] Axiom Engine 220대 공간 해싱 & 브로드페이즈 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 06:40 KST
+- **판정:** 🟢 **ALL CLEAR (쇼케이스 승인)**
+- **검증:** 0-Float 헌법 무결성, C-ABI `axiom_spatial_bench_broadphase` 무결성 검증, 64-엔티티 3D 공간 클러스터 브로드페이즈 충돌 검출 및 컨센서스 해시 산출, 4-워커 잡 디스패치 및 이벤트 버스 발행 파이프라인 무결성, 웹 스튜디오 🌐 220 Spatial Broadphase 대화형 쇼케이스 연동, 헌법 가드 100% 올패스.
 
 ### [AUDIT-20261024-T190] Axiom Engine 220대 브로드페이즈 충돌 가속 엔진 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 06:30 KST

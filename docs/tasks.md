@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-192: Mimic The Show 챔피언십 링 3D 공간 해시 브로드페이즈 물리/히트박스 및 HUD 레이더 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-193: Axiom 220대 차세대 공간 해싱 & 브로드페이즈 충돌 가속 엔진 공식 릴리즈 v3.6.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-125]~[D-128], `docs/audit-report.md` [AUDIT-20261024-v3.6.0], `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-194: Axiom 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 연구** (`docs/audit-report.md`, `docs/tasks.md`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-192: Mimic The Show 챔피언십 링 3D 공간 해시 브로드페이즈 물리/히트박스 및 HUD 레이더 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `crates/axiom-game/src/network.rs`, `DesktopGameView` 내 `SpatialHashGrid<64, 14>` 및 `broadphase_pairs_count` 탑재, `step_broadphase_pipeline` [싱글플레이 플레이어/상대 3D AABB 슬랩 평가 및 16-인 배틀로얄 `step_broadphase_with_jobs` 워커 풀 분할], F3 HUD 카드 `Grid: 64 Buckets | Pairs: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 충돌 경고 인디케이터, 하단 컨트롤 바 `[GRID: {}P]` 연동, 24개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-191: Axiom 220대 공간 해싱 & 브로드페이즈 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_spatial_bench_broadphase` [4~128 엔티티 3D 클러스터 AABB 슬랩 생성, 1,024-버킷 공간 해시 그리드 적재, `query_all_collision_pairs` 충돌 쌍 검출, `emit_collision_pairs_to_event_bus` 물리 채널 발행 및 `WorkerPoolCoordinator` 4-워커 잡 디스패치 파이프라인 연계, 64-bit FNV-1a 상태 합의 체크섬 계측], 웹 3D 복셀 스튜디오 🌐 **220 Spatial Broadphase (64B Slabs)** 대화형 모달 연동, 1.30 MB 최적화 WASM 바이너리 동기화, 25개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-190: Axiom 브로드페이즈 충돌 가속 엔진 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_spatial_grid_jobs.rs`, `crates/axiom-game/tests/test_event_bus_job_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_broadphase_with_jobs` [엔티티 슬랩 N-배치 분할 후 Chase-Lev 워커 풀 분산], 0-Heap 이벤트 버스 발행 `emit_collision_pairs_to_event_bus` [`EVENT_BROADPHASE_PAIR = 0x0220` 및 `channel::PHYSICS` 채널, 40B 인라인 페이로드, GGPO 롤백 `rollback_to` 지원], `NetworkMatchDirector::step_broadphase_with_jobs` [16-인 배틀로얄 경기장 3D AABB 브로드페이즈 실시간 감지 파이프라인 결합], 3개 신규 통합 테스트 및 `axiom-game` 전역 45개 단위/11개 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-189: Axiom 220대 계층적 공간 그리드(Hierarchical Spatial Grid) 및 AABB 브로드페이즈 충돌 구현** (`crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_spatial_grid.rs`, 0-Float 64B L1 캐시 정렬 바운딩 박스 슬랩 `AabbSlab64` [#[repr(C, align(64))], exact 64B slab, 0-암시적 패딩 자연 정렬, min/max XYZ mm, entity_id, generation, layer_mask, flags], 0-Float 64B L1 정렬 공간 셀 슬랩 `SpatialCell64<CAP>` [#[repr(C, align(64))], exact 64B slab, 14-entity inline buffer], 3-Prime Coprime + Wang Finalizer 3D 정수 공간 해시 함수 `spatial_hash_3d`, 0-Heap 고정 크기 플랫 배열 해시 테이블 `SpatialHashGrid<TABLE_CAP, CELL_CAP>` [insert, query_aabb_candidates, query_all_collision_pairs], Lexicographical Minimum Overlap Rule 기반 무할당 0-중복 충돌 쌍 생성 `CollisionPair64`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 6개 신규 단위 테스트 및 `axiom-core` 전역 59개 단위/36개 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
