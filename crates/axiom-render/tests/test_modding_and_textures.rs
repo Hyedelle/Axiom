@@ -222,3 +222,48 @@ fn test_workshop_manager_lifecycle_and_hot_swap() {
     // Clean up
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+#[test]
+fn test_painting_tools_and_decal_stamping() {
+    use axiom_render::texture::DecalKind;
+
+    let mut tex = TextureMap::new(64, 64);
+    tex.clear(0xFF000000); // Black
+
+    // 1. Paint Brush (radius 4, Red, 100% opacity)
+    tex.paint_brush(32, 32, 4, 0xFFFF0000, 255);
+    assert_eq!(tex.get_pixel(32, 32), 0xFFFF0000);
+    assert_eq!(tex.get_pixel(32 + 3, 32), 0xFFFF0000);
+    assert_eq!(tex.get_pixel(0, 0), 0xFF000000);
+
+    // 2. Draw Line (from 0,0 to 10,0, Green)
+    tex.draw_line(0, 0, 10, 0, 0xFF00FF00, 1, 255);
+    for x in 0..=10 {
+        assert_eq!(tex.get_pixel(x, 0), 0xFF00FF00);
+    }
+
+    // 3. Flood Fill
+    let mut fill_tex = TextureMap::new(16, 16);
+    fill_tex.clear(0xFF112233);
+    fill_tex.flood_fill(5, 5, 0xFF445566);
+    assert_eq!(fill_tex.get_pixel(0, 0), 0xFF445566);
+    assert_eq!(fill_tex.get_pixel(15, 15), 0xFF445566);
+
+    // 4. Decal Generation & Stamping
+    for kind in [
+        DecalKind::Star,
+        DecalKind::HazardStripes,
+        DecalKind::SkullCrossbones,
+        DecalKind::Number01,
+        DecalKind::SponsorAxiom,
+        DecalKind::TargetReticle,
+        DecalKind::CheckeredFlag,
+    ] {
+        let decal = TextureMap::generate_decal(kind, 32);
+        assert_eq!(decal.width, 32);
+        assert_eq!(decal.height, 32);
+        // Stamp at center of tex
+        tex.stamp_decal(&decal, 32, 32, 256);
+    }
+}
+

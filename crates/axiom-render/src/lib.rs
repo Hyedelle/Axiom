@@ -35,4 +35,4 @@ pub use newspaper::{
 pub use particles3d::{Particle3D, ParticleSystem3D};
 pub use raster3d::{CelShadingPalette, Rasterizer3D};
 pub use sprites::*;
-pub use texture::{blend_decal, modulate_color, TextureMap, TextureWrapMode};
+pub use texture::{blend_alpha, blend_decal, modulate_color, DecalKind, TextureMap, TextureWrapMode};

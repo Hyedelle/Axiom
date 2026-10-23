@@ -33,6 +33,7 @@ use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D};
 use axiom_render::raster3d::{CelShadingPalette, Rasterizer3D};
+use axiom_render::texture::{DecalKind, TextureMap};
 use axiom_render::{cos_bams, sin_bams, FrameBuffer};
 
 #[allow(static_mut_refs)]
@@ -2816,6 +2817,141 @@ pub extern "C" fn axiom_3d_get_tick() -> u64 {
 }
 
 // ============================================================================
+// Track 3.5: Mecha Custom Texture Painting & Decal Studio C-ABI Bridge
+// ============================================================================
+
+#[allow(static_mut_refs)]
+static mut ACTIVE_TEXTURE: Option<TextureMap> = None;
+
+#[inline(always)]
+fn active_texture() -> Option<&'static mut TextureMap> {
+    unsafe { (*core::ptr::addr_of_mut!(ACTIVE_TEXTURE)).as_mut() }
+}
+
+/// Initializes or resets the active texture painting canvas with power-of-two size (e.g. 128 or 256).
+#[no_mangle]
+#[allow(static_mut_refs)]
+pub extern "C" fn axiom_texture_init(size: u32) {
+    let size = size.clamp(16, 512).next_power_of_two();
+    let mut tex = TextureMap::new(size, size);
+    tex.clear(0xFF38BDF8); // Default Sky Blue base coat
+    unsafe {
+        ACTIVE_TEXTURE = Some(tex);
+    }
+}
+
+/// Returns pointer to the raw 32-bit ARGB pixels of the active texture canvas.
+#[no_mangle]
+pub extern "C" fn axiom_texture_get_ptr() -> *const u32 {
+    active_texture()
+        .map(|t| t.pixels.as_ptr())
+        .unwrap_or(core::ptr::null())
+}
+
+/// Returns the width/height (power of two) of the active texture canvas.
+#[no_mangle]
+pub extern "C" fn axiom_texture_get_size() -> u32 {
+    active_texture().map(|t| t.width).unwrap_or(0)
+}
+
+/// Clears active texture with a solid ARGB color.
+#[no_mangle]
+pub extern "C" fn axiom_texture_clear(color: u32) {
+    if let Some(tex) = active_texture() {
+        tex.clear(color);
+    }
+}
+
+/// Paints a circular brush stroke on the active texture.
+#[no_mangle]
+pub extern "C" fn axiom_texture_paint(cx: i32, cy: i32, radius: i32, color: u32, opacity: u32) {
+    if let Some(tex) = active_texture() {
+        tex.paint_brush(cx, cy, radius.max(1), color, opacity.min(255) as u8);
+    }
+}
+
+/// Draws an interpolated brush stroke line between (x0, y0) and (x1, y1).
+#[no_mangle]
+pub extern "C" fn axiom_texture_line(
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+    color: u32,
+    radius: i32,
+    opacity: u32,
+) {
+    if let Some(tex) = active_texture() {
+        tex.draw_line(x0, y0, x1, y1, color, radius.max(1), opacity.min(255) as u8);
+    }
+}
+
+/// Executes a scanline flood fill on the active texture starting from (x, y).
+#[no_mangle]
+pub extern "C" fn axiom_texture_flood_fill(x: u32, y: u32, color: u32) {
+    if let Some(tex) = active_texture() {
+        tex.flood_fill(x, y, color);
+    }
+}
+
+/// Stamps a procedural decal onto the active texture at (cx, cy) with scale (256 = 1.0x).
+#[no_mangle]
+pub extern "C" fn axiom_texture_stamp_decal(
+    decal_idx: u32,
+    cx: i32,
+    cy: i32,
+    scale_q8: u32,
+) {
+    let kind = match decal_idx {
+        0 => DecalKind::Star,
+        1 => DecalKind::HazardStripes,
+        2 => DecalKind::SkullCrossbones,
+        3 => DecalKind::Number01,
+        4 => DecalKind::SponsorAxiom,
+        5 => DecalKind::TargetReticle,
+        _ => DecalKind::CheckeredFlag,
+    };
+    if let Some(tex) = active_texture() {
+        let decal = TextureMap::generate_decal(kind, (tex.width / 2).max(32));
+        tex.stamp_decal(&decal, cx, cy, scale_q8.clamp(32, 1024));
+    }
+}
+
+/// Loads a procedural base preset onto the active texture:
+/// 0: Hazard Stripes, 1: Industrial Metal Plating, 2: Military Camo.
+#[no_mangle]
+pub extern "C" fn axiom_texture_load_procedural(preset_idx: u32) {
+    if let Some(tex) = active_texture() {
+        let size = tex.width;
+        let generated = match preset_idx {
+            0 => TextureMap::procedural_hazard_stripes(size),
+            1 => TextureMap::procedural_metal_plating(size),
+            _ => TextureMap::procedural_camo(size),
+        };
+        *tex = generated;
+    }
+}
+
+/// Binds the active texture canvas directly to the 3D software rasterizer for live turntable preview.
+#[no_mangle]
+pub extern "C" fn axiom_texture_apply_to_3d() -> u32 {
+    if let (Some(engine), Some(tex)) = (wasm_3d_engine(), active_texture()) {
+        engine.rasterizer.custom_texture = Some(tex.clone());
+        1
+    } else {
+        0
+    }
+}
+
+/// Detaches custom texture from the 3D rasterizer, restoring default cel-shading materials.
+#[no_mangle]
+pub extern "C" fn axiom_texture_remove_from_3d() {
+    if let Some(engine) = wasm_3d_engine() {
+        engine.rasterizer.custom_texture = None;
+    }
+}
+
+// ============================================================================
 // Track 4: P2P Multiplayer Boxing Rollback Netcode C-ABI Bridge
 // ============================================================================
 
@@ -3635,8 +3771,14 @@ mod tests {
         assert!(!block_ptr.is_null());
     }
 
+    static ENGINE_3D_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn engine_3d_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENGINE_3D_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     #[test]
     fn test_wasm_3d_lifecycle_and_render() {
+        let _g = engine_3d_lock();
         axiom_3d_init(320, 240);
         assert_eq!(axiom_3d_get_tick(), 0);
         assert!(axiom_3d_get_triangles() > 0, "procedural chassis must have triangles");
@@ -4189,5 +4331,25 @@ mod tests {
         assert_eq!(h1, h2);
         assert_eq!(p1, p2);
         assert!(s1.total_shots > 0 && s1.total_smelted > 0, "{s1:?}");
+    }
+
+    #[test]
+    fn test_texture_painting_and_3d_binding_wasm_exports() {
+        let _g = engine_3d_lock();
+        axiom_texture_init(64);
+        assert_eq!(axiom_texture_get_size(), 64);
+        assert!(!axiom_texture_get_ptr().is_null());
+
+        axiom_texture_clear(0xFF1E293B);
+        axiom_texture_paint(32, 32, 4, 0xFFFF0000, 255);
+        axiom_texture_line(0, 0, 10, 0, 0xFF00FF00, 1, 255);
+        axiom_texture_stamp_decal(0, 32, 32, 256); // Star
+
+        axiom_3d_init(128, 128);
+        assert_eq!(axiom_texture_apply_to_3d(), 1);
+        axiom_3d_render();
+        assert!(!axiom_3d_get_framebuffer_ptr().is_null());
+
+        axiom_texture_remove_from_3d();
     }
 }

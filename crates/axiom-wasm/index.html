@@ -295,6 +295,7 @@
 
   <div class="controls">
     <button id="btn3D" onclick="switchMode('turntable3d')">🤖 3D Mecha Turntable</button>
+    <button id="btnDecal" onclick="switchMode('decal')">🎨 Custom Painter & Decal</button>
     <button id="btnBoxing" class="active" onclick="switchMode('boxing')">🥊 Mecha Boxing (Punch-Out)</button>
     <button id="btnReplay" onclick="switchMode('replay')">🎞️ 3D Replay (.axrp)</button>
     <button id="btnFactory" onclick="switchMode('factory')">🏭 Factory Base Defense</button>
@@ -314,6 +315,34 @@
     <label class="action-btn" style="cursor: pointer; color: #f472b6; border-color: #db2777;">
       📁 Upload GLB <input type="file" id="glbFileInput" accept=".glb" style="display:none" onchange="handleGlbUpload(event)">
     </label>
+  </div>
+
+  <div id="decalActionBar" class="action-bar" style="display: none; flex-wrap: wrap; gap: 6px; align-items: center;">
+    <span style="font-weight: bold; color: #38bdf8;">🎨 Tool:</span>
+    <button class="action-btn active" id="btnToolBrush" onclick="setPaintTool('brush')">🖌️ Brush</button>
+    <button class="action-btn" id="btnToolLine" onclick="setPaintTool('line')">📏 Line</button>
+    <button class="action-btn" id="btnToolFill" onclick="setPaintTool('fill')">🪣 Flood Fill</button>
+    <button class="action-btn" id="btnToolDecal" onclick="setPaintTool('decal')">⭐ Stamp Decal</button>
+    <button class="action-btn" id="btnToolEraser" onclick="setPaintTool('eraser')">🧹 Eraser</button>
+
+    <span style="font-weight: bold; color: #facc15; margin-left: 8px;">Decal:</span>
+    <select id="decalSelect" onchange="onDecalSelectChange(this.value)" style="background: #1e293b; color: #fff; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px;">
+      <option value="0">⭐ Star Badge</option>
+      <option value="1">⚠️ Hazard Stripes</option>
+      <option value="2">💀 Skull Stencil</option>
+      <option value="3">🏎️ Racing 01</option>
+      <option value="4">🔥 AXIOM Sponsor</option>
+      <option value="5">🎯 Target Reticle</option>
+      <option value="6">🏁 Checkered Flag</option>
+    </select>
+
+    <span style="font-weight: bold; color: #f472b6; margin-left: 8px;">Preset:</span>
+    <button class="action-btn" onclick="loadTexturePreset(0)">⚠️ Hazard</button>
+    <button class="action-btn" onclick="loadTexturePreset(1)">🔩 Metal</button>
+    <button class="action-btn" onclick="loadTexturePreset(2)">🪖 Camo</button>
+    <button class="action-btn" onclick="clearTextureCanvas()" style="color: #ef4444; border-color: #991b1b;">🗑️ Clear</button>
+    <button class="action-btn" id="btnExportTex" onclick="exportTexturePng()" style="color: #4ade80; border-color: #166534; font-weight: bold;">💾 Download PNG</button>
+    <button class="action-btn active" id="btnApply3D" onclick="toggleTexture3D()" style="color: #a855f7; border-color: #7e22ce; font-weight: bold;">🤖 Live 3D Preview: ON</button>
   </div>
 
   <div id="boxingActionBar" class="action-bar" style="display: flex; flex-wrap: wrap; gap: 6px;">
@@ -389,6 +418,43 @@
     <span>Tick:</span> <span id="tick" class="blue">0</span> |
     <span id="hudDetail"></span> |
     <span>FPS:</span> <span id="fps" class="green">60</span>
+  </div>
+
+  <div id="decalStudioContainer" style="display: none; margin-bottom: 12px; background: #0f172a; border: 2px solid #38bdf8; border-radius: 12px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); max-width: 640px; margin-left: auto; margin-right: auto;">
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; align-items: center;">
+      <!-- 2D Texture Paint Pad -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div style="font-weight: bold; color: #38bdf8; font-size: 13px;">
+          🖌️ 2D Texture Map (128x128 Pixel Canvas)
+        </div>
+        <canvas id="paintCanvas" width="128" height="128" style="width: 256px; height: 256px; border: 2px solid #0284c7; border-radius: 8px; image-rendering: pixelated; cursor: crosshair; background: #38bdf8;"></canvas>
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: 260px;">
+          <input type="color" id="paintColorPicker" value="#38bdf8" style="width: 28px; height: 28px; border: none; cursor: pointer; border-radius: 4px;" onchange="setPaintColor(this.value)">
+          <div style="display: flex; gap: 4px;">
+            <div style="width: 18px; height: 18px; border-radius: 3px; background: #38bdf8; cursor: pointer; border: 1px solid #fff;" onclick="setPaintColor('#38bdf8')"></div>
+            <div style="width: 18px; height: 18px; border-radius: 3px; background: #ef4444; cursor: pointer; border: 1px solid #fff;" onclick="setPaintColor('#ef4444')"></div>
+            <div style="width: 18px; height: 18px; border-radius: 3px; background: #f59e0b; cursor: pointer; border: 1px solid #fff;" onclick="setPaintColor('#f59e0b')"></div>
+            <div style="width: 18px; height: 18px; border-radius: 3px; background: #22c55e; cursor: pointer; border: 1px solid #fff;" onclick="setPaintColor('#22c55e')"></div>
+            <div style="width: 18px; height: 18px; border-radius: 3px; background: #e2e8f0; cursor: pointer; border: 1px solid #fff;" onclick="setPaintColor('#e2e8f0')"></div>
+            <div style="width: 18px; height: 18px; border-radius: 3px; background: #0f172a; cursor: pointer; border: 1px solid #fff;" onclick="setPaintColor('#0f172a')"></div>
+          </div>
+          <span style="font-size: 11px; color: #94a3b8;">Size:</span>
+          <input type="range" id="brushSize" min="1" max="16" value="3" style="width: 50px;" oninput="onBrushSizeChange(this.value)">
+          <span id="brushSizeVal" style="font-size: 11px; color: #38bdf8; font-weight: bold;">3px</span>
+        </div>
+      </div>
+
+      <!-- Live 3D Preview Note -->
+      <div style="max-width: 280px; color: #cbd5e1; font-size: 12px; line-height: 1.5; background: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: left;">
+        <div style="font-weight: bold; color: #facc15; font-size: 13px; margin-bottom: 6px;">🤖 3D Live Mecha Viewport 연동</div>
+        <p style="margin: 0 0 6px 0;">2D 텍스처 캔버스에 브러시, 라인, 플러드 필, 스팀 데칼 스탬프를 찍으면 <strong>하단 3D 뷰포트의 메카 섀시 표면에 60 FPS 실시간 매핑</strong>됩니다.</p>
+        <ul style="margin: 0; padding-left: 16px; color: #94a3b8;">
+          <li>마우스 드래그: 3D 메카 360° 턴테이블 회전</li>
+          <li>휠 스크롤: 줌 인/아웃</li>
+          <li>[Download PNG]: 스팀 워크숍용 텍스처 파일 추출</li>
+        </ul>
+      </div>
+    </div>
   </div>
 
   <div class="canvas-container">
@@ -1221,7 +1287,7 @@
     }
 
     canvas.addEventListener('mousedown', (e) => {
-      if (mode === 'turntable3d') {
+      if (mode === 'turntable3d' || mode === 'decal') {
         is3DDragging = true;
         dragLastX = e.clientX;
         dragLastY = e.clientY;
@@ -1229,7 +1295,7 @@
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (is3DDragging && mode === 'turntable3d') {
+      if (is3DDragging && (mode === 'turntable3d' || mode === 'decal')) {
         const dx = e.clientX - dragLastX;
         const dy = e.clientY - dragLastY;
         dragLastX = e.clientX;
@@ -1244,7 +1310,7 @@
     });
 
     canvas.addEventListener('wheel', (e) => {
-      if (mode === 'turntable3d') {
+      if (mode === 'turntable3d' || mode === 'decal') {
         e.preventDefault();
         camDistQ16 = Math.max(65536, Math.min(655360, camDistQ16 + Math.round(e.deltaY * 80)));
         if (wasmInstance && wasmInstance.axiom_3d_set_cam) {
@@ -1395,6 +1461,8 @@
       mode = newMode;
       const btn3D = document.getElementById('btn3D');
       if (btn3D) btn3D.className = mode === 'turntable3d' ? 'active' : '';
+      const btnDecal = document.getElementById('btnDecal');
+      if (btnDecal) btnDecal.className = mode === 'decal' ? 'active' : '';
       const btnBoxing = document.getElementById('btnBoxing');
       if (btnBoxing) btnBoxing.className = mode === 'boxing' ? 'active' : '';
       const btnReplay = document.getElementById('btnReplay');
@@ -1407,6 +1475,8 @@
       document.getElementById('btnArena').className = mode === 'arena' ? 'active' : '';
 
       const turntableBar = document.getElementById('turntable3dActionBar');
+      const decalBar = document.getElementById('decalActionBar');
+      const decalContainer = document.getElementById('decalStudioContainer');
       const boxingBar = document.getElementById('boxingActionBar');
       const replayBar = document.getElementById('replayActionBar');
       const factoryBar = document.getElementById('factoryActionBar');
@@ -1415,6 +1485,8 @@
       const instruction = document.getElementById('instruction');
 
       if (turntableBar) turntableBar.style.display = 'none';
+      if (decalBar) decalBar.style.display = 'none';
+      if (decalContainer) decalContainer.style.display = 'none';
       if (boxingBar) boxingBar.style.display = 'none';
       if (replayBar) replayBar.style.display = 'none';
       if (factoryBar) factoryBar.style.display = 'none';
@@ -1426,6 +1498,12 @@
         instruction.innerText = '🤖 3D 소프트웨어 래스터라이저: 마우스/터치 드래그로 360° 회전 및 휠 줌 | 순수 CPU 정수 래스터라이징 (8x8 Juan Pineda 타일 비닝 / Reversed-Z)';
         wasmInstance.axiom_3d_init(width, height);
         sync3DOptions();
+      } else if (mode === 'decal') {
+        if (decalBar) decalBar.style.display = 'flex';
+        if (decalContainer) decalContainer.style.display = 'block';
+        instruction.innerText = '🎨 메카 커스텀 페인팅 & 데칼 스튜디오: 2D 텍스처 캔버스에 그리기/스탬프/플러드 필 ➔ 하단 3D 메카 실시간 텍스처 매핑 렌더링';
+        wasmInstance.axiom_3d_init(width, height);
+        initDecalStudio();
       } else if (mode === 'replay') {
         if (replayBar) replayBar.style.display = 'flex';
         instruction.innerText = '🎞️ 3D 메카 복싱 리플레이 뷰어: .axrp 결정론 바이너리 재생, 타임라인 스크러빙 및 프레임별 상태 해시 검증';
@@ -1850,6 +1928,189 @@
       loadReplayBuffer(buf);
     }
 
+    // =========================================================================
+    // Track 3.5: Mecha Custom Texture Painting & Decal Studio Logic
+    // =========================================================================
+    let paintTool = 'brush';
+    let paintColor = 0xFF38BDF8;
+    let brushRadius = 3;
+    let selectedDecalKind = 0;
+    let isPainting = false;
+    let lastPaintPos = null;
+    let live3DPreview = true;
+    let decalEventsAttached = false;
+
+    function initDecalStudio() {
+      if (!wasmInstance || !wasmInstance.axiom_texture_init) return;
+      const size = 128;
+      if (wasmInstance.axiom_texture_get_size() === 0) {
+        wasmInstance.axiom_texture_init(size);
+      }
+      if (live3DPreview) {
+        wasmInstance.axiom_texture_apply_to_3d();
+      }
+      renderPaintCanvas();
+      setupPaintCanvasEvents();
+    }
+
+    function renderPaintCanvas() {
+      const pCanvas = document.getElementById('paintCanvas');
+      if (!pCanvas || !wasmInstance || !wasmInstance.axiom_texture_get_ptr) return;
+      const ctx = pCanvas.getContext('2d');
+      const size = wasmInstance.axiom_texture_get_size();
+      if (size === 0) return;
+      const ptr = wasmInstance.axiom_texture_get_ptr();
+      const pixels = new Uint32Array(wasmInstance.memory.buffer, ptr, size * size);
+
+      const imgData = ctx.createImageData(size, size);
+      const data = imgData.data;
+      for (let i = 0; i < pixels.length; i++) {
+        const argb = pixels[i];
+        const a = (argb >>> 24) & 0xFF;
+        const r = (argb >>> 16) & 0xFF;
+        const g = (argb >>> 8) & 0xFF;
+        const b = argb & 0xFF;
+        const idx = i * 4;
+        data[idx] = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = a;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function setPaintTool(tool) {
+      paintTool = tool;
+      const toolBtns = {
+        'brush': 'btnToolBrush',
+        'line': 'btnToolLine',
+        'fill': 'btnToolFill',
+        'decal': 'btnToolDecal',
+        'eraser': 'btnToolEraser'
+      };
+      Object.values(toolBtns).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.className = 'action-btn';
+      });
+      const activeEl = document.getElementById(toolBtns[tool]);
+      if (activeEl) activeEl.className = 'action-btn active';
+    }
+
+    function setPaintColor(hex) {
+      const picker = document.getElementById('paintColorPicker');
+      if (picker) picker.value = hex;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      paintColor = (0xFF << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    function onBrushSizeChange(val) {
+      brushRadius = parseInt(val);
+      const ind = document.getElementById('brushSizeVal');
+      if (ind) ind.innerText = `${brushRadius}px`;
+    }
+
+    function onDecalSelectChange(val) {
+      selectedDecalKind = parseInt(val);
+    }
+
+    function loadTexturePreset(idx) {
+      if (!wasmInstance || !wasmInstance.axiom_texture_load_procedural) return;
+      wasmInstance.axiom_texture_load_procedural(idx);
+      renderPaintCanvas();
+      if (live3DPreview) wasmInstance.axiom_texture_apply_to_3d();
+    }
+
+    function clearTextureCanvas() {
+      if (!wasmInstance || !wasmInstance.axiom_texture_clear) return;
+      wasmInstance.axiom_texture_clear(paintColor);
+      renderPaintCanvas();
+      if (live3DPreview) wasmInstance.axiom_texture_apply_to_3d();
+    }
+
+    function toggleTexture3D() {
+      live3DPreview = !live3DPreview;
+      const btn = document.getElementById('btnApply3D');
+      if (btn) {
+        btn.innerText = `🤖 Live 3D Preview: ${live3DPreview ? 'ON' : 'OFF'}`;
+        btn.className = live3DPreview ? 'action-btn active' : 'action-btn';
+      }
+      if (wasmInstance) {
+        if (live3DPreview) wasmInstance.axiom_texture_apply_to_3d();
+        else wasmInstance.axiom_texture_remove_from_3d();
+      }
+    }
+
+    function exportTexturePng() {
+      const pCanvas = document.getElementById('paintCanvas');
+      if (!pCanvas) return;
+      const a = document.createElement('a');
+      a.href = pCanvas.toDataURL('image/png');
+      a.download = 'mecha_custom_texture.png';
+      a.click();
+    }
+
+    function setupPaintCanvasEvents() {
+      if (decalEventsAttached) return;
+      decalEventsAttached = true;
+      const pCanvas = document.getElementById('paintCanvas');
+      if (!pCanvas) return;
+
+      const getPos = (e) => {
+        const rect = pCanvas.getBoundingClientRect();
+        const size = wasmInstance.axiom_texture_get_size() || 128;
+        const x = Math.floor(((e.clientX - rect.left) / rect.width) * size);
+        const y = Math.floor(((e.clientY - rect.top) / rect.height) * size);
+        return { x: Math.max(0, Math.min(size - 1, x)), y: Math.max(0, Math.min(size - 1, y)) };
+      };
+
+      const executePaint = (pos, isDrag) => {
+        if (!wasmInstance) return;
+        const col = paintTool === 'eraser' ? 0xFF0B0F19 : paintColor;
+        if (paintTool === 'brush' || paintTool === 'eraser') {
+          if (isDrag && lastPaintPos) {
+            wasmInstance.axiom_texture_line(lastPaintPos.x, lastPaintPos.y, pos.x, pos.y, col, brushRadius, 255);
+          } else {
+            wasmInstance.axiom_texture_paint(pos.x, pos.y, brushRadius, col, 255);
+          }
+        } else if (paintTool === 'fill') {
+          wasmInstance.axiom_texture_flood_fill(pos.x, pos.y, col);
+        } else if (paintTool === 'decal') {
+          wasmInstance.axiom_texture_stamp_decal(selectedDecalKind, pos.x, pos.y, 256);
+        } else if (paintTool === 'line' && !isDrag) {
+          if (lastPaintPos) {
+            wasmInstance.axiom_texture_line(lastPaintPos.x, lastPaintPos.y, pos.x, pos.y, col, brushRadius, 255);
+            lastPaintPos = null;
+          } else {
+            lastPaintPos = pos;
+            return;
+          }
+        }
+        lastPaintPos = pos;
+        renderPaintCanvas();
+        if (live3DPreview) wasmInstance.axiom_texture_apply_to_3d();
+      };
+
+      pCanvas.addEventListener('mousedown', (e) => {
+        isPainting = true;
+        const pos = getPos(e);
+        if (paintTool !== 'line') lastPaintPos = null;
+        executePaint(pos, false);
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isPainting || paintTool === 'fill' || paintTool === 'decal' || paintTool === 'line') return;
+        const pos = getPos(e);
+        executePaint(pos, true);
+      });
+
+      window.addEventListener('mouseup', () => {
+        isPainting = false;
+        if (paintTool !== 'line') lastPaintPos = null;
+      });
+    }
+
     async function init() {
       try {
         const response = await fetch("axiom_wasm.wasm");
@@ -1881,7 +2142,7 @@
 
       let ptr, len, tick;
 
-      if (mode === 'turntable3d') {
+      if (mode === 'turntable3d' || mode === 'decal') {
         let yawDelta = 0;
         let pitchDelta = 0;
         if (is3DDragging) {
@@ -1903,8 +2164,9 @@
         const yawDeg = Math.round((yaw * 360) / 256);
         const pitchDeg = Math.round((pitch * 360) / 256);
 
+        const modeTag = mode === 'decal' ? '🎨 DECAL STUDIO' : '3D SOFT-RASTER';
         document.getElementById('hudDetail').innerHTML =
-          `<span class="purple" style="font-weight:bold;">3D SOFT-RASTER</span> | ` +
+          `<span class="purple" style="font-weight:bold;">${modeTag}</span> | ` +
           `<span class="gold">${tris.toLocaleString()} Tris</span> | ` +
           `<span class="blue">${verts.toLocaleString()} Verts</span> | ` +
           `<span class="green">Yaw: ${yawDeg}° Pitch: ${pitchDeg}°</span> | ` +

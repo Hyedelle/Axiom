@@ -100,11 +100,13 @@ impl PartMesh {
 
         let mut vertices = Vec::with_capacity(24);
         let mut indices = Vec::with_capacity(36);
+        let quad_uvs = [(0, 0), (65536, 0), (65536, 65536), (0, 65536)];
 
         for (quad, norm) in faces {
             let base_idx = vertices.len() as u32;
-            for pos in quad {
-                vertices.push(Vertex3D { pos, norm, u: 0, v: 0 });
+            for (i, pos) in quad.into_iter().enumerate() {
+                let (u, v) = quad_uvs[i];
+                vertices.push(Vertex3D { pos, norm, u, v });
             }
             indices.push(base_idx);
             indices.push(base_idx + 1);
