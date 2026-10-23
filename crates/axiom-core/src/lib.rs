@@ -27,6 +27,7 @@ pub mod pathfinding;
 pub mod pcg;
 pub mod power_grid;
 pub mod quest;
+pub mod replay;
 pub mod schema;
 pub mod serialization;
 pub mod spatial;
@@ -102,6 +103,10 @@ pub use power_grid::{
 pub use quest::{
     DialogueAction, DialogueChoice, DialogueNode, DialogueSession, ObjectiveType, QuestJournal,
     QuestRecord, QuestStatus, DEFAULT_MAX_ACTIVE_QUESTS, DEFAULT_MAX_COMPLETED_QUESTS,
+};
+pub use replay::{
+    DeterministicReplay, ReplayError, ReplayHeader, RleInputRun, DEFAULT_KEYFRAME_INTERVAL,
+    REPLAY_MAGIC, REPLAY_VERSION,
 };
 pub use serialization::{
     SaveHeader, SerializationError, WorldSerializer, AXM_MAGIC, AXM_VERSION,
