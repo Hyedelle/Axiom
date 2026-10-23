@@ -1197,6 +1197,54 @@ Axiom 180대 과제(T-166 ~ T-170)에서는 복셀 파괴 지형의 메쉬 재�
    - 브라우저 웹 플레이어에 `⚡ 3D Raymarch (CS 6.0)` 전용 모달 및 런타임 제로-카피 WGSL 소스 인스펙터를 연동했습니다.
    - `mimic-the-show` 인게임에서 글로벌 `F1` 핫키를 통해 3D Fast Voxel DDA 광선 추적 지반과 폴리곤 메카 래스터라이저의 하이브리드 블리팅을 실시간으로 감상하고 전환할 수 있습니다.
 
+---
+
+## 35. Axiom 190대: RFC 5389 STUN / RFC 8445 ICE P2P 홀펀칭(NAT Traversal) & 16-플레이어 분산 롤백 넷코드 (v3.3.0)
+
+Axiom 190대 과제(T-171 ~ T-175)에서는 복잡한 NAT/방화벽 환경에서도 중계 서버(TURN/Relay) 비용 없이 피어 간 직접 UDP 패킷을 교환할 수 있는 RFC 5389 STUN 및 RFC 8445 ICE 기반의 P2P 홀펀칭(NAT Traversal) 와이어 프로토콜과 16-플레이어 완전 그물망(Full-Mesh) 분산 롤백 넷코드를 결합했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 190대 P2P 홀펀칭(NAT Traversal) & 16-플레이어 분산 롤백 넷코드 (v3.3.0)    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned ICE/STUN Descriptors (axiom-net)]          │
+│    - NatCandidate64 (#[repr(C, align(64))]): Host/ServerReflexive/PeerReflx │
+│    - StunPacket64 (#[repr(C, align(64))]): RFC 5389 Magic Cookie 0x2112A442 │
+│    - XOR-MAPPED-ADDRESS: Port & IPv4 XOR encoding/decoding, 96-bit nonce    │
+│    - RFC 8445 Candidate Pair Priority: compute_pair_priority (64-bit int)  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Full-Mesh NAT Traversal Coordinator & Rollback Coupling (axiom-net)]    │
+│    - NatTraversalSession<16>: 16-peer full-mesh hole-punching coordinator   │
+│    - DistributedRollbackSession::enable_nat_traversal: Wire gating check    │
+│    - NetError::NatPunchBlocked: Blocks wire traffic until hole-punch agreed │
+│    - Speculative rollback resimulation under 15% packet loss + NAT latency │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [WASM Studio 🌐 P2P NAT Traversal Benchmark & C-ABI Exports (axiom-wasm)]│
+│    - WASM C-ABI: axiom_net_bench_nat_traversal(peers, loss_permille, stats) │
+│    - Web 3D Studio: 🌐 P2P NAT Traversal interactive modal & telemetry HUD  │
+│    - 16-Peer Full-Mesh 240 bi-directional channels 100% convergence test    │
+│    - 1.28 MB optimized WebAssembly binary deployed across web/ and crates/  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Mimic The Show 16-Player Battle Royale P2P NAT Radar HUD (mimic)]       │
+│    - Global F3 [16-PEER DISTRIBUTED ROLLBACK & NAT TRAVERSAL: 16/16 P2P DIRECT]│
+│    - 224x126 HUD Card: STUN sent/recv counts, direct P2P status, RTT latency│
+│    - 56x56 Mini Radar: 16-peer dynamic colored indicators & crosshair guide │
+│    - NetworkMatchDirector: nat_connected_mask, nat_probe_counts, RTT query  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 35.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 ICE/STUN 서술자 (`NatCandidate64`, `StunPacket64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 캐시 라인을 차지하며, 네트워크 송수신 및 메모리 복사 시 캐시 라인 분할 없는 무잠금 단일 사이클 전송을 보장합니다.
+   - RFC 5389 규격을 준수하여 매직 쿠키 `0x2112A442`와 96비트 난수 논스 트랜잭션 ID를 부호화하고, XOR-MAPPED-ADDRESS 속성을 통해 NAT 라우터의 공인 반사형(Server-Reflexive) IP/포트를 비트 단위로 정확히 복원합니다.
+2. **분산 롤백 세션과 P2P 홀펀칭의 무잠금 상태 기계 결합 (`NatTraversalSession`)**:
+   - `DistributedRollbackSession` 내부에 16-피어 전용 홀펀칭 코디네이터를 직결하여, 상대 피어와 홀펀칭 바인딩(`NatPunchPing` / `NatPunchPong`)이 성립되기 전까지 미인증 와이어 패킷을 차단(`NetError::NatPunchBlocked`)합니다.
+   - P2P 다이렉트 펀칭 성공 즉시 8-프레임 슬라이딩 윈도우 인풋 스트리밍을 활성화하여 15% 패킷 손실 및 66ms 지연 하에서도 16대 전원 0 Desync 물리 합의를 유지합니다.
+3. **WASM 3D 스튜디오 🌐 P2P NAT Traversal 벤치마크 및 Mimic The Show 16-인 레이더 HUD**:
+   - 웹 브라우저 환경에서 `axiom_net_bench_nat_traversal` C-ABI를 통해 16대 피어 240개 양방향 P2P 채널의 홀펀칭 수렴 라운드와 평균 왕복 지연(RTT), 64-bit FNV-1a 상태 합의 체크섬을 실시간으로 계측할 수 있습니다.
+   - `mimic-the-show` 인게임 글로벌 `F3` 오버레이에 224x126 크기의 전용 넷코드 HUD 카드와 56x56 16-인 원형 레이더 텔레메트리를 탑재하여, 실시간 P2P 홀펀칭 진행 상태와 상대 피어의 다이렉트 핑/위치를 직관적으로 모니터링할 수 있습니다.
+
+
 
 
 

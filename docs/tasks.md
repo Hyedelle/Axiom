@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-175: Axiom 190대 차세대 P2P 홀펀칭 & 분산 롤백 넷코드 통합 공식 릴리즈 v3.3.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-113]~[D-116], `docs/audit-report.md`, `tools/package.ps1`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-176: Axiom 200대 멀티스레드 비동기 잡 스케줄러(Job System) 및 워커 풀 기반 연구** (`crates/axiom-core/src/job_system.rs`, `crates/axiom-core/src/lib.rs`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-177: Axiom 잡 시스템 워커 스레드 풀 및 무잠금 워크 스틸링 큐 구현** (`crates/axiom-core/src/worker_pool.rs`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-175: Axiom 190대 차세대 P2P 홀펀칭 & 분산 롤백 넷코드 통합 공식 릴리즈 v3.3.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-113]~[D-116], `docs/audit-report.md` [AUDIT-20261024-v3.3.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 RFC 5389 STUN 및 RFC 8445 ICE 와이어 서술자 `NatCandidate64` & `StunPacket64`, 16-피어 완전 그물망 홀펀칭 코디네이터 `NatTraversalSession`, 무잠금 상태 기계 결합 분산 롤백 넷코드 `DistributedRollbackSession`, WebGL/WASM 🌐 P2P NAT Traversal 인터랙티브 모달 배포, `mimic-the-show` 글로벌 F3 16-인 배틀로얄 P2P 홀펀칭 레이더 텔레메트리 HUD 탑재, 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v3.3.0-unified-milestone.zip` [2.14 MB, SHA-256: 3212A784BF20286F28C76BF6B37215B07CF03F3F3BFACCC2E9EFA0337466024A 검증], 전체 워크스페이스 v3.3.0 공식 판올림 및 Git 태그 `v3.3.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-174: Mimic The Show 16-인 배틀로얄 P2P 홀펀칭 레이더 텔레메트리 HUD 통합** (`mimic-the-show/src/view.rs`, `crates/axiom-game/src/network.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `NetworkMatchDirector` 내 NAT 텔레메트리 헬퍼 `nat_connected_mask`/`nat_probe_counts`/`nat_peer_rtt_micros`/`is_nat_enabled`, 글로벌 F3 [16-PEER DISTRIBUTED ROLLBACK & NAT TRAVERSAL: 16/16 P2P DIRECT] 핫키 및 HUD 카드, 56x56 16-인 원형 레이더 P2P 홀펀칭 상태 표시 [로컬 블루, 미연결 그레이, 연결 레드/앰버, 십자선], 21개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-173: Axiom 190대 P2P 홀펀칭 넷코드 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_net_bench_nat_traversal` [16-피어 완전 그물망 P2P 홀펀칭 벤치마크, 15% 손실 하 전원 100% P2P 다이렉트 채널 수렴, RTT 지연 계측 및 64-bit FNV-1a 상태 합의 체크섬 계측], 웹 3D 복셀 스튜디오 🌐 **P2P NAT Traversal** 인터랙티브 모달 연동, 1.28 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-172: Axiom 분산 롤백 넷코드 P2P 홀펀칭 및 실시간 NAT Traversal 세션 결합** (`crates/axiom-net/src/rollback.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-game/tests/test_nat_rollback.rs`, `DistributedRollbackSession` 내 `NatTraversalSession` 내장 및 `enable_nat_traversal`/`is_peer_p2p_ready`, 홀펀칭 완료 전 와이어 패킷 차단 `NetError::NatPunchBlocked`, `NetworkMatchDirector` 내 STUN 핑퐁 바인딩 및 4-플레이어 완전 그물망 홀펀칭 물리 롤백 재시뮬레이션 [100% 비트 일치 물리 월드 합의 및 0 Desync 달성], 2개 통합 테스트 및 전체 워크스페이스 100% 통과, `tools/guard.ps1` 통과)

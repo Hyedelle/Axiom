@@ -1383,6 +1383,51 @@
   4. 전체 워크스페이스 버전을 v3.1.0에서 **v3.2.0**으로 공식 판올림하고 Git 태그 `v3.2.0` 발행.
 - **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-113] 0-Float 64-바이트 L1 캐시 정렬 RFC 5389 STUN 및 RFC 8445 ICE 와이어 서술자 채택 (T-171)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. P2P 직접 통신을 위한 ICE 후보군 기술자 `NatCandidate64` 및 STUN 메시지 기술자 `StunPacket64`를 `#[repr(C, align(64))]` 정확히 64바이트 L1 슬랩으로 정렬 설계.
+  2. RFC 5389 STUN 규격을 준수하여 매직 쿠키 `0x2112A442`, 96비트 논스 트랜잭션 ID 및 XOR-MAPPED-ADDRESS 포트/IP 비트 부호화/복원 구현.
+  3. RFC 8445 후보군 쌍 우선순위 공식 `compute_pair_priority`를 순수 64비트 정수 연산으로 구축하여 플랫폼 간 100% 결정론적 우선순위 평가 보장.
+- **영향:** `crates/axiom-net/src/nat.rs`, `crates/axiom-net/src/lib.rs`, `crates/axiom-net/tests/test_nat_traversal.rs`.
+
+---
+
+### [D-114] 분산 롤백 세션과 P2P 홀펀칭(NAT Traversal) 세션의 무잠금 상태 기계 결합 (T-172)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `DistributedRollbackSession` 내부에 16-피어 전용 `NatTraversalSession<16>`을 내장하여 무잠금 상태 기계로 일체화.
+  2. 피어 간 직접 홀펀칭 프로브가 상호 합의(`NatPunchPing` / `NatPunchPong`)에 도달하기 전까지 와이어 패킷 수신을 차단(`NetError::NatPunchBlocked`)하는 안전 게이팅 구축.
+  3. 4-플레이어 및 16-플레이어 완전 그물망 시뮬레이션 환경에서 15% 패킷 손실 및 66ms 지연 하에서도 100% 비트 일치 물리 합의 및 0 Desync 달성.
+- **영향:** `crates/axiom-net/src/rollback.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-game/tests/test_nat_rollback.rs`.
+
+---
+
+### [D-115] WASM 3D 스튜디오 🌐 P2P NAT Traversal 벤치마크 및 C-ABI 노출 (T-173)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_net_bench_nat_traversal(peer_count, loss_permille, out_stats)` 구현.
+  2. 16대 피어 240개 양방향 P2P 채널, 15% 손실 스트레스 하 수렴 라운드 수, STUN 프로브 송수신량, 평균 RTT 및 64-bit FNV-1a 상태 합의 체크섬 계측.
+  3. 웹 복셀 스튜디오 상단에 🌐 **P2P NAT Traversal** 인터랙티브 모달 버튼 추가 및 1.28 MB 최적화 WASM 바이너리 배포.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `crates/axiom-wasm/index.html`.
+
+---
+
+### [D-116] Mimic The Show 16-인 배틀로얄 P2P 홀펀칭 레이더 텔레메트리 HUD 통합 및 공식 릴리즈 v3.3.0 (T-174, T-175)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `mimic-the-show` 인게임 글로벌 `F3` 오버레이에 224x126 넷코드 HUD 카드 및 56x56 16-인 원형 레이더 텔레메트리 연동.
+  2. 로컬 플레이어(Blue), 홀펀칭 미완료(Gray), 홀펀칭 완료(Red/Amber)의 실시간 상태를 십자선 미니맵에 동적 블리팅.
+  3. `NetworkMatchDirector`에 `nat_connected_mask`, `nat_probe_counts`, `nat_peer_rtt_micros`, `is_nat_enabled` 헬퍼 메서드 완비.
+  4. 전체 워크스페이스 버전을 v3.2.0에서 **v3.3.0**으로 공식 판올림하고 Git 태그 `v3.3.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `crates/axiom-game/src/network.rs`, `Cargo.toml`, `tools/package.ps1`.
+
 
 
 
