@@ -65,8 +65,8 @@ pub use worker_pool::{
     WorkStealingDeque, WorkerPoolCoordinator, WorkerTelemetry64, DEQUE_CAPACITY,
 };
 pub use event_bus::{
-    channel, component, filter_entities, ComponentMask64, ComponentQuery, DeterministicEventBus,
-    EventSlab64, DEFAULT_EVENT_CAPACITY,
+    channel, component, dispatch_events_with_jobs, filter_entities, filter_entities_with_jobs,
+    ComponentMask64, ComponentQuery, DeterministicEventBus, EventSlab64, DEFAULT_EVENT_CAPACITY,
 };
 
 pub use audio::{

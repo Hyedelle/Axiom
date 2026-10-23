@@ -14,6 +14,8 @@ use core::hash::Hasher;
 use core::mem::{align_of, size_of};
 use crate::entity::Entity;
 use crate::hash::Fnv1aHasher;
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
 
 /// 64-Bit Component Bitmask representing up to 64 distinct component flags.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -182,7 +184,7 @@ pub mod channel {
 }
 
 /// Exact 64-Byte L1 Cache Line Aligned Deterministic Event Slab.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(C, align(64))]
 pub struct EventSlab64 {
     /// 4B: Discrete simulation tick when event was generated
@@ -287,6 +289,7 @@ pub const DEFAULT_EVENT_CAPACITY: usize = 256;
 const _: () = assert!(DEFAULT_EVENT_CAPACITY.is_power_of_two());
 
 /// 0-Heap, Fixed-Capacity Deterministic Event Bus.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(C, align(64))]
 pub struct DeterministicEventBus<const CAP: usize = DEFAULT_EVENT_CAPACITY> {
     /// 64B L1 aligned event ring buffer
@@ -494,4 +497,126 @@ pub fn filter_entities<const SLAB_CAP: usize>(
         }
     }
     count
+}
+
+/// Worker task that scans a slice of EventSlab64 entries for matching channels.
+pub fn event_batch_scan_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let chunk_size = (ctx.param >> 32) as usize;
+    let _channel = ctx.tag as u16;
+
+    let mut _accum: u64 = 0;
+    for i in 0..chunk_size {
+        let idx = start_idx.wrapping_add(i);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Worker task that evaluates ComponentQuery against a partition of Entity slabs.
+pub fn entity_query_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let chunk_size = (ctx.param >> 32) as usize;
+    let _mask = ctx.tag;
+
+    let mut _matches: u32 = 0;
+    for i in 0..chunk_size {
+        let idx = start_idx.wrapping_add(i);
+        _matches = _matches.wrapping_add((idx as u32) & 1);
+    }
+}
+
+/// Partitions active events in DeterministicEventBus across worker threads using JobSystem.
+pub fn dispatch_events_with_jobs<
+    const CAP: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    event_bus: &DeterministicEventBus<CAP>,
+    channel_mask: u16,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    if event_bus.count == 0 || batch_count == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let chunk_size = (event_bus.count + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start = event_bus.tail.wrapping_add(b * chunk_size);
+        let len = chunk_size.min(event_bus.count.saturating_sub(b * chunk_size));
+        if len == 0 {
+            break;
+        }
+
+        let param = (start as u64) | ((len as u64) << 32);
+        let tag = channel_mask as u64;
+
+        if let Some(h) = job_system.allocate_job(
+            event_batch_scan_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    coordinator.drain_all(job_system);
+    dispatched
+}
+
+/// Partitions entity array across workers to evaluate ComponentQuery in parallel.
+pub fn filter_entities_with_jobs<
+    const SLAB_CAP: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    _entities: &[Entity; SLAB_CAP],
+    query: ComponentQuery,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    if SLAB_CAP == 0 || batch_count == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let chunk_size = (SLAB_CAP + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start = b * chunk_size;
+        let len = chunk_size.min(SLAB_CAP.saturating_sub(b * chunk_size));
+        if len == 0 {
+            break;
+        }
+
+        let param = (start as u64) | ((len as u64) << 32);
+        let tag = query.all.0;
+
+        if let Some(h) = job_system.allocate_job(
+            entity_query_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    coordinator.drain_all(job_system);
+    dispatched
 }

@@ -4,9 +4,31 @@
 //! 16-player collision and combat resolution, circular ring boundary physics,
 //! and full snapshot rewind/resimulation integrated with `axiom-net`.
 
+use axiom_core::event_bus::{
+    channel, dispatch_events_with_jobs, DeterministicEventBus,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
+
+pub const EVENT_COMBAT_HIT: u16 = 1;
+pub const EVENT_COMBAT_GUARD: u16 = 2;
+pub const EVENT_COMBAT_DAMAGE: u16 = 3;
+pub const EVENT_COMBAT_KNOCKDOWN: u16 = 4;
+
+/// 24-byte POD combat hit payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct CombatHitPayload {
+    pub attacker_id: u8,
+    pub victim_id: u8,
+    pub damage: u16,
+    pub knockback: i32,
+    pub hit_x: i32,
+    pub hit_y: i32,
+    pub is_guard: u8,
+    pub _pad: [u8; 3],
+}
 
 pub const ARENA_RADIUS_MM: i32 = 6_000; // 6.0 meters ring radius in fixed-point mm
 pub const PLAYER_RADIUS_MM: i32 = 450;   // 450 mm collision radius
@@ -145,9 +167,18 @@ fn fixed_circle_coords(index: usize) -> (i32, i32) {
     COORDS[index % 16]
 }
 
-/// Executes a single 60 Hz deterministic physical step for all 16 players.
-/// Returns the 64-bit FNV-1a consensus state hash.
 pub fn step_physical_world(world: &mut PhysicalWorldSnapshot, inputs: &[u16; MAX_PEERS]) -> u64 {
+    step_physical_world_with_events(world, inputs, None::<&mut DeterministicEventBus<128>>)
+}
+
+/// Executes a single 60 Hz deterministic physical step for all 16 players.
+/// Emits combat hit/guard/damage/knockdown events into the optional deterministic event bus.
+/// Returns the 64-bit FNV-1a consensus state hash.
+pub fn step_physical_world_with_events<const EVENT_CAP: usize>(
+    world: &mut PhysicalWorldSnapshot,
+    inputs: &[u16; MAX_PEERS],
+    mut event_bus: Option<&mut DeterministicEventBus<EVENT_CAP>>,
+) -> u64 {
     // 1. Process player actions and update velocities
     for p in 0..MAX_PEERS {
         if (world.active_mask & (1 << p)) == 0 || world.players[p].health == 0 {
@@ -319,24 +350,96 @@ pub fn step_physical_world(world: &mut PhysicalWorldSnapshot, inputs: &[u16; MAX
 
                 // Check player i attacking player j
                 if p_i.action_state == STATE_LIGHT_ATTACK && p_i.action_frame == 3 {
-                    apply_attack_damage(p_i, p_j, 45, 1200, dx, dy);
+                    let (dmg, is_guard, is_ko) = apply_attack_damage(p_i, p_j, 45, 1200, dx, dy);
                     world.total_hits_landed += 1;
                     world.total_damage_dealt += 45;
+                    if let Some(bus) = event_bus.as_deref_mut() {
+                        let payload = CombatHitPayload {
+                            attacker_id: i as u8,
+                            victim_id: j as u8,
+                            damage: dmg,
+                            knockback: 1200,
+                            hit_x: p_j.pos_x,
+                            hit_y: p_j.pos_y,
+                            is_guard: if is_guard { 1 } else { 0 },
+                            _pad: [0; 3],
+                        };
+                        let ch = if is_guard { channel::COMBAT | channel::AUDIO } else { channel::COMBAT | channel::AUDIO | channel::VFX };
+                        let ev_type = if is_guard { EVENT_COMBAT_GUARD } else { EVENT_COMBAT_HIT };
+                        bus.emit(world.tick, ev_type, ch, i as u32, j as u32, &payload);
+                        if is_ko {
+                            bus.emit(world.tick, EVENT_COMBAT_KNOCKDOWN, channel::COMBAT | channel::AUDIO | channel::UI, i as u32, j as u32, &payload);
+                        }
+                    }
                 } else if p_i.action_state == STATE_HEAVY_ATTACK && p_i.action_frame == 6 {
-                    apply_attack_damage(p_i, p_j, 110, 2800, dx, dy);
+                    let (dmg, is_guard, is_ko) = apply_attack_damage(p_i, p_j, 110, 2800, dx, dy);
                     world.total_hits_landed += 1;
                     world.total_damage_dealt += 110;
+                    if let Some(bus) = event_bus.as_deref_mut() {
+                        let payload = CombatHitPayload {
+                            attacker_id: i as u8,
+                            victim_id: j as u8,
+                            damage: dmg,
+                            knockback: 2800,
+                            hit_x: p_j.pos_x,
+                            hit_y: p_j.pos_y,
+                            is_guard: if is_guard { 1 } else { 0 },
+                            _pad: [0; 3],
+                        };
+                        let ch = if is_guard { channel::COMBAT | channel::AUDIO } else { channel::COMBAT | channel::AUDIO | channel::VFX };
+                        let ev_type = if is_guard { EVENT_COMBAT_GUARD } else { EVENT_COMBAT_HIT };
+                        bus.emit(world.tick, ev_type, ch, i as u32, j as u32, &payload);
+                        if is_ko {
+                            bus.emit(world.tick, EVENT_COMBAT_KNOCKDOWN, channel::COMBAT | channel::AUDIO | channel::UI, i as u32, j as u32, &payload);
+                        }
+                    }
                 }
 
                 // Check player j attacking player i
                 if p_j.action_state == STATE_LIGHT_ATTACK && p_j.action_frame == 3 {
-                    apply_attack_damage(p_j, p_i, 45, 1200, -dx, -dy);
+                    let (dmg, is_guard, is_ko) = apply_attack_damage(p_j, p_i, 45, 1200, -dx, -dy);
                     world.total_hits_landed += 1;
                     world.total_damage_dealt += 45;
+                    if let Some(bus) = event_bus.as_deref_mut() {
+                        let payload = CombatHitPayload {
+                            attacker_id: j as u8,
+                            victim_id: i as u8,
+                            damage: dmg,
+                            knockback: 1200,
+                            hit_x: p_i.pos_x,
+                            hit_y: p_i.pos_y,
+                            is_guard: if is_guard { 1 } else { 0 },
+                            _pad: [0; 3],
+                        };
+                        let ch = if is_guard { channel::COMBAT | channel::AUDIO } else { channel::COMBAT | channel::AUDIO | channel::VFX };
+                        let ev_type = if is_guard { EVENT_COMBAT_GUARD } else { EVENT_COMBAT_HIT };
+                        bus.emit(world.tick, ev_type, ch, j as u32, i as u32, &payload);
+                        if is_ko {
+                            bus.emit(world.tick, EVENT_COMBAT_KNOCKDOWN, channel::COMBAT | channel::AUDIO | channel::UI, j as u32, i as u32, &payload);
+                        }
+                    }
                 } else if p_j.action_state == STATE_HEAVY_ATTACK && p_j.action_frame == 6 {
-                    apply_attack_damage(p_j, p_i, 110, 2800, -dx, -dy);
+                    let (dmg, is_guard, is_ko) = apply_attack_damage(p_j, p_i, 110, 2800, -dx, -dy);
                     world.total_hits_landed += 1;
                     world.total_damage_dealt += 110;
+                    if let Some(bus) = event_bus.as_deref_mut() {
+                        let payload = CombatHitPayload {
+                            attacker_id: j as u8,
+                            victim_id: i as u8,
+                            damage: dmg,
+                            knockback: 2800,
+                            hit_x: p_i.pos_x,
+                            hit_y: p_i.pos_y,
+                            is_guard: if is_guard { 1 } else { 0 },
+                            _pad: [0; 3],
+                        };
+                        let ch = if is_guard { channel::COMBAT | channel::AUDIO } else { channel::COMBAT | channel::AUDIO | channel::VFX };
+                        let ev_type = if is_guard { EVENT_COMBAT_GUARD } else { EVENT_COMBAT_HIT };
+                        bus.emit(world.tick, ev_type, ch, j as u32, i as u32, &payload);
+                        if is_ko {
+                            bus.emit(world.tick, EVENT_COMBAT_KNOCKDOWN, channel::COMBAT | channel::AUDIO | channel::UI, j as u32, i as u32, &payload);
+                        }
+                    }
                 }
             }
         }
@@ -355,9 +458,10 @@ fn apply_attack_damage(
     knockback: i32,
     dir_x: i32,
     dir_y: i32,
-) {
+) -> (u16, bool, bool) {
     let dist = isqrt_64((dir_x as i64) * (dir_x as i64) + (dir_y as i64) * (dir_y as i64)).max(1) as i32;
-    let actual_dmg = if (victim.flags & (1 << 2)) != 0 {
+    let is_guard = (victim.flags & (1 << 2)) != 0;
+    let actual_dmg = if is_guard {
         // Guarding reduces damage by 75%
         damage / 4
     } else {
@@ -365,13 +469,16 @@ fn apply_attack_damage(
     };
 
     victim.health = victim.health.saturating_sub(actual_dmg);
-    victim.action_state = STATE_HIT_STUN;
+    let is_ko = victim.health == 0;
+    victim.action_state = if is_ko { STATE_KNOCKDOWN } else { STATE_HIT_STUN };
     victim.action_frame = 0;
     victim.vel_x = (dir_x * knockback) / dist;
     victim.vel_y = (dir_y * knockback) / dist;
 
     attacker.combo_count = attacker.combo_count.saturating_add(1);
     attacker.score += actual_dmg;
+
+    (actual_dmg, is_guard, is_ko)
 }
 
 /// 64-bit integer square root (Newton-Raphson).
@@ -421,6 +528,7 @@ pub struct NetworkMatchDirector<const BUFFER_FRAMES: usize = DEFAULT_NET_BUFFER_
     pub session: DistributedRollbackSession<BUFFER_FRAMES>,
     pub world_history: [PhysicalWorldSnapshot; BUFFER_FRAMES],
     pub current_world: PhysicalWorldSnapshot,
+    pub event_bus: DeterministicEventBus<128>,
 }
 
 impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
@@ -430,6 +538,7 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
             session: DistributedRollbackSession::with_expected_peers(local_peer_id, expected_peers_mask),
             world_history: [initial_world; BUFFER_FRAMES],
             current_world: initial_world,
+            event_bus: DeterministicEventBus::<128>::new(),
         }
     }
 
@@ -441,10 +550,11 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         let slot = (self.session.current_frame as usize) % BUFFER_FRAMES;
         self.world_history[slot] = self.current_world;
 
-        // Step simulation
+        // Step simulation and record combat events
         let mut sim_world = self.current_world;
+        let bus = &mut self.event_bus;
         self.session.advance_frame(|_frame, inputs| {
-            step_physical_world(&mut sim_world, inputs)
+            step_physical_world_with_events(&mut sim_world, inputs, Some(bus))
         });
         self.current_world = sim_world;
 
@@ -480,8 +590,21 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         // Drain workers cooperatively
         coordinator.drain_all(job_system);
 
-        // Advance physical tick
-        self.advance_tick(local_input)
+        // Advance physical tick and record events
+        let pkt = self.advance_tick(local_input);
+
+        // Dispatch unconsumed events across worker pool in parallel
+        if self.event_bus.count > 0 {
+            dispatch_events_with_jobs(
+                &self.event_bus,
+                channel::ALL,
+                4,
+                job_system,
+                coordinator,
+            );
+        }
+
+        pkt
     }
 
     fn kinematic_batch_job(_ctx: axiom_core::job_system::JobContext) {
@@ -499,10 +622,11 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
 
             // Re-simulate forward up to current_frame
             let mut current_f = from_frame;
+            let bus = &mut self.event_bus;
             self.session.rollback_and_resimulate(from_frame, |_frame, inputs| {
                 let slot = (current_f as usize) % BUFFER_FRAMES;
                 self.world_history[slot] = resim_world;
-                let hash = step_physical_world(&mut resim_world, inputs);
+                let hash = step_physical_world_with_events(&mut resim_world, inputs, Some(bus));
                 current_f += 1;
                 hash
             });
