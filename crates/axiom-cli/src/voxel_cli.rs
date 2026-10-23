@@ -4,7 +4,14 @@
 
 use std::fs;
 use std::path::Path;
+use axiom_core::Fixed;
+use axiom_core::voxel_collapse::DynamicCollapseSystem;
 use axiom_core::voxel_destruct::VOXEL_DIM;
+use axiom_core::voxel_shard::VoxelShardPool;
+use axiom_render::framebuffer::FrameBuffer;
+use axiom_render::math3d::Mat4Fixed;
+use axiom_render::voxel_collapse_render::render_dynamic_collapse_chunks;
+use axiom_render::voxel_shard_render::render_voxel_shards;
 use axiom_render::voxel_map::{
     deserialize_axvm, generate_voxel_preset, serialize_axvm, VoxelPreset,
 };
@@ -149,6 +156,81 @@ pub fn run_voxel_suite(args: &[String]) {
                 }
             }
         }
+        "bench" | "collapse-bench" => {
+            let mut preset = VoxelPreset::MonolithRuins;
+            let mut iterations = 50usize;
+
+            let mut i = 3;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--preset" if i + 1 < args.len() => {
+                        preset = match args[i + 1].to_lowercase().as_str() {
+                            "flat" => VoxelPreset::FlatArena,
+                            "crater" => VoxelPreset::CrateredArena,
+                            "bunker" => VoxelPreset::FortifiedBunker,
+                            "ruins" => VoxelPreset::MonolithRuins,
+                            "volcanic" => VoxelPreset::VolcanicVent,
+                            _ => VoxelPreset::MonolithRuins,
+                        };
+                        i += 2;
+                    }
+                    "--ticks" | "--iterations" if i + 1 < args.len() => {
+                        iterations = args[i + 1].parse().unwrap_or(50);
+                        i += 2;
+                    }
+                    _ => i += 1,
+                }
+            }
+
+            println!("⚡ [Axiom Voxel] Running Dynamic Collapse & Shard Ballistic Benchmark...");
+            println!("  Preset:      {} (Seed: 42)", preset.name());
+            println!("  Iterations:  {} steps", iterations);
+
+            let mut volume = generate_voxel_preset(preset, 42);
+            let mut collapse = DynamicCollapseSystem::<16>::new(42);
+            let mut shards = VoxelShardPool::<128>::new(42);
+            let mut fb = FrameBuffer::new(320, 240);
+            let mut depth_buffer = vec![i32::MIN; 320 * 240];
+            let view_mat = Mat4Fixed::IDENTITY;
+            let cam_dist = Fixed::from_raw(65536);
+            let focal = 65536;
+
+            let start = std::time::Instant::now();
+            let mut total_collapsed = 0usize;
+            let mut total_shattered = 0u32;
+            let mut rendered_chunks = 0usize;
+            let mut rendered_shards = 0usize;
+
+            for step_idx in 0..iterations {
+                if step_idx % 5 == 0 {
+                    let cx = ((step_idx * 3) % 10 + 3) as i16;
+                    let cz = ((step_idx * 7) % 10 + 3) as i16;
+                    volume.carve_crater_with_shards(cx, cz, 2, 3, &mut shards, [0, -45000, 0], 2048);
+                    total_collapsed += collapse.detect_and_collapse(&mut volume, 0, [0, -45000, 0], 2048);
+                }
+                let (_b, sh) = collapse.step(Some(&mut shards));
+                total_shattered += sh;
+                shards.step();
+
+                depth_buffer.fill(i32::MIN);
+                rendered_chunks += render_dynamic_collapse_chunks(&mut fb, &mut depth_buffer, &collapse, &view_mat, cam_dist, focal);
+                rendered_shards += render_voxel_shards(&mut fb, &mut depth_buffer, &shards, &view_mat, cam_dist, focal);
+            }
+
+            let elapsed = start.elapsed();
+            let us_per_tick = elapsed.as_micros() as f64 / iterations as f64;
+            let tps = (iterations as f64 / elapsed.as_secs_f64()) as u64;
+
+            println!("🏁 Benchmark Completed:");
+            println!("  Total Time:          {:?}", elapsed);
+            println!("  Throughput:          {} ticks/sec ({:.2} µs/step)", tps, us_per_tick);
+            println!("  Chunks Collapsed:    {}", total_collapsed);
+            println!("  Chunks Shattered:    {}", total_shattered);
+            println!("  Active Shards:       {}", shards.active_count);
+            println!("  Rendered Chunks:     {}", rendered_chunks);
+            println!("  Rendered Shards:     {}", rendered_shards);
+            println!("  Consensus Hash:      0x{:016X}", collapse.compute_consensus_hash() ^ shards.compute_consensus_hash());
+        }
         cmd => {
             eprintln!("Unknown voxel command '{}'. Run 'axiom voxel help'.", cmd);
         }
@@ -161,4 +243,5 @@ fn print_voxel_help() {
     println!("  axiom voxel list");
     println!("  axiom voxel export [--preset <flat|crater|bunker|ruins|volcanic>] [--out <file.axvm>] [--seed <num>]");
     println!("  axiom voxel inspect <file.axvm>");
+    println!("  axiom voxel bench [--preset <preset>] [--ticks <n>]");
 }
