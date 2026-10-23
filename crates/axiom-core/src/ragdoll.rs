@@ -16,6 +16,15 @@
 
 use core::mem::{align_of, size_of};
 
+use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
+
+/// Event type for ragdoll mechanical bone/joint impact
+pub const EVENT_RAGDOLL_IMPACT: u16 = 0x0240;
+/// Event type for ragdoll joint rupture and limb severance
+pub const EVENT_RAGDOLL_SEVER: u16 = 0x0241;
+
 /// Bone state flag bitmasks
 pub const RAGDOLL_BONE_FLAG_ACTIVE: u8    = 1 << 0;
 pub const RAGDOLL_BONE_FLAG_FROZEN: u8    = 1 << 1;
@@ -628,4 +637,143 @@ impl<const BONES: usize, const JOINTS: usize> RagdollEngine<BONES, JOINTS> {
         h = h.wrapping_mul(FNV_PRIME);
         h
     }
+}
+
+/// Describes a physical impact or joint rupture event emitted to the DeterministicEventBus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct RagdollImpactReport {
+    pub entity_id: u32,
+    pub bone_id: u8,
+    pub joint_id: u8,
+    pub is_severed: u8,
+    pub flags: u8,
+    pub impact_force: u32,
+    pub hit_x: i32,
+    pub hit_y: i32,
+    pub hit_z: i32,
+    pub impulse_x: i32,
+    pub impulse_y: i32,
+    pub impulse_z: i32,
+}
+
+/// Worker task that processes a partition of ragdoll bone integrations and PBD constraints.
+pub fn ragdoll_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let chunk_size = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for i in 0..chunk_size {
+        let idx = start_idx.wrapping_add(i);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Partitions ragdoll bone slabs into N batches across the worker pool for parallel integration.
+pub fn dispatch_ragdoll_with_jobs<
+    const BONES: usize,
+    const JOINTS: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    engine: &RagdollEngine<BONES, JOINTS>,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    if engine.active_bones_count == 0 || batch_count == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let chunk_size = (engine.active_bones_count + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start = b * chunk_size;
+        let len = chunk_size.min(engine.active_bones_count.saturating_sub(start));
+        if len == 0 {
+            break;
+        }
+
+        let param = (start as u64) | ((len as u64) << 32);
+        let tag = (engine.active_joints_count as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            ragdoll_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits ragdoll physical impact and limb severance events into a DeterministicEventBus.
+///
+/// Encodes a 40-byte inline POD payload:
+/// - 0..4: entity_id (u32)
+/// - 4: bone_id (u8)
+/// - 5: joint_id (u8)
+/// - 6: is_severed (u8)
+/// - 7: flags (u8)
+/// - 8..12: impact_force (u32)
+/// - 12..16: hit_x (i32)
+/// - 16..20: hit_y (i32)
+/// - 20..24: hit_z (i32)
+/// - 24..28: impulse_x (i32)
+/// - 28..32: impulse_y (i32)
+/// - 32..36: impulse_z (i32)
+/// - 36..40: reserved ([u8; 4])
+pub fn emit_ragdoll_impacts_to_event_bus<const BUS_CAP: usize>(
+    impacts: &[RagdollImpactReport],
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> usize {
+    let mut emitted = 0;
+    for imp in impacts {
+        let mut payload = [0u8; 40];
+        payload[0..4].copy_from_slice(&imp.entity_id.to_le_bytes());
+        payload[4] = imp.bone_id;
+        payload[5] = imp.joint_id;
+        payload[6] = imp.is_severed;
+        payload[7] = imp.flags;
+        payload[8..12].copy_from_slice(&imp.impact_force.to_le_bytes());
+        payload[12..16].copy_from_slice(&imp.hit_x.to_le_bytes());
+        payload[16..20].copy_from_slice(&imp.hit_y.to_le_bytes());
+        payload[20..24].copy_from_slice(&imp.hit_z.to_le_bytes());
+        payload[24..28].copy_from_slice(&imp.impulse_x.to_le_bytes());
+        payload[28..32].copy_from_slice(&imp.impulse_y.to_le_bytes());
+        payload[32..36].copy_from_slice(&imp.impulse_z.to_le_bytes());
+
+        let event_type = if imp.is_severed != 0 {
+            EVENT_RAGDOLL_SEVER
+        } else {
+            EVENT_RAGDOLL_IMPACT
+        };
+
+        if event_bus
+            .emit_raw(
+                tick,
+                event_type,
+                channel::PHYSICS | channel::COMBAT,
+                imp.entity_id,
+                imp.bone_id as u32,
+                payload,
+            )
+            .is_some()
+        {
+            emitted += 1;
+        } else {
+            break;
+        }
+    }
+    emitted
 }

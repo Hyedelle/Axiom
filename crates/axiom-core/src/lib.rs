@@ -85,11 +85,12 @@ pub use ccd::{
     TOI_ONE_Q16,
 };
 pub use ragdoll::{
-    isqrt_i64, solve_distance_constraint, solve_two_bone_ik, RagdollBoneSlab64, RagdollEngine,
-    RagdollJointSlab64, RagdollJointType, Q16_ONE as RAGDOLL_Q16_ONE,
-    RAGDOLL_BONE_FLAG_ACTIVE, RAGDOLL_BONE_FLAG_FROZEN, RAGDOLL_BONE_FLAG_GROUNDED,
-    RAGDOLL_BONE_FLAG_SEVERED, RAGDOLL_JOINT_FLAG_ACTIVE, RAGDOLL_JOINT_FLAG_LIMITED,
-    RAGDOLL_JOINT_FLAG_MOTOR,
+    dispatch_ragdoll_with_jobs, emit_ragdoll_impacts_to_event_bus, isqrt_i64, ragdoll_batch_job,
+    solve_distance_constraint, solve_two_bone_ik, RagdollBoneSlab64, RagdollEngine,
+    RagdollImpactReport, RagdollJointSlab64, RagdollJointType, EVENT_RAGDOLL_IMPACT,
+    EVENT_RAGDOLL_SEVER, Q16_ONE as RAGDOLL_Q16_ONE, RAGDOLL_BONE_FLAG_ACTIVE,
+    RAGDOLL_BONE_FLAG_FROZEN, RAGDOLL_BONE_FLAG_GROUNDED, RAGDOLL_BONE_FLAG_SEVERED,
+    RAGDOLL_JOINT_FLAG_ACTIVE, RAGDOLL_JOINT_FLAG_LIMITED, RAGDOLL_JOINT_FLAG_MOTOR,
 };
 
 pub use audio::{

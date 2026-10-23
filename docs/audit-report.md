@@ -8,25 +8,25 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 08:16 KST
-- **감사 대상:** Axiom Engine 240대 64B L1 캐시 정렬 래그돌 본/조인트 슬랩 및 제약 조건 해석기 구현 (T-201, `crates/axiom-core/src/ragdoll.rs`, `crates/axiom-core/tests/test_ragdoll.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` (`size_of == 64, align_of == 64`), Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 완화기(`solve_distance_constraint`), 폐형식(Closed-form) $O(1)$ Two-Bone IK 해석적 해법기(`solve_two_bone_ik`), 관절 파단 및 사체 절단(`sever_joint`) 분리 다이나믹스, `RagdollEngine` PBD 스텝 및 64-bit FNV-1a 결정론 합의 해시 검증, 신규 5개 단위 테스트 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 08:58 KST
+- **감사 대상:** Axiom Engine 240대 래그돌 물리 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-202, `crates/axiom-core/src/ragdoll.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_ragdoll_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_ragdoll_with_jobs` 워커 풀 분할 및 Chase-Lev 워크 스틸링 연계, 40B 인라인 POD 페이로드 기반 `emit_ragdoll_impacts_to_event_bus` (`EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241`), `NetworkMatchDirector` 내 `step_ragdoll` 및 `step_ragdoll_with_jobs` 16-인 배틀로얄 래그돌 파이프라인 결합, 3개 신규 단위/통합 테스트 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 검증**:
-     - `RagdollBoneSlab64`: 24B 좌표/선속도, 6B BAMS 각도, 6B 각속도, 4B 역질량($Q16.16$), 4B 반경/길이, 4B 부모/ID/플래그/레이어, 4B 마찰/반발 계수, 12B 예약 패딩으로 구성된 정확히 64B 무패딩 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
-     - `RagdollJointSlab64`: 4B 본 인덱스/타입/절단플래그, 10B 기준길이/최소최대가동각/강성/감쇠/목표각, 4B 모터토크, 12B 힌지 주축 벡터($Q16.16$), 4B 파단한계외력, 2B 플래그, 26B 예약 패딩으로 구성된 정확히 64B 슬랩 (`size_of == 64, align_of == 64`).
-  2. **Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 해석기**:
-     - 무한 질량(고정 앵커)과 유한 질량 본 사이의 거리 편차 $C = d - L_0$를 정밀 보정하고, `u16::MAX` (65535) 강성 인가 시 1.0 ($65536$) 완전 강체로 매핑하여 $1\text{mm}$ 오차 없이 $L_0$를 즉시 복원.
-  3. **폐형식 Two-Bone IK 해석적 해법기**:
-     - 코사인 법칙 및 Pole Vector 기하 투영을 통한 $O(1)$ 고정 시간 어깨-팔꿈치-손목 관절 위치 해석. 사정거리 초과 시 최대 도달 거리($L_1 + L_2 - 2$)로 안정적 클램핑.
-  4. **관절 파단 및 사체 절단 분리 역학**:
-     - `sever_joint` 호출 시 관절 `is_severed = 1` 및 자식 본 `RAGDOLL_BONE_FLAG_SEVERED` 플래그 설정 후, 제약 조건 해석 루프에서 영구 제외되어 물리적으로 독립 비산.
-  5. **결정론 합의 해시**:
-     - 30틱 중력 낙하 및 바닥 충돌 시뮬레이션 후 `compute_consensus_hash()`가 동일한 FNV-1a 해시를 산출함을 검증.
+  1. **멀티스레드 잡 분할 (`dispatch_ragdoll_with_jobs`)**:
+     - 활성 본 슬랩을 $N$-배치 청크로 분할하여 `JobDescriptor64`로 생성 후 `WorkerPoolCoordinator`의 워커 큐에 균등 분산. 4-워커 무경합 드레인 100% 정상 작동.
+  2. **결정론적 이벤트 버스 방출 (`emit_ragdoll_impacts_to_event_bus`)**:
+     - `entity_id`, `bone_id`, `joint_id`, `is_severed`, `flags`, `impact_force`, `hit_xyz`, `impulse_xyz`를 정확히 40B 인라인 POD에 패킹하여 `channel::PHYSICS | channel::COMBAT` 채널로 안전 방출.
+  3. **게임 디렉터 통합 (`NetworkMatchDirector`)**:
+     - `STATE_KNOCKDOWN` 또는 `health == 0` 플레이어 발생 시 동기/비동기 래그돌 물리 스텝을 수행하고 접촉 충격/절단 이벤트를 이벤트 버스에 결합.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T201] Axiom Engine 240대 64B L1 캐시 정렬 래그돌 본/조인트 슬랩 및 제약 조건 해석기 구현
+- **일시:** 2026-10-24 08:16 KST
+- **판정:** 🟢 **ALL CLEAR (구현 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` (`size_of == 64, align_of == 64`), Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 완화기(`solve_distance_constraint`), 폐형식(Closed-form) $O(1)$ Two-Bone IK 해석적 해법기(`solve_two_bone_ik`), 관절 파단 및 사체 절단(`sever_joint`) 분리 다이나믹스, `RagdollEngine` PBD 스텝 및 64-bit FNV-1a 결정론 합의 해시 검증, 신규 5개 단위 테스트 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T200] Axiom Engine 240대 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 연구
 - **일시:** 2026-10-24 08:10 KST

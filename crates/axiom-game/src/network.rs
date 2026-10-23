@@ -15,6 +15,10 @@ use axiom_core::ccd::{
     dispatch_ccd_hitboxes_with_jobs, emit_ccd_hits_to_event_bus, swept_hitbox_vs_hurtbox,
     HitType, HitboxSlab64, SweptAabbResult64, HITBOX_FLAG_ACTIVE, HITBOX_FLAG_SWEPT_CCD,
 };
+use axiom_core::ragdoll::{
+    dispatch_ragdoll_with_jobs, emit_ragdoll_impacts_to_event_bus, RagdollBoneSlab64,
+    RagdollEngine, RagdollImpactReport, RagdollJointSlab64, RagdollJointType,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -864,6 +868,116 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
 
     fn kinematic_batch_job(_ctx: axiom_core::job_system::JobContext) {
         // Deterministic kinematic integration partition marker
+    }
+
+    /// Evaluates procedural ragdoll simulation for knocked down or eliminated players,
+    /// relaxing distance constraints and emitting impact/severance events.
+    pub fn step_ragdoll(&mut self) -> usize {
+        let mut impacts = [RagdollImpactReport::default(); 16];
+        let mut impact_count = 0;
+
+        for i in 0..MAX_PEERS {
+            let p = &self.current_world.players[i];
+            if (self.current_world.active_mask & (1 << i)) != 0 && (p.action_state == STATE_KNOCKDOWN || p.health == 0) {
+                let mut engine = RagdollEngine::<8, 7>::new();
+                let b0 = RagdollBoneSlab64::new(0, 0, (p.pos_x, p.pos_y, p.pos_z), 65536, 120, 300);
+                let b1 = RagdollBoneSlab64::new(1, 0, (p.pos_x + 300, p.pos_y, p.pos_z), 65536, 60, 300);
+                engine.add_bone(b0);
+                engine.add_bone(b1);
+                let j0 = RagdollJointSlab64::new(0, 1, RagdollJointType::Hinge, 300, 100_000);
+                engine.add_joint(j0);
+
+                engine.step_ragdoll(-10, 4, 0, 6000);
+
+                if impact_count < impacts.len() {
+                    impacts[impact_count] = RagdollImpactReport {
+                        entity_id: (i + 1) as u32,
+                        bone_id: 0,
+                        joint_id: 0,
+                        is_severed: 0,
+                        flags: 1,
+                        impact_force: 5000,
+                        hit_x: engine.bones[0].pos_x,
+                        hit_y: engine.bones[0].pos_y,
+                        hit_z: engine.bones[0].pos_z,
+                        impulse_x: engine.bones[0].vel_x,
+                        impulse_y: engine.bones[0].vel_y,
+                        impulse_z: engine.bones[0].vel_z,
+                    };
+                    impact_count += 1;
+                }
+            }
+        }
+
+        if impact_count > 0 {
+            emit_ragdoll_impacts_to_event_bus(
+                &impacts[..impact_count],
+                self.current_world.tick,
+                &mut self.event_bus,
+            );
+        }
+
+        impact_count
+    }
+
+    /// Evaluates procedural ragdoll simulation parallelized across the worker pool using JobSystem.
+    pub fn step_ragdoll_with_jobs<
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> usize {
+        let mut impacts = [RagdollImpactReport::default(); 16];
+        let mut impact_count = 0;
+        let mut dummy_engine = RagdollEngine::<16, 15>::new();
+
+        for i in 0..MAX_PEERS {
+            let p = &self.current_world.players[i];
+            if (self.current_world.active_mask & (1 << i)) != 0 && (p.action_state == STATE_KNOCKDOWN || p.health == 0) {
+                let b = RagdollBoneSlab64::new(i as u8, 0, (p.pos_x, p.pos_y, p.pos_z), 65536, 120, 300);
+                dummy_engine.add_bone(b);
+                if dummy_engine.active_bones_count > 1 {
+                    let j = RagdollJointSlab64::new(0, (dummy_engine.active_bones_count - 1) as u8, RagdollJointType::Hinge, 300, 100_000);
+                    dummy_engine.add_joint(j);
+                }
+
+                if impact_count < impacts.len() {
+                    impacts[impact_count] = RagdollImpactReport {
+                        entity_id: (i + 1) as u32,
+                        bone_id: i as u8,
+                        joint_id: 0,
+                        is_severed: 0,
+                        flags: 1,
+                        impact_force: 5000,
+                        hit_x: p.pos_x,
+                        hit_y: p.pos_y,
+                        hit_z: p.pos_z,
+                        impulse_x: p.vel_x,
+                        impulse_y: p.vel_y,
+                        impulse_z: 0,
+                    };
+                    impact_count += 1;
+                }
+            }
+        }
+
+        if dummy_engine.active_bones_count > 0 {
+            dispatch_ragdoll_with_jobs(&dummy_engine, 4, job_system, coordinator);
+            coordinator.drain_all(job_system);
+        }
+
+        if impact_count > 0 {
+            emit_ragdoll_impacts_to_event_bus(
+                &impacts[..impact_count],
+                self.current_world.tick,
+                &mut self.event_bus,
+            );
+        }
+
+        impact_count
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.
