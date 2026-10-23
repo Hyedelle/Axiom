@@ -256,3 +256,191 @@ impl SeverancePlane {
         Some([ix as i32, iy as i32, iz as i32])
     }
 }
+
+/// Result of a 3D Fast Voxel DDA Raymarch query (16 bytes = exactly 1/4 of a 64B L1 cache line).
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct VoxelRaymarchHit {
+    pub hit: bool,
+    pub voxel_x: i8,
+    pub voxel_y: i8,
+    pub voxel_z: i8,
+    pub normal_x: i8,
+    pub normal_y: i8,
+    pub normal_z: i8,
+    pub material: u8,
+    pub steps_taken: u8,
+    pub _pad: [u8; 3],
+    pub distance_units: u32,
+}
+
+const _: () = assert!(core::mem::size_of::<VoxelRaymarchHit>() == 16);
+const _: () = assert!(core::mem::align_of::<VoxelRaymarchHit>() == 4);
+
+impl VoxelVolume16 {
+    pub const VOXEL_SCALE: i32 = 1000;
+    pub const VOLUME_EXTENT: i32 = (VOXEL_DIM as i32) * Self::VOXEL_SCALE; // 16,000 units
+
+    /// Performs an integer Fast Voxel DDA (Amanatides-Woo) raymarch across the 3D voxel volume.
+    pub fn raymarch_dda(
+        &self,
+        origin: [i32; 3],
+        direction: [i32; 3],
+        max_steps: u8,
+    ) -> VoxelRaymarchHit {
+        let dx = direction[0];
+        let dy = direction[1];
+        let dz = direction[2];
+
+        if dx == 0 && dy == 0 && dz == 0 {
+            return VoxelRaymarchHit::default();
+        }
+
+        // Ray clipping to [0, VOLUME_EXTENT]^3
+        let mut t_near = i64::MIN;
+        let mut t_far = i64::MAX;
+        let mut enter_normal = [0i8; 3];
+
+        let bounds = [
+            (origin[0], dx, 0i32, Self::VOLUME_EXTENT),
+            (origin[1], dy, 0i32, Self::VOLUME_EXTENT),
+            (origin[2], dz, 0i32, Self::VOLUME_EXTENT),
+        ];
+
+        for (axis, &(orig, dir, b_min, b_max)) in bounds.iter().enumerate() {
+            if dir == 0 {
+                if orig < b_min || orig >= b_max {
+                    return VoxelRaymarchHit::default(); // Parallel and outside
+                }
+            } else {
+                let mut t1 = ((b_min - orig) as i64 * 1000) / (dir as i64);
+                let mut t2 = ((b_max - orig) as i64 * 1000) / (dir as i64);
+                let mut n1 = if dir > 0 { -1i8 } else { 1i8 };
+
+                if t1 > t2 {
+                    core::mem::swap(&mut t1, &mut t2);
+                    n1 = -n1;
+                }
+
+                if t1 > t_near {
+                    t_near = t1;
+                    enter_normal = [0i8; 3];
+                    enter_normal[axis] = n1;
+                }
+                if t2 < t_far {
+                    t_far = t2;
+                }
+
+                if t_near > t_far || t_far < 0 {
+                    return VoxelRaymarchHit::default(); // Misses bounding volume
+                }
+            }
+        }
+
+        // Determine starting position
+        let (px, py, pz, initial_normal) = if t_near > 0 {
+            // Origin is outside, start at entry boundary
+            let ex = origin[0] as i64 + (dx as i64 * t_near) / 1000;
+            let ey = origin[1] as i64 + (dy as i64 * t_near) / 1000;
+            let ez = origin[2] as i64 + (dz as i64 * t_near) / 1000;
+            (ex as i32, ey as i32, ez as i32, enter_normal)
+        } else {
+            // Origin is inside volume
+            (origin[0], origin[1], origin[2], [0i8; 3])
+        };
+
+        // Clamp to voxel grid index
+        let mut vx = (px / Self::VOXEL_SCALE).clamp(0, (VOXEL_DIM - 1) as i32);
+        let mut vy = (py / Self::VOXEL_SCALE).clamp(0, (VOXEL_DIM - 1) as i32);
+        let mut vz = (pz / Self::VOXEL_SCALE).clamp(0, (VOXEL_DIM - 1) as i32);
+
+        let step_x = if dx > 0 { 1i32 } else if dx < 0 { -1i32 } else { 0i32 };
+        let step_y = if dy > 0 { 1i32 } else if dy < 0 { -1i32 } else { 0i32 };
+        let step_z = if dz > 0 { 1i32 } else if dz < 0 { -1i32 } else { 0i32 };
+
+        let t_delta_x = if dx != 0 { ((Self::VOXEL_SCALE as i64 * 1000) / dx.abs() as i64).max(1) } else { i64::MAX };
+        let t_delta_y = if dy != 0 { ((Self::VOXEL_SCALE as i64 * 1000) / dy.abs() as i64).max(1) } else { i64::MAX };
+        let t_delta_z = if dz != 0 { ((Self::VOXEL_SCALE as i64 * 1000) / dz.abs() as i64).max(1) } else { i64::MAX };
+
+        let mut t_max_x = if step_x > 0 {
+            (((vx + 1) * Self::VOXEL_SCALE - px) as i64 * 1000) / dx.abs() as i64
+        } else if step_x < 0 {
+            ((px - vx * Self::VOXEL_SCALE) as i64 * 1000) / dx.abs() as i64
+        } else {
+            i64::MAX
+        };
+
+        let mut t_max_y = if step_y > 0 {
+            (((vy + 1) * Self::VOXEL_SCALE - py) as i64 * 1000) / dy.abs() as i64
+        } else if step_y < 0 {
+            ((py - vy * Self::VOXEL_SCALE) as i64 * 1000) / dy.abs() as i64
+        } else {
+            i64::MAX
+        };
+
+        let mut t_max_z = if step_z > 0 {
+            (((vz + 1) * Self::VOXEL_SCALE - pz) as i64 * 1000) / dz.abs() as i64
+        } else if step_z < 0 {
+            ((pz - vz * Self::VOXEL_SCALE) as i64 * 1000) / dz.abs() as i64
+        } else {
+            i64::MAX
+        };
+
+        let mut current_normal = initial_normal;
+        let mut steps = 0u8;
+
+        while steps < max_steps {
+            steps += 1;
+
+            if vx >= 0 && vx < (VOXEL_DIM as i32) && vy >= 0 && vy < (VOXEL_DIM as i32) && vz >= 0 && vz < (VOXEL_DIM as i32) {
+                let mat = self.get(vx as usize, vy as usize, vz as usize);
+                if mat != VOXEL_AIR {
+                    let dist = t_near.max(0) as u32;
+                    return VoxelRaymarchHit {
+                        hit: true,
+                        voxel_x: vx as i8,
+                        voxel_y: vy as i8,
+                        voxel_z: vz as i8,
+                        normal_x: current_normal[0],
+                        normal_y: current_normal[1],
+                        normal_z: current_normal[2],
+                        material: mat,
+                        steps_taken: steps,
+                        _pad: [0; 3],
+                        distance_units: dist,
+                    };
+                }
+            } else {
+                break; // Exited volume
+            }
+
+            // Step to next voxel
+            if t_max_x < t_max_y && t_max_x < t_max_z {
+                vx += step_x;
+                t_max_x += t_delta_x;
+                current_normal = [-step_x as i8, 0, 0];
+            } else if t_max_y < t_max_z {
+                vy += step_y;
+                t_max_y += t_delta_y;
+                current_normal = [0, -step_y as i8, 0];
+            } else {
+                vz += step_z;
+                t_max_z += t_delta_z;
+                current_normal = [0, 0, -step_z as i8];
+            }
+        }
+
+        VoxelRaymarchHit::default()
+    }
+
+    /// Tests if a point inside or near the volume has an unoccluded line-of-sight to a directional light.
+    pub fn is_shadowed(&self, origin: [i32; 3], light_dir: [i32; 3], max_steps: u8) -> bool {
+        let biased_origin = [
+            origin[0] + (light_dir[0].clamp(-1, 1) * 50),
+            origin[1] + (light_dir[1].clamp(-1, 1) * 50),
+            origin[2] + (light_dir[2].clamp(-1, 1) * 50),
+        ];
+        let hit = self.raymarch_dda(biased_origin, light_dir, max_steps);
+        hit.hit
+    }
+}

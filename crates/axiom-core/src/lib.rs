@@ -154,7 +154,7 @@ pub use grid_netcode::{
 pub use time_machine::{RollbackError, TimeMachine};
 pub use voxel_collapse::{DynamicCollapseSystem, DynamicVoxelChunk};
 pub use voxel_destruct::{
-    SeverancePlane, VoxelVolume16, VOXEL_AIR, VOXEL_ARMOR, VOXEL_DIM, VOXEL_METAL, VOXEL_MOLTEN,
+    SeverancePlane, VoxelRaymarchHit, VoxelVolume16, VOXEL_AIR, VOXEL_ARMOR, VOXEL_DIM, VOXEL_METAL, VOXEL_MOLTEN,
     VOXEL_STONE, VOXEL_TOTAL,
 };
 pub use voxel_shard::{VoxelShard, VoxelShardPool};

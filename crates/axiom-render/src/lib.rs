@@ -29,6 +29,7 @@ pub use fluid_render::{render_voxel_fluid, sample_fluid_color, sample_infiltrate
 pub use framebuffer::{upscale_nearest_2x, FrameBuffer};
 pub use gpu_backend::{
     GpuBackendKind, GpuPresenter, GpuPresenterConfig, PresentStats, ScalingMode, ViewportRect,
+    VoxelComputeDispatch64,
 };
 pub use kinematics3d::{
     evaluate_forward_kinematics, get_part_matrix, lerp_bams_permille, lerp_vec3_permille,
