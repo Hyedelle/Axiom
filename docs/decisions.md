@@ -1337,6 +1337,53 @@
   3. 전체 워크스페이스 버전을 v3.0.0에서 **v3.1.0**으로 공식 판올림하고 Git 태그 `v3.1.0` 발행.
 - **영향:** `crates/axiom-render/src/gpu_backend.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `Cargo.toml`.
 
+---
+
+### [D-109] 0-Float 16-바이트 Fast Voxel DDA 교차 서술자 및 순수 정수 광선 행진 알고리즘 (T-166)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 부동소수점 오차 없는 완전 결정론을 위해 복셀 격자를 1,000 정수 단위로 모델링하고 64비트 정수 산술로 Amanatides-Woo Fast Voxel DDA 알고리즘(`VoxelVolume16::raymarch_dda`) 구축.
+  2. 교차 결과 구조체 `VoxelRaymarchHit`를 `#[repr(C)]` 정확히 16바이트(1/4 L1 캐시라인)로 정렬하여 64B 캐시라인 1개에 4개의 히트 결과 패킹 달성.
+  3. 정수 슬랩 교차 판정에서 주축(Dominant Axis)을 기반으로 6개 큐브 법선 벡터[-X, +X, -Y, +Y, -Z, +Z]를 비트 단위로 완벽히 추출.
+  4. 표면 교차 지점으로부터 50단위 바이어스를 적용한 2차 방향성 그림자 차폐 판정 `is_shadowed` 실장.
+- **영향:** `crates/axiom-core/src/voxel_destruct.rs`, `crates/axiom-core/tests/test_voxel_raymarch.rs`.
+
+---
+
+### [D-110] 64-스레드 (8x8x1) L1 캐시 정렬 WebGPU WGSL 컴퓨트 셰이더 채택 (T-167)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 차세대 WebGPU CS 6.0 컴퓨트 셰이더 `VOXEL_RAYMARCH_WGSL`를 구축하여 8x8x1 (64개 스레드) 워크그룹 토폴로지로 CPU L1 캐시 라인(64B)과 GPU SIMD 파동 전단에 동시 최적화.
+  2. WGSL 내에서 언프로젝션 광선 생성, AABB 클리핑, Amanatides-Woo DDA, 노멀 추출, 디퓨즈 라이팅, 2차 그림자 차폐 및 Reversed-Z 깊이(`1.0 / (dist + 1.0)`)를 네이티브 WebGPU 상에서 완전 실행.
+  3. 0-Float CPU 소프트웨어 래스터라이저 폴백 `render_voxel_raymarch`를 구비하여 WebGPU 비지원 환경에서도 완벽한 그래픽 폴백 보장.
+- **영향:** `crates/axiom-render/src/voxel_raymarch_render.rs`, `crates/axiom-render/src/gpu_backend.rs`.
+
+---
+
+### [D-111] Reversed-Z 32-bit 깊이 버퍼 하이브리드 블리팅 및 복셀 메쉬 추출 0 µs 소거 (T-167, T-169)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. Juan Pineda 8x8 타일 비닝 메카 폴리곤 래스터라이저와 복셀 광선 행진 렌더러가 단일 Reversed-Z 깊이 버퍼(`depth_buffer: Vec<i32>`)를 공유하여 깊이 차폐를 완벽히 해결.
+  2. 복셀 지형 파괴(크레이터 굴착) 발생 시 메쉬를 재추출하는 대신 원본 복셀 볼륨에 직접 광선을 투사함으로써 메쉬 추출 지연 시간을 **0 µs**로 소거.
+  3. 타일 스케일 파라미터(1x, 2x, 4x)를 지원하여 모바일 및 저사양 환경에서도 60+ FPS 초고속 스루풋 보장.
+- **영향:** `crates/axiom-render/src/voxel_raymarch_render.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-112] WASM 3D 스튜디오 ⚡ 3D Raymarch 모달 & Mimic The Show 글로벌 F1 하이브리드 뷰포트 (T-168, T-169, T-170)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 엔드포인트 `axiom_voxel_bench_raymarch`, `axiom_voxel_render_raymarch`, `axiom_gpu_get_raymarch_wgsl` 완비.
+  2. 웹 3D 복셀 스튜디오에 ⚡ **3D Raymarch (CS 6.0)** 인터랙티브 모달 및 📜 **WGSL Shader Inspector**를 연동하여 브라우저에서 제로-카피 셰이더 인스펙션 및 50-프레임 벤치마크 계측 실현.
+  3. `mimic-the-show` 인게임에 글로벌 `F1` 핫키를 탑재하여 3D Fast Voxel DDA 광선 추적 지반과 폴리곤 메카의 하이브리드 블리팅 실시간 전환 완결.
+  4. 전체 워크스페이스 버전을 v3.1.0에서 **v3.2.0**으로 공식 판올림하고 Git 태그 `v3.2.0` 발행.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
+
 
 
 

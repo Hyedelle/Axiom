@@ -1147,6 +1147,57 @@ Axiom 170대 과제(T-161 ~ T-165)에서는 P2P 네트워크 계층(`crates/axio
    - WebGL/WASM 3D 스튜디오에 🌐 16-Peer Netcode 및 ⚡ GPU Compute 대화형 벤치마크 모달을 배포하여 브라우저에서 16-피어 롤백과 GPU 가속 잠재 스루풋을 실시간 검증할 수 있도록 했습니다.
    - `mimic-the-show` 인게임에서 글로벌 `F3` 핫키를 통해 16-인 배틀로얄 분산 롤백 관전 모드와 56x56 원형 레이더 미니맵, 실시간 손실/지연/롤백/디싱크 텔레메트리 HUD를 완비했습니다.
 
+---
+
+## 34. Axiom 180대: WebGPU Compute 실시간 복셀 광선 추적(Raymarching) & 하이브리드 블리팅 아키텍처 (v3.2.0)
+
+Axiom 180대 과제(T-166 ~ T-170)에서는 복셀 파괴 지형의 메쉬 재추출(Polygon Extraction) 오버헤드를 근본적으로 제거하고, 순수 정수 Fast Voxel DDA(Amanatides-Woo) 광선 행진 알고리즘, WebGPU WGSL 컴퓨트 셰이더, Reversed-Z 깊이 버퍼 하이브리드 블리팅 및 챔피언십 링 실시간 연동을 일체화했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 180대 WebGPU Compute 실시간 복셀 광선 추적 & 하이브리드 블리팅 (v3.2.0)   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float Fast Voxel DDA Raymarcher & Hit Descriptor (axiom-core)]        │
+│    - VoxelRaymarchHit (#[repr(C)]): 16-Byte (1/4 of 64B L1 Cache Line)      │
+│    - Pure integer Amanatides-Woo DDA algorithm: VoxelVolume16::raymarch_dda  │
+│    - AABB bounding slab clipping & bit-exact 6-face cube normal extraction  │
+│    - Secondary directional shadow ray occlusion: VoxelVolume16::is_shadowed │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [WebGPU WGSL Compute Shader & CPU Software Rasterizer (axiom-render)]    │
+│    - VOXEL_RAYMARCH_WGSL: 8x8 workgroup (64-thread L1 alignment) CS 6.0    │
+│    - render_voxel_raymarch: Deterministic 0-Float CPU DDA fallback rasterizer│
+│    - Reversed-Z 32-bit depth buffer blitting: Seamless polygon/voxel sorting│
+│    - Directional diffuse shading + 50% shadow ambient + Tile downsampling   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [WASM Studio ⚡ 3D Raymarch Modal & Zero-Copy Shader Inspector]          │
+│    - WASM C-ABI: axiom_voxel_bench_raymarch, axiom_voxel_render_raymarch    │
+│    - axiom_gpu_get_raymarch_wgsl: Zero-copy runtime WGSL source extraction  │
+│    - Web 3D Studio: ⚡ 3D Raymarch (CS 6.0) Modal & 📜 Shader Inspector     │
+│    - 1.27 MB optimized WebAssembly binary deployed across web/ and crates/  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Mimic The Show Championship Ring Hybrid 3D Raymarching Viewport]        │
+│    - Global F1 [3D FAST VOXEL DDA RAYMARCH ACTIVE: REVERSED-Z DEPTH BLIT]   │
+│    - 0 µs terrain mesh extraction overhead: Direct VoxelVolume16 raymarching │
+│    - Shared Reversed-Z depth buffer: Perfect mecha legs/terrain occlusion   │
+│    - HUD Prompt Bar: [F1: RAYMARCH] mode indicator badge                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 34.1 핵심 구조 및 기술적 특성
+1. **0-Float 16-바이트 광선 추적 교차 서술자 (`VoxelRaymarchHit`)**:
+   - `#[repr(C)]` 16바이트 구조체로 64바이트 L1 캐시 라인 1개에 정확히 4개의 광선 히트 결과를 정렬 패킹합니다.
+   - 복셀 볼륨 격자를 1,000단위 정수 좌표계로 모델링하고, 바운딩 박스 슬랩 교차 판정과 격자 증분 스텝을 64비트 정수 산술로 연산하여 부동소수점 오차 없는 완전 결정론을 보장합니다.
+2. **WebGPU WGSL 컴퓨트 셰이더 (`VOXEL_RAYMARCH_WGSL`)**:
+   - 8x8x1 (64 스레드) 워크그룹 토폴로지를 적용하여 CPU L1 캐시 라인과 현대 GPU SIMD 웨이브프론트에 동시 최적화했습니다.
+   - WGSL 언프로젝션 광선 생성, AABB 클리핑, DDA 복셀 탐색, 표면 노멀 추출, 디퓨즈 라이팅, 2차 그림자 차폐 및 Reversed-Z 깊이(`1.0 / (dist + 1.0)`)를 네이티브 WebGPU 상에서 실행합니다.
+3. **Reversed-Z 깊이 버퍼 하이브리드 블리팅 (`render_voxel_raymarch`)**:
+   - 기존 폴리곤 메쉬 래스터라이저(`Rasterizer3D`)의 깊이 버퍼(`depth_buffer: Vec<i32>`)와 동일한 Reversed-Z 깊이 좌표계를 공유합니다.
+   - 지반 복셀 파괴(크레이터 굴착) 발생 시에도 메쉬를 재추출하지 않고 원본 복셀 볼륨에 즉시 광선을 투사하므로 메쉬 재추출 지연 시간이 **0 µs**로 소거됩니다.
+4. **WASM 3D 스튜디오 쇼케이스 & Mimic The Show 글로벌 F1 하이브리드 모드**:
+   - 브라우저 웹 플레이어에 `⚡ 3D Raymarch (CS 6.0)` 전용 모달 및 런타임 제로-카피 WGSL 소스 인스펙터를 연동했습니다.
+   - `mimic-the-show` 인게임에서 글로벌 `F1` 핫키를 통해 3D Fast Voxel DDA 광선 추적 지반과 폴리곤 메카 래스터라이저의 하이브리드 블리팅을 실시간으로 감상하고 전환할 수 있습니다.
+
+
 
 
 

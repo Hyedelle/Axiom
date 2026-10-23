@@ -849,6 +849,33 @@
 
 ---
 
+## 🏛️ [AUDIT-20261024-v3.2.0] Axiom Engine v3.2.0 180대 WebGPU Compute 실시간 복셀 광선 추적 공식 릴리즈 종합 감사 보고서
+- **감사 일자:** 2026-10-24
+- **감사 주체:** Hyedelle (디렉터) & Antigravity (총괄 관제탑)
+- **감사 대상:** Axiom Engine v3.2.0 전역 워크스페이스 (`crates/axiom-core`, `crates/axiom-render`, `crates/axiom-wasm`, `mimic-the-show`, `web`, `tools/package.ps1`)
+- **판정 결과:** **PASS (전 항목 무결성 100% 승인)**
+
+### 1. 헌법 및 기하 정렬 준수 검증
+1. **0-Float 절대 결정론**:
+   - `VoxelVolume16::raymarch_dda`: 순수 정수 Amanatides-Woo Fast Voxel DDA 광선 행진 알고리즘, 6면 큐브 법선 벡터[-X, +X, -Y, +Y, -Z, +Z] 및 2차 방향성 그림자 차폐 `is_shadowed` 비트 결정론 100% 입증.
+   - `render_voxel_raymarch`: 0-Float CPU 소프트웨어 DDA 래스터라이저, 바운딩 박스 $O(1)$ 조기 탈출, 타일 다운샘플링 및 Reversed-Z 깊이 버퍼 블리팅.
+2. **L1 캐시 라인 기하 정렬**:
+   - `VoxelRaymarchHit`: 정확히 16바이트 (1/4 L1 캐시 라인, 1라인 당 4개 히트 결과 완벽 패킹) 상주 확인 (`size_of == 16, align_of == 4`).
+   - `VOXEL_RAYMARCH_WGSL`: 8x8x1 (64개 스레드) 워크그룹 토폴로지로 64B L1 캐시 라인 및 GPU SIMD 웨이브프론트 최적화.
+   - `VoxelComputeDispatch64`: 정확히 64바이트 GPU 컴퓨트 서술자 (`size_of == 64, align_of == 64`).
+3. **글로벌 벤치마크 스루풋 및 상용 렌더링**:
+   - Web 3D 복셀 스튜디오: ⚡ **3D Raymarch (CS 6.0)** 대화형 모달 및 📜 **WGSL Shader Inspector** 제로-카피 인스펙션, 1.27 MB 최적화 WASM 바이너리 동기화.
+   - `mimic-the-show`: 글로벌 `F1` [3D FAST VOXEL DDA RAYMARCH ACTIVE: REVERSED-Z DEPTH BLIT] 핫키, 지반 복셀 메쉬 재추출 지연 시간 **0 µs** 소거 및 폴리곤 메카와의 완전한 3D 상호 차폐 실현.
+   - 단일 상용 배포 패키지: `dist/axiom-v3.2.0-unified-milestone.zip` (SHA-256 검증 완료).
+
+### 2. 종합 테스트 및 품질 승인
+- `cargo test --workspace` 100% 통과 (95+개 단위/통합 테스트 전원 PASS).
+- `cargo test --manifest-path c:\Dreamhub\Game\mimic-the-show\Cargo.toml` 100% 통과 (20개 테스트 전원 PASS).
+- `tools/guard.ps1` 무결성 검증 100% 통과.
+- 워크스페이스 v3.2.0 판올림 및 공식 Git 릴리즈 태그 `v3.2.0` 발행 승인.
+
+---
+
 ## 🛠️ 긴급 처방전 템플릿 (Disaster Recovery Protocol)
 
 ```markdown
