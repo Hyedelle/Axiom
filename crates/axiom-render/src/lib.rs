@@ -16,6 +16,7 @@ pub mod particles3d;
 pub mod raster3d;
 pub mod sprites;
 pub mod texture;
+pub mod thermal_render;
 pub mod voxel_collapse_render;
 pub mod voxel_map;
 pub mod voxel_mesh;
@@ -52,3 +53,4 @@ pub use voxel_map::{
 pub use voxel_collapse_render::render_dynamic_collapse_chunks;
 pub use voxel_mesh::{extract_voxel_mesh, sever_part_mesh};
 pub use voxel_shard_render::{render_voxel_shards, VoxelShardColorMap};
+pub use thermal_render::{render_thermal_glow, sample_thermal_glow_color};

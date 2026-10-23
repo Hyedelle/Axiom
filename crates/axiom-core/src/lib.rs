@@ -37,6 +37,7 @@ pub mod spatial;
 pub mod spatial_index;
 pub mod state;
 pub mod storage;
+pub mod thermal_stress;
 pub mod tick;
 pub mod tile_entity;
 pub mod time_machine;
@@ -44,6 +45,11 @@ pub mod voxel_collapse;
 pub mod voxel_destruct;
 pub mod voxel_shard;
 pub mod world_time_machine;
+
+pub use thermal_stress::{
+    ThermalStressField16, TEMP_AMBIENT, TEMP_INCANDESCENT_THRESHOLD, TEMP_PHASE_MELT_THRESHOLD,
+    TEMP_WARM_THRESHOLD, STRESS_FRACTURE_THRESHOLD,
+};
 
 pub use audio::{
     AudioMixFrame, SoundCategory, SoundEvent, SpatialAudioSimulator, SpatialVoice,
