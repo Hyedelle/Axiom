@@ -5264,6 +5264,139 @@ pub extern "C" fn axiom_net_bench_rollback(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_net_bench_nat_traversal(
+    peer_count: u32,
+    loss_permille: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_net::{NatCandidate64, NatTraversalSession, StunPacket64};
+
+    let num_peers = peer_count.clamp(2, 16) as usize;
+    let loss = loss_permille.min(500);
+
+    let mut sessions: alloc::vec::Vec<NatTraversalSession<16>> = (0..num_peers)
+        .map(|id| {
+            let host_ip = [192, 168, 1, 10 + id as u8];
+            let host_port = 7000 + (id as u16) * 10;
+            let cand = NatCandidate64::new_ipv4_host(host_ip, host_port, 2_130_706_431 - (id as u32) * 1000);
+            NatTraversalSession::<16>::new(id as u8, cand)
+        })
+        .collect();
+
+    // Exchange public STUN (server-reflexive) candidate descriptors across all peers
+    for i in 0..num_peers {
+        for j in 0..num_peers {
+            if i != j {
+                let srflx_ip = [203, 0, 113, 10 + j as u8];
+                let srflx_port = 17000 + (j as u16) * 10;
+                let cand = NatCandidate64::new_ipv4_srflx(srflx_ip, srflx_port, 1_694_498_815 - (j as u32) * 1000);
+                sessions[i].add_peer_candidate(j, cand);
+            }
+        }
+    }
+
+    let mut rng: u32 = 0x1234_5678 ^ (num_peers as u32).wrapping_mul(31337);
+    let mut rounds = 0u32;
+    let max_rounds = 40u32;
+
+    while rounds < max_rounds {
+        rounds += 1;
+        let now_micros = rounds * 10_000;
+
+        // Check if all peers have reached full connectivity
+        let mut all_done = true;
+        for i in 0..num_peers {
+            if !sessions[i].all_peers_connected() {
+                all_done = false;
+                break;
+            }
+        }
+        if all_done {
+            break;
+        }
+
+        // 1. Send probes for disconnected peers
+        let mut forward_probes: alloc::vec::Vec<(usize, usize, StunPacket64)> = alloc::vec::Vec::new();
+        for i in 0..num_peers {
+            for j in 0..num_peers {
+                if i != j && !sessions[i].is_peer_connected(j) {
+                    let ping = sessions[i].create_probe_ping(j as u8, rounds as u16, now_micros);
+                    rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
+                    if (rng % 1000) >= loss {
+                        forward_probes.push((i, j, ping));
+                    }
+                }
+            }
+        }
+
+        // 2. Process incoming pings and generate return pongs
+        let mut return_pongs: alloc::vec::Vec<(usize, usize, StunPacket64)> = alloc::vec::Vec::new();
+        for (src, dst, ping) in forward_probes {
+            if let Some(pong) = sessions[dst].process_stun_packet(&ping, now_micros + 4_000) {
+                rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
+                if (rng % 1000) >= loss {
+                    return_pongs.push((dst, src, pong));
+                }
+            }
+        }
+
+        // 3. Process incoming pongs
+        for (_dst, src, pong) in return_pongs {
+            sessions[src].process_stun_packet(&pong, now_micros + 8_000);
+        }
+    }
+
+    let mut total_probes_sent = 0u32;
+    let mut total_probes_recv = 0u32;
+    let mut connected_peers_count = 0u32;
+    let mut total_rtt_micros = 0u64;
+    let mut total_pairs = 0u32;
+
+    let mut consensus_hash: u64 = 0xCBF2_9CE4_8422_2325;
+
+    for (id, s) in sessions.iter().enumerate() {
+        total_probes_sent += s.total_probes_sent;
+        total_probes_recv += s.total_probes_received;
+        if s.all_peers_connected() {
+            connected_peers_count += 1;
+        }
+
+        consensus_hash ^= (s.connected_mask as u64) | ((id as u64) << 16);
+        consensus_hash = consensus_hash.wrapping_mul(0x100_0000_01B3);
+
+        for j in 0..num_peers {
+            if (id != j) && s.is_peer_connected(j) {
+                total_pairs += 1;
+                let rtt = s.peer_candidates[j].rtt_micros;
+                total_rtt_micros += rtt as u64;
+                consensus_hash ^= (rtt as u64).wrapping_mul(0x100_0000_01B3);
+            }
+        }
+    }
+
+    let avg_rtt = if total_pairs > 0 {
+        (total_rtt_micros / total_pairs as u64) as u32
+    } else {
+        0
+    };
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = num_peers as u32;
+            *out_stats.add(1) = rounds;
+            *out_stats.add(2) = total_probes_sent;
+            *out_stats.add(3) = total_probes_recv;
+            *out_stats.add(4) = connected_peers_count;
+            *out_stats.add(5) = (consensus_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(6) = (consensus_hash >> 32) as u32;
+            *out_stats.add(7) = avg_rtt;
+        }
+    }
+
+    rounds
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -6240,5 +6373,15 @@ mod tests {
         assert_eq!(bench_stats[0], 20);
         assert!(bench_stats[1] > 0, "Total fragments > 0");
         assert!(bench_stats[5] != 0 || bench_stats[6] != 0, "Consensus hash must be non-zero");
+
+        // 6. NAT Traversal Benchmark (16 peers, 15% loss)
+        let mut nat_stats = [0u32; 8];
+        let nat_rounds = axiom_net_bench_nat_traversal(16, 150, nat_stats.as_mut_ptr());
+        assert!(nat_rounds > 0);
+        assert_eq!(nat_stats[0], 16); // 16 peers
+        assert_eq!(nat_stats[4], 16); // All 16 peers connected!
+        assert!(nat_stats[2] > 0, "Probes sent > 0");
+        assert!(nat_stats[3] > 0, "Probes recv > 0");
+        assert!(nat_stats[5] != 0 || nat_stats[6] != 0, "NAT consensus hash must be non-zero");
     }
 }
