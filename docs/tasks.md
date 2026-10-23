@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-088: 인바운드 드래프트 및 퍽 선택 화면 3D 파츠 회전 프리뷰** (`mimic-the-show/src/view.rs`, 카드 프레임 내부 오라클 아이/피스톤 암/보일러 코어 3D 단일 메시 회전 래스터라이징, `tools/guard.ps1` 통과)
+- [ ] **T-089: 3D 관중석 환경 래스터라이징 및 링 사이드 조명 그림자 연출** (`crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, 연기 자욱한 지하 경기장 브라스 램프 조명 및 링 바닥 앰비언트 오클루전, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-089: 3D 관중석 환경 래스터라이징 및 링 사이드 조명 그림자 연출** (연기 자욱한 지하 경기장 브라스 램프 조명 및 링 바닥 앰비언트 오클루전)
+- [ ] **T-090: 3D 메카 피격 부위별 파티클 파편(Debris) 및 스파크 지면 바운스 시뮬레이션** (Q16.16 중력 가속도 및 탄성 충돌 3D 스파크 바운스)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-088: 인바운드 드래프트 및 퍽 선택 화면 3D 파츠 회전 프리뷰** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/bin/capture_screens.rs`, 카드 프레임 내부 오라클 아이/피스톤 암/보일러 코어 3D 단일 메시 회전 래스터라이징, `tools/guard.ps1` 통과, 커밋 `97f744e`)
 - [x] **T-087: 오디오 음향 합성 3D 거리 감쇄 및 증기 릴리즈 SFX 완전 사상** (`mimic-the-show/src/sound.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-cli/src/sound.rs`, `steel-the-show` 정본 5개 타격 오디오 레이어(lay_knock/lay_body/lay_tail/lay_ring/lay_boom) 및 고압 스팀 밸브 개폐/배출음 0-Float PCM 합성, 3D 거리 감쇄/스테레오 패닝, 잽/크로스/훅/카운터/KO 타격감 차등화, 테스트 및 `tools/guard.ps1` 통과, 커밋 `167e02b`)
 - [x] **T-086: 3D 보스전 THESEUS 챔피언 연출 및 챔피언 벨트 획득 시퀀스** (`mimic-the-show/src/view.rs`, `crates/axiom-render/src/mesh3d.rs`, Tripo/Blender 정본 챔피언 벨트 및 THESEUS 메카 에셋 연동, 승리 시 트로피·벨트 수여 3D 시네마틱 렌더링, `tools/guard.ps1` 통과, 커밋 `9c892e9`)
 - [x] **T-085: 메카 부위별 내구도 손상(Part Durability Breakdown), 3D 국소 피격 연출 및 전 화면 캐논 UI 완성** (`mimic-the-show/src/part.rs`, `mimic-the-show/src/robot.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`, Head/Core/Arm 부위별 독립 내구도 0..100(정상/손상/위험/파손) 실장, 코어 과열/손상 시 등 보일러 3D 고밀도 증기 분출, 헤드/암 파손 시 스파크 누출, 전투 HUD 및 정비고 부위별 컨디션 칩 렌더링, 단위 테스트 100% 통과, 커밋 `a771fde`)
