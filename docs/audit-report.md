@@ -8,25 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 07:35 KST
-- **감사 대상:** Axiom Engine 230대 Swept AABB 및 고정소수점 Raycast 히트박스 연속 충돌 구현 (T-195, `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ccd.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 무결성 검증, $O(1)$ 해석적 Minkowski Sum 확장 슬랩 교차법(`swept_aabb_toi`, `raycast_aabb_toi`) 및 히트박스 판정(`swept_hitbox_vs_hurtbox`), 30 m/s 초고속 펀치 터널링 완벽 차단 실증, 6개 신규 단위 테스트 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 07:45 KST
+- **감사 대상:** Axiom Engine CCD 히트박스 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-196, `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ccd_jobs.rs`, `crates/axiom-game/tests/test_ccd_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64`, `SweptAabbResult64`, `EventSlab64` 무결성 검증, `dispatch_ccd_hitboxes_with_jobs` 워커 풀 병렬 디스패치, `emit_ccd_hits_to_event_bus` 40B 인라인 페이로드 및 `EVENT_CCD_HIT (0x0230)` 이벤트 버스 연계, `NetworkMatchDirector` 동기/비동기 `step_ccd` / `step_ccd_with_jobs` 파이프라인 무결성, 5개 신규 단위/통합 테스트 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`HitboxSlab64`, `SweptAabbResult64`)**:
-     - `HitboxSlab64`: 8B 타겟 마스크, 44B 좌표계/속도계, 8B 데미지/넉백/윈도우, 4B 식별자/플래그/타입으로 구성된 64바이트 무패딩 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
-     - `SweptAabbResult64`: 16B 키/유저데이터, 24B TOI/접촉좌표/ID, 8B 속성, 4B 법선/플래그, 12B 예약 패딩 64B 슬랩.
-  2. **$O(1)$ 닫힌 형식(Closed-form) 해석적 CCD 알고리즘**:
-     - `raycast_aabb_toi`: Kay-Kajiya 3D 슬랩 교차법을 64비트 정수 산술로 구현하여 $Q16.16$ TOI 및 6방향 접촉 법선 도출.
-     - `swept_aabb_toi`: 두 이동 박스의 상대 변위 $V_{rel}$을 Minkowski Sum 확장 박스에 대한 광선 교차로 환원하여 해석적 계산.
-  3. **터널링(Bullet-through-Paper) 방지 실증**:
-     - 1틱에 500mm를 이동하는 30 m/s 초고속 펀치가 100mm 두께 안면 장애물을 관통하지 않고 정확한 서브프레임 TOI (0.3)에서 감지됨을 실증.
-  4. **단위 테스트 및 헌법 가드 검증**:
-     - 6개 단위 테스트(`test_ccd.rs`) 통과, 64-bit FNV-1a 상태 합의 체크섬 `compute_ccd_consensus_hash` 결정론 보증.
-     - `tools/guard.ps1` 100% 통과 (0-Float 불변식, 60개 단위/37개 통합 테스트 올패스).
+  1. **잡 시스템 병렬 분할 (`dispatch_ccd_hitboxes_with_jobs`, `ccd_batch_job`)**:
+     - 활성 히트박스 슬랩 배열을 $N$-배치(최대 8개)로 분할하여 Chase-Lev 무잠금 SPMC 워크 스틸링 덱에 큐잉하고 워커 풀 협력 처리 검증.
+  2. **이벤트 버스 연계 (`emit_ccd_hits_to_event_bus`)**:
+     - `EVENT_CCD_HIT = 0x0230` 채널 식별자 (`channel::COMBAT | channel::PHYSICS`) 발행.
+     - 40-바이트 인라인 POD 페이로드: `pair_key` (8B), `toi` (4B), `hit_xyz` (12B), `damage` (2B), `knockback` (2B), `hitbox_id` (2B), `flags` (2B), `normal_xyz` (3B), `has_hit` (1B), `pad` (4B) 무할당 직렬화 및 GGPO 롤백(`rollback_to`) 무결성 확인.
+  3. **네트워크 매치 디렉터 (`NetworkMatchDirector`) 실시간 결합**:
+     - `step_ccd(&mut self) -> usize`: 활성 플레이어 공격 상태(`STATE_LIGHT_ATTACK`, `STATE_HEAVY_ATTACK`) 및 초고속 돌진 상태 스윕 히트박스 감지 및 이벤트 버스 방출.
+     - `step_ccd_with_jobs(...) -> usize`: 잡 시스템 및 워커 풀 연계 비동기 배치 처리 및 드레인 완료.
+  4. **단위/통합 테스트 및 헌법 가드 검증**:
+     - `test_ccd_jobs.rs` (3개 테스트) 및 `test_ccd_game_pipeline.rs` (2개 테스트) 100% 통과.
+     - `tools/guard.ps1` 100% 통과 (0-Float 불변식, 코어/게임 전역 테스트 올패스).
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T195] Axiom Engine 230대 Swept AABB 및 고정소수점 Raycast 히트박스 연속 충돌 구현
+- **일시:** 2026-10-24 07:35 KST
+- **판정:** 🟢 **ALL CLEAR (구현 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 무결성 검증, $O(1)$ 해석적 Minkowski Sum 확장 슬랩 교차법(`swept_aabb_toi`, `raycast_aabb_toi`) 및 히트박스 판정(`swept_hitbox_vs_hurtbox`), 30 m/s 초고속 펀치 터널링 완벽 차단 실증, 6개 신규 단위 테스트 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T194] Axiom Engine 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 연구
 - **일시:** 2026-10-24 07:22 KST

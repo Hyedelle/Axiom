@@ -77,8 +77,9 @@ pub use spatial_grid::{
     DEFAULT_CELL_CAPACITY, DEFAULT_GRID_TABLE_CAP, EVENT_BROADPHASE_PAIR,
 };
 pub use ccd::{
-    compute_ccd_consensus_hash, raycast_aabb_toi, swept_aabb_toi, swept_hitbox_vs_hurtbox,
-    ContactNormal6, HitType, HitboxSlab64, SweptAabbResult64, HITBOX_FLAG_ACTIVE,
+    ccd_batch_job, compute_ccd_consensus_hash, dispatch_ccd_hitboxes_with_jobs,
+    emit_ccd_hits_to_event_bus, raycast_aabb_toi, swept_aabb_toi, swept_hitbox_vs_hurtbox,
+    ContactNormal6, HitType, HitboxSlab64, SweptAabbResult64, EVENT_CCD_HIT, HITBOX_FLAG_ACTIVE,
     HITBOX_FLAG_COUNTER_HIT, HITBOX_FLAG_GUARD_BREAK, HITBOX_FLAG_PIERCING, HITBOX_FLAG_SWEPT_CCD,
     TOI_ONE_Q16,
 };

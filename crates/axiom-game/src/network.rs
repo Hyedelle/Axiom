@@ -11,6 +11,10 @@ use axiom_core::spatial_grid::{
     dispatch_broadphase_with_jobs, emit_collision_pairs_to_event_bus, AabbSlab64, CollisionPair64,
     SpatialHashGrid, COLLISION_FLAG_DYNAMIC,
 };
+use axiom_core::ccd::{
+    dispatch_ccd_hitboxes_with_jobs, emit_ccd_hits_to_event_bus, swept_hitbox_vs_hurtbox,
+    HitType, HitboxSlab64, SweptAabbResult64, HITBOX_FLAG_ACTIVE, HITBOX_FLAG_SWEPT_CCD,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -693,6 +697,169 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         }
 
         pair_count
+    }
+
+    /// Evaluates continuous collision detection (CCD) for all active player attacks or high-velocity movements,
+    /// emitting precise contact events to the deterministic event bus under channel::COMBAT | channel::PHYSICS (synchronous fallback).
+    pub fn step_ccd(&mut self) -> usize {
+        let mut hitboxes = [HitboxSlab64::empty(); MAX_PEERS];
+        let mut hitbox_count = 0;
+        for i in 0..MAX_PEERS {
+            let p = &self.current_world.players[i];
+            if (self.current_world.active_mask & (1 << i)) != 0 && p.health > 0 {
+                let is_attacking = p.action_state == STATE_LIGHT_ATTACK || p.action_state == STATE_HEAVY_ATTACK;
+                let is_high_speed = p.vel_x.abs() > 500 || p.vel_y.abs() > 500;
+                if is_attacking || is_high_speed {
+                    let is_heavy = p.action_state == STATE_HEAVY_ATTACK;
+                    let (dmg, kb, hit_type) = if is_heavy {
+                        (110u16, 2800u16, HitType::High)
+                    } else {
+                        (45u16, 1200u16, HitType::Mid)
+                    };
+                    let disp = if p.vel_x != 0 || p.vel_y != 0 {
+                        (p.vel_x, p.vel_y, 0)
+                    } else {
+                        (450, 0, 0)
+                    };
+                    hitboxes[hitbox_count] = HitboxSlab64::from_extents_and_disp(
+                        (i + 1) as u32,
+                        (i as u16) + 1,
+                        0xFFFF,
+                        (p.pos_x - 150, p.pos_y - 150, p.pos_z + 800),
+                        (p.pos_x + 150, p.pos_y + 150, p.pos_z + 1200),
+                        disp,
+                        dmg,
+                        kb,
+                        hit_type,
+                        HITBOX_FLAG_ACTIVE | HITBOX_FLAG_SWEPT_CCD,
+                    );
+                    hitbox_count += 1;
+                }
+            }
+        }
+
+        let mut results = [SweptAabbResult64::empty(); 16];
+        let mut hit_count = 0;
+        for h in 0..hitbox_count {
+            let hb = &hitboxes[h];
+            for j in 0..MAX_PEERS {
+                let defender_id = (j + 1) as u32;
+                if defender_id == hb.attacker_id {
+                    continue;
+                }
+                let p_j = &self.current_world.players[j];
+                if (self.current_world.active_mask & (1 << j)) != 0 && p_j.health > 0 {
+                    let hurtbox_min = (p_j.pos_x - PLAYER_RADIUS_MM, p_j.pos_y - PLAYER_RADIUS_MM, p_j.pos_z);
+                    let hurtbox_max = (p_j.pos_x + PLAYER_RADIUS_MM, p_j.pos_y + PLAYER_RADIUS_MM, p_j.pos_z + 1800);
+                    let hurtbox_disp = (p_j.vel_x, p_j.vel_y, 0);
+
+                    if let Some(res) = swept_hitbox_vs_hurtbox(hb, hurtbox_min, hurtbox_max, hurtbox_disp, defender_id) {
+                        if hit_count < results.len() {
+                            results[hit_count] = res;
+                            hit_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        if hit_count > 0 {
+            emit_ccd_hits_to_event_bus(
+                &results[..hit_count],
+                self.current_world.tick,
+                &mut self.event_bus,
+            );
+        }
+
+        hit_count
+    }
+
+    /// Executes parallel continuous collision detection (CCD) using the JobSystem and WorkerPoolCoordinator,
+    /// evaluating high-velocity punch hitboxes against opponent hurtboxes and emitting events to the event bus.
+    pub fn step_ccd_with_jobs<
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> usize {
+        let mut hitboxes = [HitboxSlab64::empty(); MAX_PEERS];
+        let mut hitbox_count = 0;
+        for i in 0..MAX_PEERS {
+            let p = &self.current_world.players[i];
+            if (self.current_world.active_mask & (1 << i)) != 0 && p.health > 0 {
+                let is_attacking = p.action_state == STATE_LIGHT_ATTACK || p.action_state == STATE_HEAVY_ATTACK;
+                let is_high_speed = p.vel_x.abs() > 500 || p.vel_y.abs() > 500;
+                if is_attacking || is_high_speed {
+                    let is_heavy = p.action_state == STATE_HEAVY_ATTACK;
+                    let (dmg, kb, hit_type) = if is_heavy {
+                        (110u16, 2800u16, HitType::High)
+                    } else {
+                        (45u16, 1200u16, HitType::Mid)
+                    };
+                    let disp = if p.vel_x != 0 || p.vel_y != 0 {
+                        (p.vel_x, p.vel_y, 0)
+                    } else {
+                        (450, 0, 0)
+                    };
+                    hitboxes[hitbox_count] = HitboxSlab64::from_extents_and_disp(
+                        (i + 1) as u32,
+                        (i as u16) + 1,
+                        0xFFFF,
+                        (p.pos_x - 150, p.pos_y - 150, p.pos_z + 800),
+                        (p.pos_x + 150, p.pos_y + 150, p.pos_z + 1200),
+                        disp,
+                        dmg,
+                        kb,
+                        hit_type,
+                        HITBOX_FLAG_ACTIVE | HITBOX_FLAG_SWEPT_CCD,
+                    );
+                    hitbox_count += 1;
+                }
+            }
+        }
+
+        if hitbox_count > 0 {
+            dispatch_ccd_hitboxes_with_jobs(&hitboxes, 4, job_system, coordinator);
+            coordinator.drain_all(job_system);
+        }
+
+        let mut results = [SweptAabbResult64::empty(); 16];
+        let mut hit_count = 0;
+        for h in 0..hitbox_count {
+            let hb = &hitboxes[h];
+            for j in 0..MAX_PEERS {
+                let defender_id = (j + 1) as u32;
+                if defender_id == hb.attacker_id {
+                    continue;
+                }
+                let p_j = &self.current_world.players[j];
+                if (self.current_world.active_mask & (1 << j)) != 0 && p_j.health > 0 {
+                    let hurtbox_min = (p_j.pos_x - PLAYER_RADIUS_MM, p_j.pos_y - PLAYER_RADIUS_MM, p_j.pos_z);
+                    let hurtbox_max = (p_j.pos_x + PLAYER_RADIUS_MM, p_j.pos_y + PLAYER_RADIUS_MM, p_j.pos_z + 1800);
+                    let hurtbox_disp = (p_j.vel_x, p_j.vel_y, 0);
+
+                    if let Some(res) = swept_hitbox_vs_hurtbox(hb, hurtbox_min, hurtbox_max, hurtbox_disp, defender_id) {
+                        if hit_count < results.len() {
+                            results[hit_count] = res;
+                            hit_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        if hit_count > 0 {
+            emit_ccd_hits_to_event_bus(
+                &results[..hit_count],
+                self.current_world.tick,
+                &mut self.event_bus,
+            );
+        }
+
+        hit_count
     }
 
     fn kinematic_batch_job(_ctx: axiom_core::job_system::JobContext) {

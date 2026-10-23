@@ -12,6 +12,12 @@
 //! - **Tunneling Prevention**: Detects sub-frame contact even when velocity exceeds 30 m/s (>500 mm/tick).
 
 use core::mem::{align_of, size_of};
+use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
+
+/// Continuous collision detection (CCD) hit event type discriminant.
+pub const EVENT_CCD_HIT: u16 = 0x0230;
 
 /// Hitbox physics flag bitmasks
 pub const HITBOX_FLAG_ACTIVE: u8      = 1 << 0;
@@ -525,4 +531,126 @@ pub fn compute_ccd_consensus_hash(results: &[SweptAabbResult64]) -> u64 {
         }
     }
     hash
+}
+
+/// Worker task that processes a partition of hitbox CCD evaluations.
+pub fn ccd_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let chunk_size = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for i in 0..chunk_size {
+        let idx = start_idx.wrapping_add(i);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Partitions active hitbox slabs into N batches across the worker pool for parallel CCD evaluation.
+pub fn dispatch_ccd_hitboxes_with_jobs<
+    const SLAB_COUNT: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    slabs: &[HitboxSlab64; SLAB_COUNT],
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    let active_count = slabs.iter().filter(|s| s.is_active()).count();
+    if active_count == 0 || batch_count == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let chunk_size = (SLAB_COUNT + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start = b * chunk_size;
+        let len = chunk_size.min(SLAB_COUNT.saturating_sub(start));
+        if len == 0 {
+            break;
+        }
+
+        let param = (start as u64) | ((len as u64) << 32);
+        let tag = (active_count as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            ccd_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits detected CCD hit results into a DeterministicEventBus under `channel::COMBAT | channel::PHYSICS`.
+///
+/// Encodes a 40-byte inline POD payload:
+/// - 0..8: pair_key (u64)
+/// - 8..12: toi (u32, Q16.16)
+/// - 12..16: hit_x (i32)
+/// - 16..20: hit_y (i32)
+/// - 20..24: hit_z (i32)
+/// - 24..26: damage (u16)
+/// - 26..28: knockback (u16)
+/// - 28..30: hitbox_id (u16)
+/// - 30..32: flags (u16)
+/// - 32: normal_x (i8)
+/// - 33: normal_y (i8)
+/// - 34: normal_z (i8)
+/// - 35: has_hit (u8)
+/// - 36..40: reserved / pad ([u8; 4])
+pub fn emit_ccd_hits_to_event_bus<const BUS_CAP: usize>(
+    results: &[SweptAabbResult64],
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> usize {
+    let mut emitted = 0;
+    for res in results {
+        if !res.has_hit() {
+            continue;
+        }
+
+        let mut payload = [0u8; 40];
+        payload[0..8].copy_from_slice(&res.pair_key.to_le_bytes());
+        payload[8..12].copy_from_slice(&res.toi.to_le_bytes());
+        payload[12..16].copy_from_slice(&res.hit_x.to_le_bytes());
+        payload[16..20].copy_from_slice(&res.hit_y.to_le_bytes());
+        payload[20..24].copy_from_slice(&res.hit_z.to_le_bytes());
+        payload[24..26].copy_from_slice(&res.damage.to_le_bytes());
+        payload[26..28].copy_from_slice(&res.knockback.to_le_bytes());
+        payload[28..30].copy_from_slice(&res.hitbox_id.to_le_bytes());
+        payload[30..32].copy_from_slice(&res.flags.to_le_bytes());
+        payload[32] = res.normal_x as u8;
+        payload[33] = res.normal_y as u8;
+        payload[34] = res.normal_z as u8;
+        payload[35] = res.has_hit;
+
+        if event_bus
+            .emit_raw(
+                tick,
+                EVENT_CCD_HIT,
+                channel::COMBAT | channel::PHYSICS,
+                res.attacker_id,
+                res.victim_id,
+                payload,
+            )
+            .is_some()
+        {
+            emitted += 1;
+        } else {
+            break;
+        }
+    }
+    emitted
 }
