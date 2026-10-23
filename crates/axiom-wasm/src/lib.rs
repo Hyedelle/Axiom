@@ -5479,6 +5479,93 @@ pub extern "C" fn axiom_job_bench_scheduler(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_event_bench_bus(
+    event_count: u32,
+    workers: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::event_bus::{
+        channel, dispatch_events_with_jobs, DeterministicEventBus,
+    };
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let target_events = (event_count as usize).clamp(16, 240);
+    let worker_count = (workers as usize).clamp(1, 8);
+
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(worker_count));
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    #[repr(C)]
+    struct WasmEventPayload {
+        pub value: u32,
+        pub source: u32,
+        pub data: [u8; 16],
+    }
+
+    // 1. Emit target_events into the bus across multiple channels
+    for i in 0..target_events {
+        let ch = match i % 4 {
+            0 => channel::COMBAT,
+            1 => channel::PHYSICS,
+            2 => channel::AUDIO,
+            _ => channel::VFX | channel::COMBAT,
+        };
+        let p = WasmEventPayload {
+            value: (i as u32) * 17,
+            source: i as u32,
+            data: [(i as u8).wrapping_mul(7); 16],
+        };
+        bus.emit(100 + (i as u32), (i % 8) as u16 + 1, ch, (i as u32) + 1, 0, &p);
+    }
+
+    let emitted_count = bus.count;
+
+    // 2. Count combat-matching events via for_each_matching
+    let mut combat_matches = 0u32;
+    bus.for_each_matching(channel::COMBAT, |_ev| {
+        combat_matches += 1;
+    });
+
+    // 3. Confirm up to sequence 70% of emitted events and test rollback
+    let confirm_seq = (emitted_count * 7) / 10;
+    bus.confirm(confirm_seq as u32);
+
+    let pre_rollback = bus.count;
+    bus.rollback_to(confirm_seq as u32);
+    let post_rollback = bus.count;
+    let rewound_count = (pre_rollback.saturating_sub(post_rollback)) as u32;
+
+    // 4. Parallel dispatch remaining events across worker pool
+    let dispatched = dispatch_events_with_jobs(
+        &bus,
+        channel::ALL,
+        worker_count,
+        &mut js,
+        &mut coordinator,
+    );
+
+    let consensus_hash = bus.compute_consensus_hash();
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = emitted_count as u32;
+            *out_stats.add(1) = post_rollback as u32;
+            *out_stats.add(2) = combat_matches;
+            *out_stats.add(3) = (consensus_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(4) = (consensus_hash >> 32) as u32;
+            *out_stats.add(5) = dispatched as u32;
+            *out_stats.add(6) = rewound_count;
+            *out_stats.add(7) = 256; // Ring buffer capacity
+        }
+    }
+
+    emitted_count as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -6474,5 +6561,16 @@ mod tests {
         assert_eq!(job_stats[1], 4);  // 4 workers
         assert!(job_stats[2] > 0, "Work-stealing events must be > 0");
         assert!(job_stats[4] != 0 || job_stats[5] != 0, "Job consensus hash must be non-zero");
+
+        // 8. Deterministic Event Bus & Component Query Benchmark (100 events, 4 workers)
+        let mut event_stats = [0u32; 8];
+        let total_emitted = axiom_event_bench_bus(100, 4, event_stats.as_mut_ptr());
+        assert_eq!(total_emitted, 100);
+        assert_eq!(event_stats[0], 100);
+        assert_eq!(event_stats[1], 70); // 70 confirmed remaining after rollback of 30
+        assert!(event_stats[2] > 0, "Combat matches > 0");
+        assert!(event_stats[3] != 0 || event_stats[4] != 0, "Event consensus hash non-zero");
+        assert_eq!(event_stats[5], 4, "4 parallel dispatch jobs");
+        assert_eq!(event_stats[6], 30, "30 events rewound");
     }
 }
