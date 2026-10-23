@@ -3,7 +3,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools/package.ps1 [-Version "2.1.0"] [-Clean]
 
 param (
-    [string]$Version = "2.7.0",
+    [string]$Version = "2.8.0",
     [switch]$Clean
 )
 

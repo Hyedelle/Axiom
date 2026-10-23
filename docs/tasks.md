@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-150: Axiom 150+ 차세대 복셀 물리 & 자율 메카 챔피언십 v2.8.0 대형 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-151: Axiom 160대 차세대 복셀 엔진 유체 역학(Fluid Dynamics) 및 침투/확산 시뮬레이션 기반 연구** (`crates/axiom-core`, `crates/axiom-render`, `crates/axiom-wasm`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-152: Axiom 3D 복셀 다이나믹 유체 침투 래스터라이징 및 WASM 스튜디오 연동** (`crates/axiom-render`, `crates/axiom-wasm`, `web/index.html`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-150: Axiom 150+ 차세대 복셀 물리 & 자율 메카 챔피언십 v2.8.0 대형 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-093]~[D-096], `docs/audit-report.md` [AUDIT-20261023-v2.8.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 다물질 물리 특성 매트릭스 `VoxelMaterialProps` [Stone: 800‰/120‰/750°C, Metal: 350‰/650‰/950°C, Molten: 300‰/500‰, Armor: 950‰/40‰/1000°C], 복합 하중 전단 파쇄 모델 [Shear + Thermal Expansion + Overburden Gravity], 4대 물리 서브시스템 통합 파이프라인 [Volume + Thermal + Collapse + Shards], 10,000 스텝 16,955+ TPS 글로벌 물리 벤치마크 및 비트 단위 100% 일치 결정론 입증 [`0x16C68FAB1386D1C5`], 64B L1 정렬 `VoxelChampionshipTelemetry` 내 `max_temperature`/`thermal_transitions` 탑재, 2.08 MB 단일 크로스 플랫폼 배포 패키지 `dist/axiom-v2.8.0-unified-milestone.zip` [SHA-256 검증], 전체 워크스페이스 v2.8.0 공식 판올림 및 Git 태그 `v2.8.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-149: Axiom 150+ 차세대 복셀 엔진 상용 최적화 및 크로스 플랫폼 데모 패키징** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `tools/package.ps1`, `dist/axiom-v2.7.0-unified-milestone.zip` [2.08 MB, SHA-256 검증], `dist/.../bin/mimic-the-show.exe` [0.88 MB, 60 FPS 네이티브 메카 복싱 로그라이트 단일 바이너리], `dist/.../bin/axiom.exe` [0.87 MB, 팩토리 RPG / 10만 NPC / 워크숍 / 복셀 CLI], `dist/.../maps/` [5대 절차적 복셀 지형 컨테이너 .axvm 프리셋 번들], `dist/.../web/` [WASM 3D 복셀 파괴 스튜디오, ⚡ 10k Extreme Bench 모달 & 실시간 물리 HUD], `tools/package.ps1` 내 150-Task 복셀 물리 아키텍처 매니페스트 및 README.txt 갱신, `tools/guard.ps1` 통과)
 - [x] **T-148: Axiom 150+ 차세대 복셀 엔진 극한 물리 확장 및 글로벌 벤치마크 스위트** (`crates/axiom-core/src/thermal_stress.rs`, `crates/axiom-core/tests/test_thermal_stress.rs`, `crates/axiom-core/tests/benchmark_physics_extreme.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-game/src/voxel_tournament.rs`, 0-Float 64B L1 캐시 정렬 다물질 물리 특성 매트릭스 `VoxelMaterialProps` [Stone: 높은 열용량 800 permille/750°C 용융/800 파쇄, Metal: 초고속 전도율 650 permille/950°C 용융/920 파쇄, Molten: 고유동성 500 permille, Armor: 초단열 40 permille/950 파쇄/1000°C 불연], 열팽창 전단 응력 및 상부 지반 수직 압축 하중 결합 유효 전단 파쇄 모델, `step_thermal_diffusion_advanced` 및 `step_thermal_and_collapse_advanced`, 글로벌 벤치마크 스위트 `benchmark_physics_extreme.rs` [10,000 스텝 연속 16,955+ TPS / 58.98 µs 초고속 스루풋, 64-bit FNV-1a 상태 합의 비트 단위 100% 일치 결정론 입증], `axiom voxel bench-extreme` CLI 도구군, WASM C-ABI `axiom_voxel_bench_extreme`, `VoxelChampionshipDirector` 내 3D 열응력장 실시간 연동 및 64B L1 `VoxelChampionshipTelemetry` [max_temp, thermal_transitions], `tools/guard.ps1` 통과)
 - [x] **T-147: Axiom 차세대 3D 복셀 엔진 150대 대규모 아키텍처 결산 및 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-089]~[D-092], `docs/audit-report.md` [AUDIT-20261023-v2.7.0], `tools/package.ps1`, 프로젝트 150대 자율 개발 과제 종합 총결산, 3D 열전도-응력장 파쇄 및 다이나믹 메쉬 연쇄 붕괴 파이프라인 일체화 [`step_thermal_and_collapse`], WebGL/WASM 3D 스튜디오 실시간 열 충격파 컨트롤 패널 & HUD 모니터링, 500-사이클 수치 불변식 검증, Mimic The Show 챔피언십 링 3D 열응력 및 백열 발광[`render_thermal_glow`] 연동, 전체 워크스페이스 v2.7.0 공식 판올림 및 Git 태그 `v2.7.0` 발행, `tools/guard.ps1` 통과)

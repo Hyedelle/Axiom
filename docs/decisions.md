@@ -1171,6 +1171,51 @@
   2. 전체 워크스페이스 버전을 v2.6.0에서 **v2.7.0**으로 공식 판올림하고 Git 태그 `v2.7.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-093] 0-Float 다물질 열물리 특성 매트릭스 및 계면 열전도/열용량 모델 (T-148)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 5대 복셀 머티리얼별 물리 매트릭스 `VoxelMaterialProps` 정의 (Stone: 800‰/120‰/750°C, Metal: 350‰/650‰/950°C, Molten: 300‰/500‰, Armor: 950‰/40‰/1000°C).
+  2. 6-이웃 계면 유효 열전도율 조화평균 근사 및 열용량 비례 온도 델타 계산 파이프라인 `step_thermal_diffusion_advanced` 구현.
+  3. 단열재(Armor)의 열 보존 및 고도체(Metal)의 초고속 주변 방출 물리적 차별화 실증.
+- **영향:** `crates/axiom-core/src/thermal_stress.rs`, `crates/axiom-core/tests/test_thermal_stress.rs`.
+
+---
+
+### [D-094] 열팽창 및 수직 지반 누적 압축 하중 결합 유효 전단 파쇄 모델 (T-148)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 상부 복셀 누적 질량에 따른 수직 중력 압축 하중(`depth_compression`)과 300°C 초과 시 비례 생성되는 열팽창 압축 응력을 결합한 유효 전단 응력 모델 구축.
+  2. 점성 감쇠 전 최대 피크 부하를 임계치와 비교하여 파쇄 및 응력 방출(200 단위 완화)을 수행함으로써 물리적 즉각 파쇄성 보장.
+  3. 파쇄 발생 시 `DynamicCollapseSystem` 지반 연결성 단절 감지 및 강체 청크 분절 연동.
+- **영향:** `crates/axiom-core/src/thermal_stress.rs`.
+
+---
+
+### [D-095] 4대 물리 시스템 10,000 스텝 글로벌 벤치마크 스위트 및 비트 단위 상태 합의 (T-148, T-149)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 4,096-복셀 볼륨 + 16,448B 열응력장 + 16-청크 동적 붕괴 + 128-샤드 탄도 풀 통합 10,000 스텝 벤치마크 구축.
+  2. 실측 성능: 총 589.78 ms, 초당 16,955.4 TPS, 스텝당 58.98 µs 극한 지연시간, 0 바이트 힙 재할당 달성.
+  3. 독립 2회 실행 시 64-bit FNV-1a 상태 합의(`0x16C68FAB1386D1C5`) 비트 단위 100% 일치 입증.
+  4. `axiom voxel bench-extreme` CLI 서브커맨드 및 WASM C-ABI `axiom_voxel_bench_extreme` 엔드포인트 지원.
+  5. `web/index.html` 💥 Voxel Studio 내 ⚡ 10k Extreme Bench 모달 연동.
+- **영향:** `crates/axiom-core/tests/benchmark_physics_extreme.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-096] Axiom Engine v2.8.0 150+ 차세대 복셀 물리 & 자율 메카 챔피언십 마일스톤 공식 릴리즈 (T-150)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 150대 프로젝트 과제 공식 완결: 0-Float 64B L1 다물질 물리 특성 매트릭스, 복합 하중 전단 파쇄, 10,000 스텝 16,955+ TPS 글로벌 물리 벤치마크, 64B L1 챔피언십 텔레메트리 보존, 2.08 MB 크로스 플랫폼 데모 패키징 종합 승인.
+  2. 전체 워크스페이스 버전을 v2.7.0에서 **v2.8.0**으로 공식 판올림하고 Git 태그 `v2.8.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/audit-report.md`.
+
 
 
 
