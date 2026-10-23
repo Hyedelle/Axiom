@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-119: 3D 관절 애니메이션 블렌딩 트리 및 메카 시네마틱 피니셔 연출** (`crates/axiom-render`, `mimic-the-show`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-120: Axiom 120대 통합 최종 마일스톤 데모 패키징 및 스팀 상점 페이지 에셋 빌더** (`tools/package.ps1`, `docs/`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-121: 스팀 클라우드 & 워크숍 통합 사후 확장팩 (Steam DLC / Next Frontier)** (`crates/axiom-core`, `crates/axiom-game`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-119: 3D 관절 애니메이션 블렌딩 트리 및 메카 시네마틱 피니셔 연출** (`crates/axiom-render/src/kinematics3d.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_animation_blend_and_finisher.rs`, `mimic-the-show/src/view.rs`, 0-Float 결정론 Q16.16 & BAMS 각도 보간기 [`lerp_vec3_permille`, `lerp_bams_permille`], 가중치 기반 다관절 상태 블렌더 `AnimBlendTree`, 64B L1 캐시 라인 정렬 시네마틱 피니셔 시퀀서 `CinematicFinisherDirector` [#[repr(C, align(64))], WindupCharging ➔ NovaStrike ➔ DecapitateRecoil ➔ VictoryRoar], 카메라 클로즈업/로우앵글 오빗/화면 셰이크(최대 18)/40개 황금 파편 스파크 폭발/슈퍼노바 백열 림 라이트/사운드스케이프 동기화, `mimic-the-show` 3D 뷰포트 실시간 피니셔 연출 완결, 6개 단위 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-118: 스팀 멀티플레이어 로비(Steam Lobby / P2P Relay) 및 글로벌 랭킹 리더보드 연동** (`crates/axiom-game/src/lobby.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_lobby.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom-wasm.wasm`, 0-Float 64-Byte L1 캐시 라인 정렬 `LeaderboardEntry` [#[repr(C, align(64))], steam_id, rating, matches_won/lost, kos, flawless, streaks, moniker], 0-Float 순수 정수 ELO 레이팅 엔진 `calculate_elo`, 64인 무할당 삽입 정렬 랭킹 테이블 `LeaderboardTable<64>`, P2P 8인 룸 상태 머신 `SteamLobby<8>` [P1, P2, Spectators], WASM C-ABI 17개 엔드포인트 [`axiom_lobby_*`, `axiom_leaderboard_*`], 웹 플레이어 🥇 **Global Steam ELO Leaderboard** & 👥 **Steam Multiplayer Lobby** 모달 뷰포트 연동 [티어 뱃지 Grandmaster/Platinum/Gold/Silver/Bronze, 랭킹/전적/연승 스트릭 테이블, 실시간 가상 매치 시뮬레이션, 8-슬롯 룸 브로커 레디 체크 및 매치 스타트], 8개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-117: Axiom Engine v2.0.0 스팀 업적 & 데칼 에디터 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-058]~[D-060], `docs/audit-report.md` [AUDIT-20261023-v2.0.0], 64B L1 캐시 정렬 스팀 업적 상태 머신, 인게임 3초 골든 토스트 HUD 팝업, 0-Float 2D 메카 커스텀 페인팅 엔진, 절차적 7대 데칼 스튜디오, WASM 2D-3D 실시간 바인딩 파이프라인 통합 승인, 워크스페이스 v2.0.0 공식 판올림 및 Git 태그 `v2.0.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-116: 메카 커스텀 페인팅 및 풀 바디 텍스처 데칼 에디터** (`crates/axiom-render/src/texture.rs`, `crates/axiom-render/src/mesh3d.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom_wasm.wasm`, `crates/axiom-render/tests/test_modding_and_textures.rs`, 0-Float 결정론 2D 텍스처 캔버스 조작기 [`paint_brush`, `draw_line`, `flood_fill`, `stamp_decal`], 7대 절차적 스팀웍스 데칼 스탬프 [`Star`, `HazardStripes`, `SkullCrossbones`, `Number01`, `SponsorAxiom`, `TargetReticle`, `CheckeredFlag`], 절차적 박스 UV 자동 맵핑 `PartMesh::create_box`, WASM C-ABI 10개 텍스처 엔드포인트 [`axiom_texture_init`, `get_ptr`, `get_size`, `clear`, `paint`, `line`, `flood_fill`, `stamp_decal`, `load_procedural`, `apply_to_3d`], 웹 플레이어 🎨 **Mecha Custom Painting & Decal Studio** 뷰포트 [2D 픽셀 캔버스 ➔ 하단 3D 메카 소프트웨어 래스터라이저 60 FPS 실시간 텍스처 매핑 렌더링, 브러시/라인/플러드필/데칼 스탬퍼/프리셋/PNG 다운로드], 8개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

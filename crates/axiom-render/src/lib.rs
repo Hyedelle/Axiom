@@ -20,7 +20,8 @@ pub use camera3d::{Camera3D, CameraShot};
 pub use cutin::{render_cutin_overlay, CutinKind};
 pub use framebuffer::{upscale_nearest_2x, FrameBuffer};
 pub use kinematics3d::{
-    evaluate_forward_kinematics, get_part_matrix, MechaPose3D, PartTransformTable,
+    evaluate_forward_kinematics, get_part_matrix, lerp_bams_permille, lerp_vec3_permille,
+    AnimBlendTree, CinematicFinisherDirector, FinisherStage, MechaPose3D, PartTransformTable,
 };
 pub use math3d::{cos_bams, sin_bams, Mat4Fixed, Vec3Fixed};
 pub use mesh3d::{parse_glb, MechaModel3D, PartMesh, Vertex3D};

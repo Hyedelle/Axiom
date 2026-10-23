@@ -5,6 +5,34 @@
 
 use crate::math3d::{Mat4Fixed, Vec3Fixed};
 
+/// Deterministic linear interpolation between two Vec3Fixed values (t in 0..=1000).
+#[inline]
+pub fn lerp_vec3_permille(a: Vec3Fixed, b: Vec3Fixed, t_permille: u32) -> Vec3Fixed {
+    let t = t_permille.min(1000) as i64;
+    let inv_t = 1000 - t;
+    Vec3Fixed::from_raw(
+        (a.x.0 * inv_t + b.x.0 * t) / 1000,
+        (a.y.0 * inv_t + b.y.0 * t) / 1000,
+        (a.z.0 * inv_t + b.z.0 * t) / 1000,
+    )
+}
+
+/// Shortest-arc BAMS angle interpolation (t in 0..=1000).
+#[inline]
+pub fn lerp_bams_permille(a: u8, b: u8, t_permille: u32) -> u8 {
+    let diff = (b as i32) - (a as i32);
+    let wrapped = if diff > 128 {
+        diff - 256
+    } else if diff < -128 {
+        diff + 256
+    } else {
+        diff
+    };
+    let t = t_permille.min(1000) as i32;
+    let delta = (wrapped * t) / 1000;
+    ((a as i32 + delta).rem_euclid(256)) as u8
+}
+
 /// Pose description for 3D articulated mecha robotics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MechaPose3D {
@@ -129,10 +157,10 @@ impl MechaPose3D {
         let mut pose = Self::default();
         if is_left {
             pose.root_roll_z = 14;
-            pose.root_offset = Vec3Fixed::from_f32(-0.15, -0.05, 0.0);
+            pose.root_offset = Vec3Fixed::from_raw(-9830, -3277, 0);
         } else {
             pose.root_roll_z = 242; // -14 BAM
-            pose.root_offset = Vec3Fixed::from_f32(0.15, -0.05, 0.0);
+            pose.root_offset = Vec3Fixed::from_raw(9830, -3277, 0);
         }
         pose
     }
@@ -142,16 +170,77 @@ impl MechaPose3D {
         let mut pose = Self::default();
         pose.head_pitch_x = 246; // snap back (-10 BAM)
         pose.torso_pitch_x = 248; // torso recoils back
-        pose.root_offset = Vec3Fixed::from_f32(0.0, 0.0, -0.12);
+        pose.root_offset = Vec3Fixed::from_raw(0, 0, -7864);
         pose
     }
 
     /// Knockdown fall.
     pub fn down() -> Self {
         let mut pose = Self::default();
-        pose.root_offset = Vec3Fixed::from_f32(0.0, -0.5, -0.2);
+        pose.root_offset = Vec3Fixed::from_raw(0, -32768, -13107);
         pose.root_pitch_x = 220;
         pose
+    }
+
+    /// Overcharged Nova Finisher Windup: coils both arms backward, torso compresses.
+    pub fn finisher_windup(permille: u32) -> Self {
+        let mut pose = Self::default();
+        let p = permille.min(1000) as i64;
+        let pull_z = -(p * 35000) / 1000;
+        let raise_y = (p * 18000) / 1000;
+        pose.arm_l_offset = Vec3Fixed::from_raw(-4000, raise_y / 2, pull_z / 2);
+        pose.glove_l_offset = Vec3Fixed::from_raw(-8000, raise_y, pull_z);
+        pose.arm_r_offset = Vec3Fixed::from_raw(4000, raise_y / 2, pull_z / 2);
+        pose.glove_r_offset = Vec3Fixed::from_raw(8000, raise_y, pull_z);
+        pose.torso_pitch_x = (p * 8 / 1000) as u8; // slight crouch
+        pose.head_pitch_x = (p * 4 / 1000) as u8;
+        pose
+    }
+
+    /// Overcharged Nova Finisher Strike: both fists blast forward with catastrophic force.
+    pub fn finisher_impact() -> Self {
+        let mut pose = Self::default();
+        let blast_z = 45000i64; // massive forward thrust
+        pose.arm_l_offset = Vec3Fixed::from_raw(-2000, 2000, blast_z / 2);
+        pose.glove_l_offset = Vec3Fixed::from_raw(-3000, 4000, blast_z);
+        pose.arm_r_offset = Vec3Fixed::from_raw(2000, 2000, blast_z / 2);
+        pose.glove_r_offset = Vec3Fixed::from_raw(3000, 4000, blast_z);
+        pose.torso_pitch_x = 12; // deep forward lean
+        pose.root_pitch_x = 8;
+        pose
+    }
+
+    /// Victory Roar Pose: right fist pumped into the stratosphere.
+    pub fn victory() -> Self {
+        let mut pose = Self::default();
+        let high_y = 48000i64;
+        pose.arm_r_offset = Vec3Fixed::from_raw(6000, high_y / 2, 0);
+        pose.glove_r_offset = Vec3Fixed::from_raw(8000, high_y, 0);
+        pose.head_pitch_x = 244; // looking up at the crowd (-12 BAM)
+        pose.torso_yaw_y = 6;
+        pose
+    }
+
+    /// Interpolates between self and other pose by t_permille (0..=1000).
+    pub fn blend(&self, other: &Self, t_permille: u32) -> Self {
+        Self {
+            root_offset: lerp_vec3_permille(self.root_offset, other.root_offset, t_permille),
+            root_rot_y: lerp_bams_permille(self.root_rot_y, other.root_rot_y, t_permille),
+            root_roll_z: lerp_bams_permille(self.root_roll_z, other.root_roll_z, t_permille),
+            root_pitch_x: lerp_bams_permille(self.root_pitch_x, other.root_pitch_x, t_permille),
+            torso_yaw_y: lerp_bams_permille(self.torso_yaw_y, other.torso_yaw_y, t_permille),
+            torso_pitch_x: lerp_bams_permille(self.torso_pitch_x, other.torso_pitch_x, t_permille),
+            head_pitch_x: lerp_bams_permille(self.head_pitch_x, other.head_pitch_x, t_permille),
+            head_yaw_y: lerp_bams_permille(self.head_yaw_y, other.head_yaw_y, t_permille),
+            arm_l_offset: lerp_vec3_permille(self.arm_l_offset, other.arm_l_offset, t_permille),
+            arm_l_pitch_x: lerp_bams_permille(self.arm_l_pitch_x, other.arm_l_pitch_x, t_permille),
+            glove_l_offset: lerp_vec3_permille(self.glove_l_offset, other.glove_l_offset, t_permille),
+            arm_r_offset: lerp_vec3_permille(self.arm_r_offset, other.arm_r_offset, t_permille),
+            arm_r_pitch_x: lerp_bams_permille(self.arm_r_pitch_x, other.arm_r_pitch_x, t_permille),
+            glove_r_offset: lerp_vec3_permille(self.glove_r_offset, other.glove_r_offset, t_permille),
+            leg_l_drop: lerp_vec3_permille(self.leg_l_drop, other.leg_l_drop, t_permille),
+            leg_r_drop: lerp_vec3_permille(self.leg_r_drop, other.leg_r_drop, t_permille),
+        }
     }
 }
 
@@ -290,5 +379,265 @@ pub fn get_part_matrix(table: &PartTransformTable, part_name: &str) -> Mat4Fixed
         table.transforms[5]
     } else {
         table.transforms[0]
+    }
+}
+
+/// Smooth transition animation blender.
+#[derive(Debug, Clone, Copy)]
+pub struct AnimBlendTree {
+    pub from_pose: MechaPose3D,
+    pub to_pose: MechaPose3D,
+    pub elapsed_ticks: u32,
+    pub duration_ticks: u32,
+}
+
+impl Default for AnimBlendTree {
+    fn default() -> Self {
+        Self {
+            from_pose: MechaPose3D::default(),
+            to_pose: MechaPose3D::default(),
+            elapsed_ticks: 0,
+            duration_ticks: 0,
+        }
+    }
+}
+
+impl AnimBlendTree {
+    pub fn new(initial_pose: MechaPose3D) -> Self {
+        Self {
+            from_pose: initial_pose,
+            to_pose: initial_pose,
+            elapsed_ticks: 0,
+            duration_ticks: 0,
+        }
+    }
+
+    /// Transitions to a new target pose over `duration_ticks`.
+    pub fn transition_to(&mut self, next_pose: MechaPose3D, duration_ticks: u32) {
+        self.from_pose = self.current_pose();
+        self.to_pose = next_pose;
+        self.elapsed_ticks = 0;
+        self.duration_ticks = duration_ticks.max(1);
+    }
+
+    /// Advances the blend transition by 1 tick.
+    pub fn step(&mut self) {
+        if self.elapsed_ticks < self.duration_ticks {
+            self.elapsed_ticks += 1;
+        }
+    }
+
+    /// Computes the blended pose at the current transition progress.
+    pub fn current_pose(&self) -> MechaPose3D {
+        if self.duration_ticks == 0 || self.elapsed_ticks >= self.duration_ticks {
+            self.to_pose
+        } else {
+            let permille = (self.elapsed_ticks * 1000) / self.duration_ticks;
+            self.from_pose.blend(&self.to_pose, permille)
+        }
+    }
+
+    /// Returns true if the blend transition has completed.
+    pub fn is_finished(&self) -> bool {
+        self.elapsed_ticks >= self.duration_ticks
+    }
+}
+
+/// Stage progression of a cinematic finisher sequence.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FinisherStage {
+    #[default]
+    Inactive = 0,
+    WindupCharging = 1,   // Phase 1: slow-mo charging core, camera zoom in
+    NovaStrike = 2,       // Phase 2: explosive impact, max camera shake, debris sparks
+    DecapitateRecoil = 3, // Phase 3: opponent collapse and stagger
+    VictoryRoar = 4,      // Phase 4: champion victory orbit camera
+}
+
+/// 64-byte L1 cache aligned cinematic finisher sequencer.
+#[repr(C, align(64))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CinematicFinisherDirector {
+    pub stage: FinisherStage,      // 1B: Current sequence phase
+    pub camera_shot_preset: u8,    // 1B: Recommended camera shot (0: Center, 3: CloseUp, 4: LowAngle)
+    pub camera_shake: u8,          // 1B: Screen shake intensity (0..20)
+    pub rim_light_mode: u8,        // 1B: 0=normal, 1=overcharge molten red, 2=supernova pure white
+    pub spark_burst_count: u8,     // 1B: 3D sparks/debris to spawn on this tick
+    pub slow_mo_divisor: u8,       // 1B: Slow motion frame skip divisor (1=normal, 3=1/3 speed)
+    pub slow_mo_counter: u8,       // 1B: Internal slow motion tick counter
+    pub sound_cue: u8,             // 1B: Audio cue (0=none, 1=charge, 2=impact boom, 3=victory cheer)
+    pub current_tick: u16,         // 2B: Elapsed ticks in current stage
+    pub stage_duration_ticks: u16, // 2B: Max duration of current stage
+    pub progress_permille: u16,    // 2B: 0..=1000 completion within current stage
+    pub total_elapsed_ticks: u16,  // 2B: Total duration of entire finisher
+    pub is_active: u8,             // 1B: Whether finisher sequence is controlling the scene
+    pub _padding: [u8; 47],        // 47B: Exact padding to 64 bytes
+}
+
+const _: () = assert!(core::mem::size_of::<CinematicFinisherDirector>() == 64);
+const _: () = assert!(core::mem::align_of::<CinematicFinisherDirector>() == 64);
+
+impl Default for CinematicFinisherDirector {
+    fn default() -> Self {
+        Self {
+            stage: FinisherStage::Inactive,
+            camera_shot_preset: 0,
+            camera_shake: 0,
+            rim_light_mode: 0,
+            spark_burst_count: 0,
+            slow_mo_divisor: 1,
+            slow_mo_counter: 0,
+            sound_cue: 0,
+            current_tick: 0,
+            stage_duration_ticks: 0,
+            progress_permille: 0,
+            total_elapsed_ticks: 0,
+            is_active: 0,
+            _padding: [0u8; 47],
+        }
+    }
+}
+
+impl CinematicFinisherDirector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Triggers the cinematic finisher sequence.
+    pub fn trigger_finisher(&mut self) {
+        self.stage = FinisherStage::WindupCharging;
+        self.is_active = 1;
+        self.current_tick = 0;
+        self.stage_duration_ticks = 45; // 45 ticks windup
+        self.progress_permille = 0;
+        self.total_elapsed_ticks = 0;
+        self.slow_mo_divisor = 3; // 3x slow motion
+        self.slow_mo_counter = 0;
+        self.camera_shot_preset = 3; // ImpactCloseUp
+        self.camera_shake = 2; // subtle rumble
+        self.rim_light_mode = 1; // Molten Red
+        self.spark_burst_count = 0;
+        self.sound_cue = 1; // Charging SFX
+    }
+
+    /// Steps the finisher director forward by 1 tick.
+    /// Returns true while finisher sequence is active.
+    pub fn step(&mut self) -> bool {
+        if self.is_active == 0 {
+            return false;
+        }
+
+        self.spark_burst_count = 0;
+        self.sound_cue = 0;
+        self.total_elapsed_ticks = self.total_elapsed_ticks.saturating_add(1);
+        self.current_tick += 1;
+
+        if self.stage_duration_ticks > 0 {
+            self.progress_permille = ((self.current_tick as u32 * 1000)
+                / self.stage_duration_ticks as u32)
+                .min(1000) as u16;
+        }
+
+        match self.stage {
+            FinisherStage::WindupCharging => {
+                self.camera_shake = (self.progress_permille / 150) as u8; // building up
+                if self.current_tick >= self.stage_duration_ticks {
+                    // Transition to NovaStrike
+                    self.stage = FinisherStage::NovaStrike;
+                    self.current_tick = 0;
+                    self.progress_permille = 0;
+                    self.stage_duration_ticks = 20;
+                    self.camera_shot_preset = 3; // ImpactCloseUp
+                    self.camera_shake = 18; // Max impact violent shake
+                    self.rim_light_mode = 2; // Supernova Pure White
+                    self.spark_burst_count = 40; // 40 golden debris sparks
+                    self.slow_mo_divisor = 1; // full impact speed
+                    self.sound_cue = 2; // Catastrophic Boom SFX
+                }
+            }
+            FinisherStage::NovaStrike => {
+                // Decay shake
+                self.camera_shake = self.camera_shake.saturating_sub(1);
+                if self.current_tick >= self.stage_duration_ticks {
+                    // Transition to DecapitateRecoil
+                    self.stage = FinisherStage::DecapitateRecoil;
+                    self.current_tick = 0;
+                    self.progress_permille = 0;
+                    self.stage_duration_ticks = 35;
+                    self.camera_shot_preset = 4; // KnockdownLowAngle
+                    self.camera_shake = 4;
+                    self.rim_light_mode = 1;
+                    self.slow_mo_divisor = 2;
+                }
+            }
+            FinisherStage::DecapitateRecoil => {
+                self.camera_shake = self.camera_shake.saturating_sub(1);
+                if self.current_tick >= self.stage_duration_ticks {
+                    // Transition to VictoryRoar
+                    self.stage = FinisherStage::VictoryRoar;
+                    self.current_tick = 0;
+                    self.progress_permille = 0;
+                    self.stage_duration_ticks = 60;
+                    self.camera_shot_preset = 0; // BroadcastCenter Orbit
+                    self.camera_shake = 0;
+                    self.rim_light_mode = 0;
+                    self.slow_mo_divisor = 1;
+                    self.sound_cue = 3; // Victory Fanfare / Roar
+                }
+            }
+            FinisherStage::VictoryRoar => {
+                if self.current_tick >= self.stage_duration_ticks {
+                    // Finisher complete
+                    self.stage = FinisherStage::Inactive;
+                    self.is_active = 0;
+                    self.camera_shot_preset = 0;
+                    self.camera_shake = 0;
+                    self.rim_light_mode = 0;
+                }
+            }
+            FinisherStage::Inactive => {
+                self.is_active = 0;
+            }
+        }
+
+        self.is_active != 0
+    }
+
+    /// Evaluates the hero mecha pose during finisher.
+    pub fn evaluate_hero_pose(&self) -> MechaPose3D {
+        match self.stage {
+            FinisherStage::WindupCharging => {
+                MechaPose3D::finisher_windup(self.progress_permille as u32)
+            }
+            FinisherStage::NovaStrike => {
+                let p = self.progress_permille as u32;
+                let strike = MechaPose3D::finisher_impact();
+                if p < 200 {
+                    strike
+                } else {
+                    strike.blend(&MechaPose3D::default(), p)
+                }
+            }
+            FinisherStage::DecapitateRecoil => {
+                let p = self.progress_permille as u32;
+                MechaPose3D::finisher_impact().blend(&MechaPose3D::victory(), p)
+            }
+            FinisherStage::VictoryRoar => MechaPose3D::victory(),
+            FinisherStage::Inactive => MechaPose3D::default(),
+        }
+    }
+
+    /// Evaluates the opponent mecha pose during finisher.
+    pub fn evaluate_foe_pose(&self) -> MechaPose3D {
+        match self.stage {
+            FinisherStage::WindupCharging => MechaPose3D::guard(),
+            FinisherStage::NovaStrike => MechaPose3D::hit_stagger(),
+            FinisherStage::DecapitateRecoil | FinisherStage::VictoryRoar => {
+                let p = self.progress_permille as u32;
+                MechaPose3D::hit_stagger().blend(&MechaPose3D::down(), p)
+            }
+            FinisherStage::Inactive => MechaPose3D::default(),
+        }
     }
 }
