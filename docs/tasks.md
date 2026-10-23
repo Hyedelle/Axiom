@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-147: Axiom 차세대 3D 복셀 엔진 150대 대규모 아키텍처 결산 및 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-148: Axiom 150+ 차세대 복셀 엔진 극한 물리 확장 및 글로벌 벤치마크 스위트** (`crates/axiom-core`, `crates/axiom-game`, `crates/axiom-render`, `crates/axiom-wasm`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-149: Axiom 150+ 차세대 복셀 엔진 상용 최적화 및 크로스 플랫폼 데모 패키징** (`crates/axiom-core`, `crates/axiom-render`, `crates/axiom-wasm`, `mimic-the-show`, `tools/package.ps1`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-147: Axiom 차세대 3D 복셀 엔진 150대 대규모 아키텍처 결산 및 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-089]~[D-092], `docs/audit-report.md` [AUDIT-20261023-v2.7.0], `tools/package.ps1`, 프로젝트 150대 자율 개발 과제 종합 총결산, 3D 열전도-응력장 파쇄 및 다이나믹 메쉬 연쇄 붕괴 파이프라인 일체화 [`step_thermal_and_collapse`], WebGL/WASM 3D 스튜디오 실시간 열 충격파 컨트롤 패널 & HUD 모니터링, 500-사이클 수치 불변식 검증, Mimic The Show 챔피언십 링 3D 열응력 및 백열 발광[`render_thermal_glow`] 연동, 전체 워크스페이스 v2.7.0 공식 판올림 및 Git 태그 `v2.7.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-146: Axiom 3D 복셀 열전도-파쇄 연쇄 시뮬레이션 스트레스 테스트 및 150대 마일스톤 종합 데모** (`crates/axiom-core/tests/test_thermal_stress_optimization.rs`, `crates/axiom-render/tests/test_thermal_rendering.rs`, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, 500회 연속 고열 충격 주입-확산-냉각 사이클 수치 불변식 검증 [20..1000°C 한계 보존, 16448B 메모리 슬랩 비트 무할당], 100-Tick 동기화 열전도 연쇄 붕괴 비트 단위 100% 일치 결정론 합의 검증, 4,096-셀 전역 990°C 포화 백열 발광 Reversed-Z 래스터라이징 무크래시 스트레스 검증 [<50ms 초고속 렌더링], `mimic-the-show` 챔피언십 링 지반 내 0-Float 64B L1 캐시 정렬 `ThermalStressField16` 및 3D 백열 발광(`render_thermal_glow`) 연동, 노바 피니셔 임팩트 시 고열 충격 펄스 방출, 글로벌 F11 핫키 [3D THERMAL BLAST 990°C] 및 컨트롤 힌트 바 노출, 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-145: Axiom 3D 복셀 열전도-응력장 다이나믹 메쉬 붕괴 연쇄 시뮬레이터 및 WebGL/WASM 뷰어 연동** (`crates/axiom-core/src/thermal_stress.rs`, `crates/axiom-core/src/voxel_collapse.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_thermal_stress.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `ThermalStressField16` 내 `step_thermal_and_collapse` 및 `ThermalCollapseResult` 통합, 열팽창/상변이/응력 파쇄 발생 시 `DynamicCollapseSystem` 지반 연결성 단절 탐지 및 동적 강체 청크 분절 연쇄 시뮬레이션, `WasmVoxelEngine` 내 `ThermalStressField16` 및 `render_thermal_glow` 3D 백열 발광 래스터라이징 연동, WASM C-ABI 신규 엔드포인트 6종 [`axiom_voxel_apply_thermal_pulse`, `axiom_voxel_step_thermal`, `axiom_voxel_get_max_temperature`, `axiom_voxel_get_thermal_transitions`, `axiom_voxel_get_thermal_fractures`, `axiom_voxel_reset_thermal`], 웹 UI 🔥 Thermal Blast (950°C) 및 ♨️ Step Thermal 버튼, 실시간 최고 온도/몰든 상변이 셀 HUD 모니터링 연동, 21개 WASM 단위 테스트 및 5개 열전도 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-144: Axiom 차세대 3D 복셀 메카 파괴 엔진 v2.6.0 종합 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-085]~[D-088], `docs/audit-report.md` [AUDIT-20261023-v2.6.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 3D 열전도 및 기계적 응력장 파쇄 시뮬레이터 `ThermalStressField16` [#[repr(C, align(64))], exact 16,448B slab], Reversed-Z 3D 백열 발광(Incandescent Emissive) 소프트웨어 래스터라이저 `render_thermal_glow`, 256-바이트 4-캐시라인 완벽 보존 챔피언십 AI 난이도 시스템 `AiDifficulty` [Normal 100%, Hard 75%, Nightmare 50% 윈도우 스케일링], 코믹북 스타일 3D/2D 컷인 오버레이 3종 [`ClimaxNova`, `CounterStrike`, `BossEncounter`], `mimic-the-show` 글로벌 F2 난이도 순환 토글 및 인게임 HUD 배지 노출, 전체 워크스페이스 v2.6.0 공식 판올림 및 Git 태그 `v2.6.0` 발행, `tools/guard.ps1` 통과)

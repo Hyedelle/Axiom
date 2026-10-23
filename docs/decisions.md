@@ -1127,6 +1127,51 @@
   2. 전체 워크스페이스 버전을 v2.5.0에서 **v2.6.0**으로 공식 판올림하고 Git 태그 `v2.6.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-089] 3D 복셀 열전도-응력장 다이나믹 메쉬 붕괴 연쇄 시뮬레이터 및 WebGL/WASM 연동 (T-145)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `ThermalStressField16`에 `step_thermal_and_collapse` 및 `ThermalCollapseResult` 통합.
+  2. 열적 상변이(`VOXEL_STONE` ➔ `VOXEL_MOLTEN`) 및 전단응력 파쇄 시 `DynamicCollapseSystem`을 통한 공중 부유 고립 청크 자동 분절 연쇄 시뮬레이션.
+  3. `WasmVoxelEngine` 내 `ThermalStressField16` 및 `render_thermal_glow` 연동 및 C-ABI 6대 신규 엔드포인트 지원.
+  4. 웹 UI 컨트롤 패널에 🔥 Thermal Blast (950°C), ♨️ Step Thermal 버튼 및 실시간 HUD 온도/몰든 모니터링 연동.
+- **영향:** `crates/axiom-core/src/thermal_stress.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-090] 3D 복셀 열전도-파쇄 연쇄 시뮬레이션 극한 스트레스 하드닝 및 불변식 검증 (T-146)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 500회 연속 고열 사이클 동안 `[20..1000°C]` 및 `[0..1000]` 응력 한계 보존 불변식 증명.
+  2. 100-Tick 동기화 열전도 연쇄 붕괴 비트 단위 100% 일치 결정론 합의 검증.
+  3. 4,096-셀 전역 990°C 포화 백열 발광 Reversed-Z 래스터라이징 무크래시 스트레스 검증 (<50ms).
+- **영향:** `crates/axiom-core/tests/test_thermal_stress_optimization.rs`, `crates/axiom-render/tests/test_thermal_rendering.rs`.
+
+---
+
+### [D-091] Mimic The Show 챔피언십 링 3D 열응력 & 백열 발광 일체화 (T-146)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `DesktopGameView` 내 `ThermalStressField16` 상주 및 피니셔 노바 임팩트 시 920~999°C 고열 펄스 주입.
+  2. 링 바닥 크레이터에서 3D Reversed-Z 백열 발광(`render_thermal_glow`) 실시간 투영.
+  3. 글로벌 `F11` 단축키 `[F11: HEAT]` 및 하단 컨트롤 안내바 연동.
+- **영향:** `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`.
+
+---
+
+### [D-092] Axiom Engine v2.7.0 150대 대규모 아키텍처 결산 마일스톤 공식 릴리즈 (T-147)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 누적 150개 과제 총망라: 3D 열전도-응력장 파쇄 및 다이나믹 메쉬 연쇄 붕괴, WebGL/WASM 3D 스튜디오 물리 패널, 극한 스트레스 하드닝, Mimic The Show 링 지반 발광 완결 종합 승인.
+  2. 전체 워크스페이스 버전을 v2.6.0에서 **v2.7.0**으로 공식 판올림하고 Git 태그 `v2.7.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
 

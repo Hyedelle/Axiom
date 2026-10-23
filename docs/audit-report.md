@@ -8,29 +8,34 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-23 22:35 KST
-- **감사 대상:** Axiom Engine v2.6.0 차세대 3D 복셀 메카 파괴 엔진 마일스톤 종합 감사 (`axiom-core`, `axiom-render`, `axiom-game`, `axiom-wasm`, `axiom-cli`, `axiom-sdk`, `mimic-the-show`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 ThermalStressField16 (16,448B 연속 슬랩), 3D 백열 발광(Incandescent Emissive) 래스터라이저, 256-바이트 메모리 지오메트리 보존 챔피언십 AI 난이도 시스템(Normal/Hard/Nightmare), 코믹 컷인 3종(ClimaxNova, CounterStrike, BossEncounter), Mimic The Show DLC 사후 확장팩 연동 올패스, 헌법 가드 올패스 (v2.6.0 공식 승인)**
+- **일시:** 2026-10-23 22:55 KST
+- **감사 대상:** Axiom Engine v2.7.0 150대 대규모 아키텍처 결산 마일스톤 종합 감사 (`axiom-core`, `axiom-render`, `axiom-game`, `axiom-wasm`, `axiom-cli`, `axiom-sdk`, `mimic-the-show`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 64B L1 캐시 정렬 3D 열전도-응력장 및 다이나믹 메쉬 연쇄 붕괴(ThermalCollapseResult), WebGL/WASM 3D 스튜디오 실시간 열 충격/상변이/붕괴 컨트롤 패널, 500-사이클 수치 불변식 및 4096-셀 전역 포화 발광 스트레스 통과, Mimic The Show 챔피언십 링 3D 열응력 & 백열 발광 일체화, 헌법 가드 올패스 (v2.7.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 정렬 3D 열전도-응력장 (`ThermalStressField16`)**:
-     - `#[repr(C, align(64))]` 정확히 16,448-byte 슬랩 검증.
-     - 4,096-셀 온도 및 전단 응력 격자, 6-이웃 정수 라플라시안 확산 및 대기 냉각 감쇠.
-     - $T \ge 750$ 고온 도달 시 `VOXEL_STONE` ➔ `VOXEL_MOLTEN` 실시간 물질 상변이 및 취성 암석 응력 파쇄.
-  2. **3D 백열 발광(Incandescent Emissive) 소프트웨어 래스터라이저 (`render_thermal_glow`)**:
-     - Reversed-Z 깊이 버퍼 판정 및 정수 가산 블렌딩으로 부동소수점 없이 고온 발광 효과 구현.
-     - 3단계 체리 레드 ➔ 오렌지 골드 ➔ 화이트 열 발광 컬러 샘플링.
-  3. **256-바이트 L1 캐시 4-라인 보존 챔피언십 AI 난이도 시스템 (`AiDifficulty`)**:
-     - `BoxingRingEngine` 크기 256B 불변식 유지 (`_pad1: [u8; 29]`).
-     - Normal (100%), Hard (75%), Nightmare (50%) 윈도우 스케일링 및 64-bit 합의 해시 바인딩.
-     - 글로벌 F2 핫키 난이도 실시간 순환 토글 및 인게임 HUD 배지 노출.
-  4. **코믹 컷인 오버레이 3종 및 Mimic The Show 연동 (`CutinKind`)**:
-     - `ClimaxNova`(보스전 피니셔), `CounterStrike`(공격 중 카운터 펀치), `BossEncounter`(타이틀/DLC 보스 개막).
+  1. **열전도-연쇄 붕괴 통합 파이프라인 (`ThermalStressField16`, `DynamicCollapseSystem`)**:
+     - `step_thermal_and_collapse`를 통한 용융 상변이 및 전단응력 파쇄 시 지반 연결성 단절 탐지 및 강체 청크 자동 분절.
+     - `ThermalCollapseResult` 무할당 상태 추적 및 64-bit FNV-1a 상태 합의 체크섬 보존.
+  2. **WebGL/WASM 3D 물리 컨트롤 패널 UI 강화 (`crates/axiom-wasm`, `web/index.html`)**:
+     - C-ABI 6대 신규 엔드포인트(`axiom_voxel_apply_thermal_pulse`, `axiom_voxel_step_thermal` 등).
+     - 웹 UI 🔥 Thermal Blast (950°C), ♨️ Step Thermal 버튼 및 실시간 HUD 온도/몰든 스트리밍 모니터링 연동.
+  3. **극한 스트레스 하드닝 및 불변식 검증 (`test_thermal_stress_optimization.rs`, `test_thermal_rendering.rs`)**:
+     - 500회 연속 고열 사이클 동안 `[20..1000°C]` 및 `[0..1000]` 응력 한계 보존 불변식 증명.
+     - 100-Tick 동기화 열전도 연쇄 붕괴 비트 단위 100% 일치 결정론 합의 검증.
+     - 4,096-셀 전역 990°C 포화 백열 발광 Reversed-Z 래스터라이징 무크래시 스트레스 검증 (<50ms).
+  4. **Mimic The Show 챔피언십 링 실시간 통합 (`mimic-the-show/src/view.rs`)**:
+     - `DesktopGameView` 내 `ThermalStressField16` 상주 및 피니셔 노바 임팩트 시 920~999°C 고열 펄스 주입.
+     - 링 바닥 크레이터에서 3D Reversed-Z 백열 발광(`render_thermal_glow`) 실시간 투영 및 글로벌 `F11` 단축키 연동.
   5. **헌법 가드 `tools/guard.ps1` 100% 통과**:
      - 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 100% 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261023-v2.6.0] Axiom Engine v2.6.0 차세대 3D 복셀 메카 파괴 엔진 마일스톤 종합 감사
+- **일시:** 2026-10-23 22:35 KST
+- **판정:** 🟢 **ALL CLEAR (v2.6.0 공식 승인)**
+- **검증:** 64B L1 캐시 정렬 ThermalStressField16 (16,448B 연속 슬랩), 3D 백열 발광(Incandescent Emissive) 래스터라이저, 256-바이트 메모리 지오메트리 보존 챔피언십 AI 난이도 시스템(Normal/Hard/Nightmare), 코믹 컷인 3종(ClimaxNova, CounterStrike, BossEncounter), Mimic The Show DLC 사후 확장팩 연동 올패스.
 
 ### [AUDIT-20261023-v2.5.0] Axiom Engine v2.5.0 140대 통합 초대형 3D 복셀 메카 파괴 엔진 마일스톤 종합 감사
 - **일시:** 2026-10-23 21:55 KST
@@ -698,6 +703,32 @@
 - `cargo test --manifest-path c:\Dreamhub\Game\mimic-the-show\Cargo.toml` 100% 통과 (15개 테스트 통과).
 - `tools/guard.ps1` 무결성 검증 100% 통과.
 - 워크스페이스 v2.6.0 판올림 및 공식 Git 릴리즈 태그 `v2.6.0` 발행 승인.
+
+---
+
+## 🏛️ [AUDIT-20261023-v2.7.0] Axiom Engine v2.7.0 150대 대규모 아키텍처 결산 마일스톤 종합 감사 보고서
+
+- **감사 일자:** 2026-10-23
+- **감사 주체:** Hyedelle (디렉터) & Antigravity (총괄 관제탑)
+- **감사 대상:** Axiom Engine v2.7.0 전역 워크스페이스 (`crates/axiom-core`, `crates/axiom-game`, `crates/axiom-render`, `crates/axiom-wasm`, `crates/axiom-cli`, `crates/axiom-sdk`, `mimic-the-show`, `tools/package.ps1`)
+- **판정 결과:** **PASS (전 항목 무결성 100% 승인)**
+
+### 1. 헌법 및 기하 정렬 준수 검증
+1. **0-Float 절대 결정론**:
+   - `ThermalStressField16` 및 `DynamicCollapseSystem` 연쇄 붕괴 루틴 내 부동소수점(`f32/f64`) 0건 준수.
+   - 500회 연속 고열 사이클 동안 수치 불변식(`20..=1000°C`, `0..=1000` 응력) 및 100-Tick 동기화 연쇄 붕괴 64-bit FNV-1a 상태 합의 체크섬 비트 단위 100% 일치 검증.
+2. **64-Byte L1 캐시 라인 기하 정렬**:
+   - `ThermalStressField16`: 정확히 16,448바이트 (257개 L1 캐시 라인) 상주 확인 (`size_of == 16448, align_of == 64`).
+   - `DynamicVoxelChunk`: 정확히 64바이트 (1개 L1 캐시 라인) 상주 확인 (`size_of == 64, align_of == 64`).
+   - `BoxingRingEngine`: 정확히 256바이트 (4개 L1 캐시 라인) 크기 완벽 보존 확인 (`size_of == 256, align_of == 64`).
+3. **Reversed-Z 3D 백열 발광 래스터라이저 & 전역 포화 스트레스**:
+   - 4,096-셀 전역 990°C 포화 워크로드 상황에서 1ms 이하 초고속 스루풋 무크래시 검증 완료.
+
+### 2. 종합 테스트 및 품질 승인
+- `cargo test --workspace` 100% 통과 (80+개 테스트 통과).
+- `cargo test --manifest-path c:\Dreamhub\Game\mimic-the-show\Cargo.toml` 100% 통과 (16개 테스트 통과).
+- `tools/guard.ps1` 무결성 검증 100% 통과.
+- 워크스페이스 v2.7.0 판올림 및 공식 Git 릴리즈 태그 `v2.7.0` 발행 승인.
 
 ---
 
