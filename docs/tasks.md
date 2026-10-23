@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-090: 3D 메카 피격 부위별 파티클 파편(Debris) 및 스파크 지면 바운스 시뮬레이션** (`crates/axiom-render/src/particles3d.rs`, `mimic-the-show/src/view.rs`, Q16.16 중력 가속도 및 탄성 충돌 3D 스파크 바운스, `tools/guard.ps1` 통과)
+- [ ] **T-091: 3D 링 코너 샷 및 동적 피격 카메라 셰이크 연출 강화** (`crates/axiom-render/src/camera3d.rs`, `mimic-the-show/src/view.rs`, 헤비 펀치 / KO 넉다운 시 dynamic camera pan & tilt, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-091: 3D 링 코너 샷 및 동적 피격 카메라 셰이크 연출 강화** (헤비 펀치 / KO 넉다운 시 dynamic camera pan & tilt)
+- [ ] **T-092: 경기 후 3D 시네마틱 신문 1면 승리/패배 호외 래스터라이징 고도화** (챔피언 벨트 착용 3D 턴테이블 스냅샷 삽입)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-090: 3D 메카 피격 부위별 파티클 파편(Debris) 및 스파크 지면 바운스 시뮬레이션** (`crates/axiom-render/src/particles3d.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_camera_particles_3d.rs`, 중력 가속도 및 캔버스 지면 탄성 바운스(Sparks 65%, Debris 35%), 스파크 골드➔오렌지➔레드 엠버 쿨링 감쇠, 피격 부위별(헤드 건메탈/암 아이언/바디 올리브) 파편 비산, `tools/guard.ps1` 통과, 커밋 `bd87600`, `9497ab9`)
 - [x] **T-089: 3D 관중석 환경 래스터라이징 및 링 사이드 조명 그림자 연출** (`crates/axiom-render/src/framebuffer.rs`, `crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, 순수 정수 `draw_ellipse_blend` AO 발밑 그림자 및 `draw_cone_light_blend` 볼류메트릭 브라스 램프 조명, 3단 계단식 관중석 실루엣 CrowdLayer 70인 환호 및 카메라 플래시, 전경 링 포스트 및 텐션 로프, `tools/guard.ps1` 통과, 커밋 `05944d4`, `ac0f497`)
 - [x] **T-088: 인바운드 드래프트 및 퍽 선택 화면 3D 파츠 회전 프리뷰** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/bin/capture_screens.rs`, 카드 프레임 내부 오라클 아이/피스톤 암/보일러 코어 3D 단일 메시 회전 래스터라이징, `tools/guard.ps1` 통과, 커밋 `97f744e`)
 - [x] **T-087: 오디오 음향 합성 3D 거리 감쇄 및 증기 릴리즈 SFX 완전 사상** (`mimic-the-show/src/sound.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-cli/src/sound.rs`, `steel-the-show` 정본 5개 타격 오디오 레이어(lay_knock/lay_body/lay_tail/lay_ring/lay_boom) 및 고압 스팀 밸브 개폐/배출음 0-Float PCM 합성, 3D 거리 감쇄/스테레오 패닝, 잽/크로스/훅/카운터/KO 타격감 차등화, 테스트 및 `tools/guard.ps1` 통과, 커밋 `167e02b`)
