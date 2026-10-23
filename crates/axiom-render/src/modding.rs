@@ -158,3 +158,155 @@ impl WorkshopModPackage {
         false
     }
 }
+
+// ---------------------------------------------------------------------------
+// Steam Workshop & Local Mod Directory Manager
+// ---------------------------------------------------------------------------
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// High-level Steam Workshop and Local Mod Ingestion Manager.
+#[derive(Debug, Clone)]
+pub struct WorkshopManager {
+    pub mods_dir: PathBuf,
+    pub installed_mods: Vec<WorkshopModPackage>,
+    pub active_mod_ids: Vec<String>,
+}
+
+impl WorkshopManager {
+    /// Creates a new WorkshopManager pointing to a mods directory.
+    pub fn new<P: Into<PathBuf>>(mods_dir: P) -> Self {
+        let dir = mods_dir.into();
+        Self {
+            mods_dir: dir,
+            installed_mods: Vec::new(),
+            active_mod_ids: Vec::new(),
+        }
+    }
+
+    /// Scans the mods directory, discovering all valid subdirectories with `mod.json` or `manifest.json`.
+    pub fn scan_mods(&mut self) -> Result<usize, ModError> {
+        if !self.mods_dir.exists() {
+            let _ = fs::create_dir_all(&self.mods_dir);
+            return Ok(0);
+        }
+
+        let entries = fs::read_dir(&self.mods_dir)
+            .map_err(|e| ModError::InvalidManifest(format!("Failed to read mods dir: {}", e)))?;
+
+        let mut discovered = Vec::new();
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let manifest_path = if path.join("mod.json").exists() {
+                    path.join("mod.json")
+                } else if path.join("manifest.json").exists() {
+                    path.join("manifest.json")
+                } else {
+                    continue;
+                };
+
+                let manifest_str = match fs::read_to_string(&manifest_path) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+
+                let manifest: WorkshopModManifest = match serde_json::from_str(&manifest_str) {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+
+                // Look for accompanying .glb file in the same mod directory
+                let mut glb_mesh = None;
+                if let Ok(files) = fs::read_dir(&path) {
+                    for f in files.flatten() {
+                        let fp = f.path();
+                        if fp.extension().map_or(false, |ext| ext == "glb") {
+                            if let Ok(bytes) = fs::read(&fp) {
+                                if let Ok(model) = parse_glb(&bytes) {
+                                    if let Some(part) = model.parts.into_iter().find(|p| p.name == manifest.target_mesh_name) {
+                                        glb_mesh = Some(part);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If no GLB was found or matched, generate a procedural reinforced part mesh
+                let part_mesh = glb_mesh.unwrap_or_else(|| {
+                    PartMesh::create_box(
+                        &manifest.target_mesh_name,
+                        crate::math3d::Vec3Fixed::from_f32(-0.2, -0.2, -0.2),
+                        crate::math3d::Vec3Fixed::from_f32(0.2, 0.2, 0.2),
+                    )
+                });
+
+                let texture = Some(TextureMap::procedural_hazard_stripes(64));
+
+                let pkg = WorkshopModPackage::from_mesh(manifest.clone(), part_mesh, texture);
+                discovered.push(pkg);
+            }
+        }
+
+        self.installed_mods = discovered;
+        if self.active_mod_ids.is_empty() {
+            self.active_mod_ids = self.installed_mods.iter().map(|m| m.manifest.mod_id.clone()).collect();
+        }
+
+        Ok(self.installed_mods.len())
+    }
+
+    /// Toggles activation state for a specific mod.
+    pub fn toggle_mod(&mut self, mod_id: &str) -> bool {
+        if let Some(idx) = self.active_mod_ids.iter().position(|id| id == mod_id) {
+            self.active_mod_ids.remove(idx);
+            false
+        } else {
+            self.active_mod_ids.push(mod_id.to_string());
+            true
+        }
+    }
+
+    /// Applies all active mods to the given mecha model.
+    pub fn apply_active_mods(&self, model: &mut MechaModel3D) -> usize {
+        let mut count = 0;
+        for pkg in &self.installed_mods {
+            if self.active_mod_ids.contains(&pkg.manifest.mod_id) {
+                if pkg.inject_into_model(model) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    /// Hot-swaps all active mods into the target model in real-time.
+    pub fn hot_swap_reload(&mut self, model: &mut MechaModel3D) -> Result<usize, ModError> {
+        self.scan_mods()?;
+        Ok(self.apply_active_mods(model))
+    }
+
+    /// Creates a template mod package on disk for creators to inspect and edit.
+    pub fn create_template_mod(target_dir: &Path, manifest: &WorkshopModManifest) -> Result<PathBuf, std::io::Error> {
+        let mod_dir = target_dir.join(&manifest.mod_id);
+        fs::create_dir_all(&mod_dir)?;
+
+        let json_path = mod_dir.join("mod.json");
+        let json_data = serde_json::to_string_pretty(manifest).unwrap_or_default();
+        fs::write(&json_path, json_data)?;
+
+        let tex = TextureMap::procedural_hazard_stripes(64);
+        let raw_tex_path = mod_dir.join("hazard_plate.raw");
+        let mut raw_bytes = Vec::with_capacity(tex.pixels.len() * 4);
+        for &px in &tex.pixels {
+            raw_bytes.extend_from_slice(&px.to_le_bytes());
+        }
+        fs::write(raw_tex_path, raw_bytes)?;
+
+        Ok(mod_dir)
+    }
+}

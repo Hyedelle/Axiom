@@ -24,7 +24,7 @@ pub use kinematics3d::{
 };
 pub use math3d::{cos_bams, sin_bams, Mat4Fixed, Vec3Fixed};
 pub use mesh3d::{parse_glb, MechaModel3D, PartMesh, Vertex3D};
-pub use modding::{ModError, WorkshopModManifest, WorkshopModPackage};
+pub use modding::{ModError, WorkshopManager, WorkshopModManifest, WorkshopModPackage};
 pub use newspaper::{
     apply_newsprint_filter, draw_newspaper_photo_frame, NewspaperGravureConfig, PhotoFilter,
 };

@@ -8,6 +8,8 @@ use axiom_cli::{AsciiView, MonteCarloBalancer, OpenWorldRpgSession, Replayer, Ti
 use axiom_core::fixed::FixedVec2;
 use axiom_core::input::InputState;
 use axiom_core::state::TickState;
+use axiom_render::mesh3d::MechaModel3D;
+use axiom_render::modding::{WorkshopManager, WorkshopModManifest};
 use std::time::Instant;
 
 fn main() {
@@ -16,8 +18,11 @@ fn main() {
     let has_headless = args.iter().any(|a| a == "--headless");
     let has_window = args.iter().any(|a| a == "--window");
     let has_boxing = args.iter().any(|a| a == "--boxing");
+    let has_mod = args.iter().any(|a| a == "mod" || a == "--mod");
 
-    if has_boxing {
+    if has_mod {
+        run_mod_suite(&args);
+    } else if has_boxing {
         if let Err(e) = axiom_cli::desktop::run_desktop_window_with_mode(axiom_cli::ViewMode::Boxing) {
             eprintln!("Failed to launch desktop boxing window: {:?}", e);
             std::process::exit(1);
@@ -134,4 +139,85 @@ pub fn run_headless_suite() {
         rpg_report.audio_master_volume.0,
         rpg_report.audio_master_volume.1
     );
+}
+
+/// Runs the Steam Workshop & Local Mod Ingester CLI commands.
+pub fn run_mod_suite(args: &[String]) {
+    println!("🛠️  [Axiom Workshop] Steam Workshop & Local Mod Ingester\n");
+
+    let subcmd = args
+        .iter()
+        .skip_while(|&a| a != "mod" && a != "--mod")
+        .nth(1)
+        .map(|s| s.as_str())
+        .unwrap_or("list");
+
+    let mut manager = WorkshopManager::new("mods");
+
+    match subcmd {
+        "new" => {
+            let mod_id = args.get(3).cloned().unwrap_or_else(|| "custom_hazard_arm".to_string());
+            let manifest = WorkshopModManifest {
+                mod_id: mod_id.clone(),
+                title: format!("Custom Workshop Part [{}]", mod_id),
+                author: "AxiomModder".to_string(),
+                version: "1.0.0".to_string(),
+                target_slot: "Arm".to_string(),
+                target_mesh_name: "hero_glove_R".to_string(),
+                atk_bonus: 10,
+                def_bonus: 5,
+                heat_bonus: -3,
+                weight_bonus: 6,
+                tags: vec!["Mecha".to_string(), "Workshop".to_string()],
+            };
+            match WorkshopManager::create_template_mod(std::path::Path::new("mods"), &manifest) {
+                Ok(path) => println!("✨ Created template workshop mod at: {:?}", path),
+                Err(e) => eprintln!("❌ Failed to create template mod: {:?}", e),
+            }
+        }
+        "test" | "hot-swap" => {
+            println!("🔄 Testing Hot-Swap Ingestion against MechaModel3D...");
+            let mut mecha = MechaModel3D::procedural_chassis();
+            let initial_parts = mecha.parts.len();
+            match manager.hot_swap_reload(&mut mecha) {
+                Ok(replaced) => {
+                    println!("✅ Hot-Swap Ingestion Success!");
+                    println!("   Total Mods Discovered: {}", manager.installed_mods.len());
+                    println!("   Parts Injected / Substituted: {}", replaced);
+                    println!("   Final Model Parts Count: {}", mecha.parts.len());
+                }
+                Err(e) => eprintln!("❌ Hot-swap failed: {:?}", e),
+            }
+        }
+        "list" | _ => {
+            match manager.scan_mods() {
+                Ok(count) => {
+                    println!("📁 Mods Directory: {:?}", manager.mods_dir);
+                    println!("📦 Discovered Workshop Mods: {}\n", count);
+                    for (i, m) in manager.installed_mods.iter().enumerate() {
+                        let active = manager.active_mod_ids.contains(&m.manifest.mod_id);
+                        println!(
+                            "  [{}] {} v{} by {} | Slot: {} -> Part: '{}' [{}]",
+                            i + 1,
+                            m.manifest.title,
+                            m.manifest.version,
+                            m.manifest.author,
+                            m.manifest.target_slot,
+                            m.manifest.target_mesh_name,
+                            if active { "ACTIVE" } else { "DISABLED" }
+                        );
+                        println!(
+                            "      Stats: ATK {:+02} | DEF {:+02} | HEAT {:+02} | WGT {:+02}",
+                            m.manifest.atk_bonus,
+                            m.manifest.def_bonus,
+                            m.manifest.heat_bonus,
+                            m.manifest.weight_bonus
+                        );
+                        println!("      Tags: {:?}", m.manifest.tags);
+                    }
+                }
+                Err(e) => eprintln!("❌ Failed to scan mods: {:?}", e),
+            }
+        }
+    }
 }

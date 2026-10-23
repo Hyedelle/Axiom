@@ -3,7 +3,7 @@
 use axiom_core::Fixed;
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{MechaModel3D, PartMesh};
-use axiom_render::modding::{WorkshopModManifest, WorkshopModPackage};
+use axiom_render::modding::{WorkshopManager, WorkshopModManifest, WorkshopModPackage};
 use axiom_render::raster3d::Rasterizer3D;
 use axiom_render::texture::{blend_decal, modulate_color, TextureMap, TextureWrapMode};
 use axiom_render::FrameBuffer;
@@ -169,4 +169,56 @@ fn test_render_model_with_custom_texture() {
     // Framebuffer must have drawn pixels and depth buffer populated
     let filled_pixels = fb.pixels.iter().filter(|&&c| c != 0).count();
     assert!(filled_pixels > 200, "Rendered pixels count: {}", filled_pixels);
+}
+
+#[test]
+fn test_workshop_manager_lifecycle_and_hot_swap() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "axiom_workshop_test_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros()
+    ));
+    let _ = std::fs::create_dir_all(&temp_dir);
+
+    let mut manager = WorkshopManager::new(&temp_dir);
+    assert_eq!(manager.scan_mods().unwrap(), 0);
+
+    // Create a template mod
+    let manifest = WorkshopModManifest {
+        mod_id: "mod_turbo_core".to_string(),
+        title: "Turbo Overclock Core".to_string(),
+        author: "TechGuild".to_string(),
+        version: "2.0.0".to_string(),
+        target_slot: "Core".to_string(),
+        target_mesh_name: "hero_torso".to_string(),
+        atk_bonus: 20,
+        def_bonus: 10,
+        heat_bonus: 15,
+        weight_bonus: -5,
+        tags: vec!["Overclock".to_string(), "Core".to_string()],
+    };
+    let mod_path = WorkshopManager::create_template_mod(&temp_dir, &manifest).expect("template created");
+    assert!(mod_path.exists());
+    assert!(mod_path.join("mod.json").exists());
+
+    // Scan mods again
+    let count = manager.scan_mods().unwrap();
+    assert_eq!(count, 1);
+    assert_eq!(manager.installed_mods[0].manifest.title, "Turbo Overclock Core");
+
+    // Hot-swap into procedural chassis
+    let mut chassis = MechaModel3D::procedural_chassis();
+    let replaced = manager.hot_swap_reload(&mut chassis).unwrap();
+    assert_eq!(replaced, 1);
+
+    // Toggle mod off
+    assert!(!manager.toggle_mod("mod_turbo_core"));
+    let mut chassis2 = MechaModel3D::procedural_chassis();
+    let replaced2 = manager.apply_active_mods(&mut chassis2);
+    assert_eq!(replaced2, 0);
+
+    // Clean up
+    let _ = std::fs::remove_dir_all(&temp_dir);
 }
