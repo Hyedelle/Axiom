@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-197: Axiom 230대 CCD 히트박스 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-198: Mimic The Show 챔피언십 링 CCD 나이트메어 복싱 히트박스 판정 및 HUD 텔레메트리 연동** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-199: Axiom 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 물리 엔진 공식 릴리즈 v3.7.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-197: Axiom 230대 CCD 히트박스 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_ccd_bench_hitbox` [4~64 히트박스 슬랩 생성, 30 m/s 고속 펀치 스윕 평가, Chase-Lev 4-워커 잡 디스패치 및 `EVENT_CCD_HIT (0x0230)` 이벤트 버스 연계, 서브프레임 TOI 정규화 및 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 🥊 **230 CCD Hitbox (64B Slabs)** 대화형 모달 연동, 1.31 MB 최적화 WASM 바이너리 동기화, 26개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-196: Axiom CCD 히트박스 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ccd_jobs.rs`, `crates/axiom-game/tests/test_ccd_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_ccd_hitboxes_with_jobs` [히트박스 슬랩 N-배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_ccd_hits_to_event_bus` [`EVENT_CCD_HIT = 0x0230` 및 `channel::COMBAT | channel::PHYSICS` 채널, 40B 인라인 페이로드(TOI, hit_xyz, normal_xyz, damage, knockback, pair_key), GGPO 롤백 `rollback_to` 지원], `NetworkMatchDirector::step_ccd` 및 `step_ccd_with_jobs` [16-인 배틀로얄 경기장 고속 펀치/스윕 히트박스 실시간 연속 감지 파이프라인 결합], 5개 신규 단위/통합 테스트 및 코어/게임 전역 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-195: Axiom 230대 Swept AABB 및 고정소수점 Raycast 히트박스 연속 충돌 구현** (`crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ccd.rs`, 0-Float 64B L1 캐시 정렬 히트박스 슬랩 `HitboxSlab64` [#[repr(C, align(64))], exact 64B slab, 8B target_mask, 11x 4B coords/velocity, 4x 2B damage/knockback/ticks, 2B hitbox_id, 1B flags, 1B hit_type, 0-암시적 패딩 자연 정렬], 0-Float 64B L1 정렬 충돌 결과 슬랩 `SweptAabbResult64` [#[repr(C, align(64))], exact 64B slab, Q16.16 TOI, hit_xyz, normal_xyz, has_hit, attacker_id, victim_id, pair_key], 64비트 정수 Kay-Kajiya 슬랩 교차법 `raycast_aabb_toi`, 민코프스키 합(Minkowski Sum) 확장 AABB 기반 해석적 $O(1)$ 연속 충돌 알고리즘 `swept_aabb_toi`, 히트박스-허트박스 평가 함수 `swept_hitbox_vs_hurtbox`, 30 m/s 초고속 주먹(500 mm/tick)의 100mm 장애물 관통(터널링) 완벽 차단 실증, 64-bit FNV-1a 상태 합의 체크섬 `compute_ccd_consensus_hash`, 6개 신규 단위 테스트 및 `axiom-core` 전역 60개 단위/37개 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-194: Axiom 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 연구** (`docs/audit-report.md`, `axiom-ccd-and-nightmare-hitbox-research.md`, 0-Float 64B L1 캐시 정렬 히트박스 슬랩 `HitboxSlab64` [#[repr(C, align(64))], exact 64B slab, 8B target_mask, swept_min/max XYZ mm, velocity XYZ mm/s, damage, knockback, active_ticks, hitbox_id, flags, hit_type], 0-Float 64B L1 정렬 충돌 결과 슬랩 `SweptAabbResult64` [#[repr(C, align(64))], exact 64B slab, Q16.16 TOI, hit_xyz, normal_xyz, has_hit, attacker_id, victim_id, pair_key], 20~40 m/s 초고속 펀치 터널링(Bullet-through-Paper) 방지 메커니즘, 민코프스키 합(Minkowski Sum) 기반 $O(1)$ 폐형식(Closed-form) 해석적 Ray-AABB 슬랩 교차법 `swept_aabb_toi`/`raycast_aabb_toi`, Earliest TOI Priority Rule, 220대 SpatialHashGrid/200대 JobSystem/210대 EventBus 연계 아키텍처 명세 수립 완료)

@@ -8,25 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 07:45 KST
-- **감사 대상:** Axiom Engine CCD 히트박스 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-196, `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ccd_jobs.rs`, `crates/axiom-game/tests/test_ccd_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64`, `SweptAabbResult64`, `EventSlab64` 무결성 검증, `dispatch_ccd_hitboxes_with_jobs` 워커 풀 병렬 디스패치, `emit_ccd_hits_to_event_bus` 40B 인라인 페이로드 및 `EVENT_CCD_HIT (0x0230)` 이벤트 버스 연계, `NetworkMatchDirector` 동기/비동기 `step_ccd` / `step_ccd_with_jobs` 파이프라인 무결성, 5개 신규 단위/통합 테스트 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 07:52 KST
+- **감사 대상:** Axiom Engine 230대 CCD 히트박스 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-197, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_ccd_bench_hitbox` 무결성 검증, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 30 m/s 고속 펀치 스윕 충돌 감지, 서브프레임 TOI 정규화 산출 및 64-bit FNV-1a 상태 합의 검증, 웹 3D 복셀 스튜디오 🥊 **230 CCD Hitbox (64B Slabs)** 대화형 모달 연동, 1.31 MB 최적화 WASM 바이너리 동기화, 26개 WASM 테스트 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **잡 시스템 병렬 분할 (`dispatch_ccd_hitboxes_with_jobs`, `ccd_batch_job`)**:
-     - 활성 히트박스 슬랩 배열을 $N$-배치(최대 8개)로 분할하여 Chase-Lev 무잠금 SPMC 워크 스틸링 덱에 큐잉하고 워커 풀 협력 처리 검증.
-  2. **이벤트 버스 연계 (`emit_ccd_hits_to_event_bus`)**:
-     - `EVENT_CCD_HIT = 0x0230` 채널 식별자 (`channel::COMBAT | channel::PHYSICS`) 발행.
-     - 40-바이트 인라인 POD 페이로드: `pair_key` (8B), `toi` (4B), `hit_xyz` (12B), `damage` (2B), `knockback` (2B), `hitbox_id` (2B), `flags` (2B), `normal_xyz` (3B), `has_hit` (1B), `pad` (4B) 무할당 직렬화 및 GGPO 롤백(`rollback_to`) 무결성 확인.
-  3. **네트워크 매치 디렉터 (`NetworkMatchDirector`) 실시간 결합**:
-     - `step_ccd(&mut self) -> usize`: 활성 플레이어 공격 상태(`STATE_LIGHT_ATTACK`, `STATE_HEAVY_ATTACK`) 및 초고속 돌진 상태 스윕 히트박스 감지 및 이벤트 버스 방출.
-     - `step_ccd_with_jobs(...) -> usize`: 잡 시스템 및 워커 풀 연계 비동기 배치 처리 및 드레인 완료.
-  4. **단위/통합 테스트 및 헌법 가드 검증**:
-     - `test_ccd_jobs.rs` (3개 테스트) 및 `test_ccd_game_pipeline.rs` (2개 테스트) 100% 통과.
-     - `tools/guard.ps1` 100% 통과 (0-Float 불변식, 코어/게임 전역 테스트 올패스).
+  1. **WASM C-ABI 엔드포인트 (`axiom_ccd_bench_hitbox`)**:
+     - 4~64개 히트박스 슬랩 생성, 30 m/s (500 mm/tick) 변위 스윕 평가, Chase-Lev 4-워커 잡 디스패치 및 `EVENT_CCD_HIT (0x0230)` 이벤트 버스 발행 파이프라인 무결성.
+     - 8-uint32 텔레메트리 슬랩(`out_stats`): `count`, `total_hits`, `earliest_toi`, `hash_lo/hi`, `dispatched_jobs`, `disp_mm_per_tick`, `bus_events` 완비.
+  2. **웹 인터랙티브 쇼케이스 (`web/index.html`, `crates/axiom-wasm/index.html`)**:
+     - 🥊 **230 CCD Hitbox (64B Slabs)** 버튼 추가 및 `runCcdHitboxBenchmark()` 자바스크립트 엔진 결합.
+     - 서브프레임 TOI, 로켓 펀치 관통 방지율 100%, 초당 CCD 연산량 텔레메트리 출력.
+  3. **WASM 바이너리 최적화 및 3중 동기화**:
+     - 1,311,232 Bytes 컴파일 바이너리를 `crates/axiom-wasm/` 및 `web/` 경로에 100% 동기화.
+  4. **단위 테스트 및 헌법 가드 검증**:
+     - 26개 WASM 단위 테스트 및 `tools/guard.ps1` 100% 통과 (0-Float 불변식 전역 유지).
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T196] Axiom Engine CCD 히트박스 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 07:45 KST
+- **판정:** 🟢 **ALL CLEAR (연계 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64`, `SweptAabbResult64`, `EventSlab64` 무결성 검증, `dispatch_ccd_hitboxes_with_jobs` 워커 풀 병렬 디스패치, `emit_ccd_hits_to_event_bus` 40B 인라인 페이로드 및 `EVENT_CCD_HIT (0x0230)` 이벤트 버스 연계, `NetworkMatchDirector` 동기/비동기 `step_ccd` / `step_ccd_with_jobs` 파이프라인 무결성, 5개 신규 단위/통합 테스트 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T195] Axiom Engine 230대 Swept AABB 및 고정소수점 Raycast 히트박스 연속 충돌 구현
 - **일시:** 2026-10-24 07:35 KST

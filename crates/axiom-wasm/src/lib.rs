@@ -5658,6 +5658,123 @@ pub extern "C" fn axiom_spatial_bench_broadphase(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_ccd_bench_hitbox(
+    hitbox_count: u32,
+    iterations: u32,
+    velocity_scale_pct: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::ccd::{
+        compute_ccd_consensus_hash, dispatch_ccd_hitboxes_with_jobs, emit_ccd_hits_to_event_bus,
+        swept_hitbox_vs_hurtbox, HitType, HitboxSlab64, SweptAabbResult64, HITBOX_FLAG_ACTIVE,
+        HITBOX_FLAG_SWEPT_CCD,
+    };
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let count = (hitbox_count as usize).clamp(4, 64);
+    let iters = (iterations as usize).clamp(1, 20);
+    let scale = if velocity_scale_pct == 0 { 100 } else { velocity_scale_pct };
+    let base_disp_x = (500 * (scale as i32)) / 100; // 500 mm/tick @ 100% = 30 m/s
+
+    // Generate N moving hitbox slabs
+    let mut slabs = [HitboxSlab64::empty(); 64];
+    for i in 0..count {
+        let origin_x = ((i as i32 * 43) % 1500) - 750;
+        let origin_y = ((i as i32 * 61) % 1500) - 750;
+        let origin_z = 800 + ((i as i32 * 29) % 400);
+
+        slabs[i] = HitboxSlab64::from_extents_and_disp(
+            (i + 1) as u32,
+            (i as u16) + 1,
+            0xFFFF,
+            (origin_x - 100, origin_y - 100, origin_z - 100),
+            (origin_x + 100, origin_y + 100, origin_z + 100),
+            (base_disp_x, 0, 0),
+            50 + (i as u16 % 50),
+            1500,
+            HitType::Mid,
+            HITBOX_FLAG_ACTIVE | HITBOX_FLAG_SWEPT_CCD,
+        );
+    }
+
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    let mut results_buf = [SweptAabbResult64::empty(); 64];
+    let mut total_hits = 0usize;
+    let mut earliest_toi = u32::MAX;
+    let mut dispatched_jobs = 0usize;
+
+    for iter in 0..iters {
+        // Multi-threaded job system partition dispatch
+        dispatched_jobs = dispatch_ccd_hitboxes_with_jobs(
+            &slabs,
+            4,
+            &mut js,
+            &mut coordinator,
+        );
+        coordinator.drain_all(&mut js);
+
+        // Evaluate swept hitboxes against simulated defender hurtboxes
+        let mut iter_hits = 0usize;
+        for i in 0..count {
+            let hb = &slabs[i];
+            let origin_x = ((i as i32 * 43) % 1500) - 750;
+            let origin_y = ((i as i32 * 61) % 1500) - 750;
+            let origin_z = 800 + ((i as i32 * 29) % 400);
+
+            // Position defender ahead in punch path to guarantee sub-frame swept TOI
+            let defender_x = origin_x + 250;
+            let defender_y = origin_y;
+            let defender_z = origin_z;
+            let hurtbox_min = (defender_x - 100, defender_y - 100, defender_z - 100);
+            let hurtbox_max = (defender_x + 100, defender_y + 100, defender_z + 100);
+            let hurtbox_disp = (0, 0, 0);
+
+            if let Some(res) = swept_hitbox_vs_hurtbox(hb, hurtbox_min, hurtbox_max, hurtbox_disp, (i + 100) as u32) {
+                if iter_hits < results_buf.len() {
+                    if res.toi < earliest_toi {
+                        earliest_toi = res.toi;
+                    }
+                    results_buf[iter_hits] = res;
+                    iter_hits += 1;
+                }
+            }
+        }
+        total_hits = iter_hits;
+
+        // Emit detected hits to deterministic event bus
+        emit_ccd_hits_to_event_bus(
+            &results_buf[..iter_hits],
+            300 + (iter as u32),
+            &mut bus,
+        );
+    }
+
+    let ccd_hash = compute_ccd_consensus_hash(&results_buf[..total_hits]);
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = ccd_hash ^ (bus_hash.rotate_left(19));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = count as u32;
+            *out_stats.add(1) = total_hits as u32;
+            *out_stats.add(2) = if earliest_toi == u32::MAX { 0 } else { earliest_toi };
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(4) = (combined_hash >> 32) as u32;
+            *out_stats.add(5) = dispatched_jobs as u32;
+            *out_stats.add(6) = base_disp_x.abs() as u32; // mm/tick displacement
+            *out_stats.add(7) = bus.count as u32;
+        }
+    }
+
+    total_hits as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -6675,5 +6792,17 @@ mod tests {
         assert_eq!(spatial_stats[5], 4, "4 parallel dispatch broadphase jobs");
         assert_eq!(spatial_stats[6], 1000, "1000mm cell size");
         assert_eq!(spatial_stats[7], 1024, "1024 table capacity");
+
+        // 10. Continuous Collision Detection (CCD) Hitbox Benchmark (16 hitboxes, 5 iters, 100% velocity)
+        let mut ccd_stats = [0u32; 8];
+        let ccd_hits = axiom_ccd_bench_hitbox(16, 5, 100, ccd_stats.as_mut_ptr());
+        assert!(ccd_hits > 0, "CCD benchmark must detect continuous collision hits");
+        assert_eq!(ccd_stats[0], 16);
+        assert_eq!(ccd_stats[1], ccd_hits);
+        assert!(ccd_stats[2] > 0, "Earliest TOI must be > 0");
+        assert!(ccd_stats[3] != 0 || ccd_stats[4] != 0, "CCD consensus hash must be non-zero");
+        assert_eq!(ccd_stats[5], 4, "4 parallel dispatch CCD jobs");
+        assert_eq!(ccd_stats[6], 500, "500 mm/tick displacement");
+        assert!(ccd_stats[7] > 0, "Event bus must contain emitted CCD hit events");
     }
 }
