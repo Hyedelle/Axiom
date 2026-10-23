@@ -25,6 +25,10 @@ pub enum SoundKind {
     SaveChime,
     /// Wave spawn warning siren (alternating 440Hz / 880Hz siren over 300ms).
     WaveAlarm,
+    /// High-pressure steam release: mechanical valve latch snap + steam hiss burst (250ms).
+    SteamRelease,
+    /// Heavy counter impact: sub-bass thump + resonant metallic chime (350ms).
+    CounterHit,
 }
 
 static MUTED: AtomicBool = AtomicBool::new(false);
@@ -55,6 +59,8 @@ pub fn generate_pcm_samples(kind: SoundKind) -> Vec<i16> {
         SoundKind::Demolish => generate_demolish_samples(),
         SoundKind::SaveChime => generate_save_chime_samples(),
         SoundKind::WaveAlarm => generate_wave_alarm_samples(),
+        SoundKind::SteamRelease => generate_steam_release_samples(),
+        SoundKind::CounterHit => generate_counter_hit_samples(),
     }
 }
 
@@ -233,6 +239,82 @@ fn generate_wave_alarm_samples() -> Vec<i16> {
     samples
 }
 
+/// High-pressure steam release: mechanical latch snap + steam hiss burst over 250ms.
+fn generate_steam_release_samples() -> Vec<i16> {
+    let num_samples = (SAMPLE_RATE * 250) / 1000; // 5512 samples
+    let mut samples = Vec::with_capacity(num_samples as usize);
+    let click_samples = (SAMPLE_RATE * 12) / 1000; // 12ms click
+    let mut click_phase: u32 = 0;
+    let mut lcg: u32 = 0x5734_1100;
+    let mut lowpass: i32 = 0;
+    let mut highpass: i32 = 0;
+
+    for i in 0..num_samples {
+        let mut sample = 0i32;
+
+        // 1. Initial mechanical valve snap
+        if i < click_samples {
+            let click_freq = 2400 - (1200 * i) / click_samples;
+            let click_step = ((click_freq as u64) << 32) / SAMPLE_RATE as u64;
+            click_phase = click_phase.wrapping_add(click_step as u32);
+            let sq = if (click_phase & 0x8000_0000) != 0 { 16000 } else { -16000 };
+            let click_env = (click_samples - i) as i32 * 1000 / click_samples as i32;
+            sample += (sq * click_env) / 1000;
+        }
+
+        // 2. High-pressure steam burst hiss
+        lcg = lcg.wrapping_mul(1664525).wrapping_add(1013904223);
+        let raw_noise = ((lcg >> 16) as i16) as i32;
+        lowpass = (lowpass * 3 + raw_noise) / 4;
+        highpass = (highpass * 7 + raw_noise) / 8;
+        let band = highpass - lowpass;
+
+        let rem = (num_samples - i) as i64;
+        let steam_env = ((rem * rem * 24000) / (num_samples as i64 * num_samples as i64)) as i32;
+        sample += ((band as i64 * steam_env as i64) / 32768) as i32;
+
+        samples.push(sample.clamp(-32767, 32767) as i16);
+    }
+    samples
+}
+
+/// Heavy counter impact: sub-bass thump + resonant metallic chime over 350ms.
+fn generate_counter_hit_samples() -> Vec<i16> {
+    let num_samples = (SAMPLE_RATE * 350) / 1000; // 7717 samples
+    let mut samples = Vec::with_capacity(num_samples as usize);
+    let mut phase_thump: u32 = 0;
+    let mut phase_bell: u32 = 0;
+
+    for i in 0..num_samples {
+        // Bass thump: 130Hz -> 45Hz
+        let freq_thump = 130 - (85 * i) / num_samples;
+        let step_thump = ((freq_thump as u64) << 32) / SAMPLE_RATE as u64;
+        phase_thump = phase_thump.wrapping_add(step_thump as u32);
+        let p_thump = (phase_thump >> 16) as i32;
+        let tri_thump = if p_thump < 32768 { p_thump - 16384 } else { 49152 - p_thump };
+        let thump = (tri_thump * 10000) >> 14;
+
+        // Metallic bell harmonic: 440Hz + 880Hz + 1320Hz
+        let step_bell = ((440u64) << 32) / SAMPLE_RATE as u64;
+        phase_bell = phase_bell.wrapping_add(step_bell as u32);
+        let p_bell1 = (phase_bell >> 16) as i32;
+        let p_bell2 = ((phase_bell.wrapping_mul(2)) >> 16) as i32;
+        let p_bell3 = ((phase_bell.wrapping_mul(3)) >> 16) as i32;
+        let tri1 = if p_bell1 < 32768 { p_bell1 - 16384 } else { 49152 - p_bell1 };
+        let tri2 = if p_bell2 < 32768 { p_bell2 - 16384 } else { 49152 - p_bell2 };
+        let tri3 = if p_bell3 < 32768 { p_bell3 - 16384 } else { 49152 - p_bell3 };
+        let bell = ((tri1 * 6 + tri2 * 4 + tri3 * 2) * 5000) >> 16;
+
+        let rem = (num_samples - i) as i64;
+        let env_thump = (rem * 1000 / num_samples as i64) as i32;
+        let env_bell = ((rem * rem * 1000) / (num_samples as i64 * num_samples as i64)) as i32;
+
+        let mixed = (thump * env_thump / 1000) + (bell * env_bell / 1000);
+        samples.push(mixed.clamp(-32767, 32767) as i16);
+    }
+    samples
+}
+
 /// Packs 16-bit mono PCM samples into a valid 44-byte RIFF/WAVE header and data block.
 pub fn generate_wav_bytes(samples: &[i16]) -> Vec<u8> {
     let data_len = (samples.len() * 2) as u32;
@@ -271,6 +353,65 @@ pub fn generate_wav_bytes(samples: &[i16]) -> Vec<u8> {
     buf
 }
 
+/// Computes (vol_left_permill, vol_right_permill) using pure integer arithmetic.
+/// - `x`: lateral offset from listener (-1000..1000, negative = left, positive = right)
+/// - `z`: depth distance from listener (permille of reference unit, 1000 = standard distance)
+pub fn compute_spatial_stereo(x: i32, z: i32, base_vol_permill: u16) -> (u16, u16) {
+    let z_safe = z.max(200) as u32;
+    let atten = ((base_vol_permill as u32) * 1000) / z_safe;
+    let atten_clamped = atten.min(1000);
+
+    let pan_right = ((x.clamp(-1000, 1000) + 1000) as u32 * 1000) / 2000;
+    let pan_left = 1000 - pan_right;
+
+    let left = ((atten_clamped * pan_left) / 1000) as u16;
+    let right = ((atten_clamped * pan_right) / 1000) as u16;
+    (left, right)
+}
+
+/// Packs 16-bit mono PCM samples into a spatialized 2-channel 16-bit Stereo RIFF/WAVE buffer.
+pub fn generate_stereo_wav_bytes(
+    samples: &[i16],
+    pan_left_permill: u16,
+    pan_right_permill: u16,
+) -> Vec<u8> {
+    let num_samples = samples.len();
+    let data_len = (num_samples * 4) as u32;
+    let chunk_size = 36 + data_len;
+    let byte_rate = SAMPLE_RATE * 4;
+    let block_align: u16 = 4;
+    let bits_per_sample: u16 = 16;
+    let num_channels: u16 = 2; // Stereo
+    let audio_format: u16 = 1; // PCM
+
+    let mut buf = Vec::with_capacity(44 + data_len as usize);
+
+    buf.extend_from_slice(b"RIFF");
+    buf.extend_from_slice(&chunk_size.to_le_bytes());
+    buf.extend_from_slice(b"WAVE");
+
+    buf.extend_from_slice(b"fmt ");
+    buf.extend_from_slice(&16u32.to_le_bytes());
+    buf.extend_from_slice(&audio_format.to_le_bytes());
+    buf.extend_from_slice(&num_channels.to_le_bytes());
+    buf.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
+    buf.extend_from_slice(&byte_rate.to_le_bytes());
+    buf.extend_from_slice(&block_align.to_le_bytes());
+    buf.extend_from_slice(&bits_per_sample.to_le_bytes());
+
+    buf.extend_from_slice(b"data");
+    buf.extend_from_slice(&data_len.to_le_bytes());
+
+    for &s in samples {
+        let left = ((s as i32 * pan_left_permill as i32) / 1000).clamp(-32767, 32767) as i16;
+        let right = ((s as i32 * pan_right_permill as i32) / 1000).clamp(-32767, 32767) as i16;
+        buf.extend_from_slice(&left.to_le_bytes());
+        buf.extend_from_slice(&right.to_le_bytes());
+    }
+
+    buf
+}
+
 /// Sound bank pre-generating and storing all procedural WAV byte buffers.
 struct SoundBank {
     shoot: Vec<u8>,
@@ -279,6 +420,8 @@ struct SoundBank {
     demolish: Vec<u8>,
     save_chime: Vec<u8>,
     wave_alarm: Vec<u8>,
+    steam_release: Vec<u8>,
+    counter_hit: Vec<u8>,
 }
 
 static SOUND_BANK: OnceLock<SoundBank> = OnceLock::new();
@@ -291,6 +434,8 @@ fn get_sound_bank() -> &'static SoundBank {
         demolish: generate_wav_bytes(&generate_pcm_samples(SoundKind::Demolish)),
         save_chime: generate_wav_bytes(&generate_pcm_samples(SoundKind::SaveChime)),
         wave_alarm: generate_wav_bytes(&generate_pcm_samples(SoundKind::WaveAlarm)),
+        steam_release: generate_wav_bytes(&generate_pcm_samples(SoundKind::SteamRelease)),
+        counter_hit: generate_wav_bytes(&generate_pcm_samples(SoundKind::CounterHit)),
     })
 }
 
@@ -304,6 +449,8 @@ pub fn get_sound_bytes(kind: SoundKind) -> &'static [u8] {
         SoundKind::Demolish => &bank.demolish,
         SoundKind::SaveChime => &bank.save_chime,
         SoundKind::WaveAlarm => &bank.wave_alarm,
+        SoundKind::SteamRelease => &bank.steam_release,
+        SoundKind::CounterHit => &bank.counter_hit,
     }
 }
 
@@ -357,6 +504,8 @@ mod tests {
             SoundKind::Demolish,
             SoundKind::SaveChime,
             SoundKind::WaveAlarm,
+            SoundKind::SteamRelease,
+            SoundKind::CounterHit,
         ];
 
         for &kind in &kinds {
@@ -411,6 +560,39 @@ mod tests {
             assert_eq!(cached_bytes.len(), wav.len());
             assert_eq!(cached_bytes, &wav[..]);
         }
+    }
+
+    #[test]
+    fn test_spatial_stereo_attenuation() {
+        let (l_mid, r_mid) = compute_spatial_stereo(0, 1000, 1000);
+        assert_eq!(l_mid, 500);
+        assert_eq!(r_mid, 500);
+
+        let (l_opp, r_opp) = compute_spatial_stereo(400, 1000, 1000);
+        assert!(r_opp > l_opp);
+        assert_eq!(l_opp + r_opp, 1000);
+
+        let (l_ply, r_ply) = compute_spatial_stereo(-400, 1000, 1000);
+        assert!(l_ply > r_ply);
+        assert_eq!(l_ply + r_ply, 1000);
+
+        let (l_far, r_far) = compute_spatial_stereo(0, 2000, 1000);
+        assert_eq!(l_far, 250);
+        assert_eq!(r_far, 250);
+    }
+
+    #[test]
+    fn test_stereo_wav_bytes() {
+        let samples = generate_pcm_samples(SoundKind::CounterHit);
+        let wav = generate_stereo_wav_bytes(&samples, 400, 600);
+        assert_eq!(&wav[0..4], b"RIFF");
+        assert_eq!(&wav[8..12], b"WAVE");
+        assert_eq!(&wav[12..16], b"fmt ");
+        let channels = u16::from_le_bytes(wav[22..24].try_into().unwrap());
+        assert_eq!(channels, 2);
+        let byte_rate = u32::from_le_bytes(wav[28..32].try_into().unwrap());
+        assert_eq!(byte_rate, 88200);
+        assert_eq!(wav.len(), 44 + samples.len() * 4);
     }
 
     #[test]

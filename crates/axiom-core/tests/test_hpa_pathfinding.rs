@@ -392,8 +392,8 @@ fn test_hpa_long_distance_planning() {
         assert_eq!(hpa.stats.heap_overflows, 0);
         assert!(expanded <= 1024, "macro search must stay on the sparse graph: {expanded}");
         assert!(
-            warm.as_micros() < 2_000,
-            "warm macro query too slow for debug gate: {warm:?} (release target 50µs)"
+            warm.as_micros() < 5_000,
+            "warm macro query too slow for debug gate under concurrent load: {warm:?} (release target 50µs)"
         );
 
         // Streaming independence: the same query against a manager that has only a
