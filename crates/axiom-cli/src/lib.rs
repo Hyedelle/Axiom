@@ -7,6 +7,7 @@ pub mod boxing_view;
 pub mod cloud_sync;
 pub mod coop;
 pub mod desktop;
+pub mod net_cli;
 pub mod replayer;
 pub mod rpg_demo;
 pub mod session;

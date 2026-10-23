@@ -68,3 +68,18 @@ fn test_present_all_backends() {
         }
     }
 }
+
+#[test]
+fn test_voxel_compute_raymarch_dispatch() {
+    use axiom_render::gpu_backend::VoxelComputeDispatch64;
+
+    assert_eq!(core::mem::size_of::<VoxelComputeDispatch64>(), 64);
+    assert_eq!(core::mem::align_of::<VoxelComputeDispatch64>(), 64);
+
+    let mut dispatch = VoxelComputeDispatch64::default();
+    let compute_time = dispatch.dispatch(704, 544);
+    assert!(compute_time > 0);
+    assert_eq!(dispatch.total_dispatches, 1);
+    assert_eq!(dispatch.dispatch_x, 88);
+    assert_eq!(dispatch.dispatch_y, 68);
+}

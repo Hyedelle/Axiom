@@ -5,6 +5,7 @@ members = [
     "crates/axiom-cli",
     "crates/axiom-wasm",
     "crates/axiom-game",
+    "crates/axiom-net",
     "crates/axiom-sdk",
 ]
 resolver = "2"

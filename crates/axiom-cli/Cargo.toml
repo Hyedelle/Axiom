@@ -10,5 +10,6 @@ axiom-core = { path = "../axiom-core" }
 minifb = "0.29.0"
 axiom-render = { path = "../axiom-render" }
 axiom-game = { path = "../axiom-game" }
+axiom-net = { path = "../axiom-net" }
 
 [dev-dependencies]

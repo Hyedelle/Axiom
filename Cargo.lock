@@ -8,6 +8,7 @@ version = "3.0.0"
 dependencies = [
  "axiom-core",
  "axiom-game",
+ "axiom-net",
  "axiom-render",
  "minifb",
 ]
@@ -18,6 +19,13 @@ version = "3.0.0"
 
 [[package]]
 name = "axiom-game"
+version = "3.0.0"
+dependencies = [
+ "axiom-core",
+]
+
+[[package]]
+name = "axiom-net"
 version = "3.0.0"
 dependencies = [
  "axiom-core",

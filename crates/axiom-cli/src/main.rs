@@ -23,8 +23,11 @@ fn main() {
     let has_mod = args.iter().any(|a| a == "mod" || a == "--mod");
     let has_save = args.iter().any(|a| a == "save" || a == "--save");
     let has_voxel = args.iter().any(|a| a == "voxel" || a == "--voxel");
+    let has_net = args.iter().any(|a| a == "net" || a == "--net");
 
-    if has_mod {
+    if has_net {
+        axiom_cli::net_cli::run_net_suite(&args);
+    } else if has_mod {
         run_mod_suite(&args);
     } else if has_save {
         run_save_suite(&args);
