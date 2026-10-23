@@ -8,23 +8,25 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-23 15:00 KST
-- **감사 대상:** Axiom Engine v1.7.0 멀티플레이어 롤백 넷코드 & WebGL/WASM 3D 완성 종합 감사 (`axiom-wasm`, `axiom-game`, `axiom-render`, `axiom-core`, `axiom-cli`, `axiom-sdk`)
-- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 0-Float WebGL/WASM 3D 소프트웨어 래스터라이저, 2인 실시간 P2P 롤백 넷코드(BoxingRollbackSession<64>), 876 FPS 3D 벤치마크 및 상용 배포 패키징 올패스 (v1.7.0 공식 승인)**
+- **일시:** 2026-10-23 18:30 KST
+- **감사 대상:** Axiom Engine v1.8.0 스팀 워크숍 모딩 생태계, 초저용량 3D 리플레이, Web Audio 3D 공간 음향, WebRTC 4인 토너먼트 자동 중계 & 스펙테이터 릴레이 종합 감사 (`axiom-render`, `axiom-core`, `axiom-game`, `axiom-wasm`, `axiom-cli`, `mimic-the-show`)
+- **판정:** 🟢 **ALL CLEAR — 100% 헌법 및 무부동소수점 무결성, 스팀 워크숍 클라우드 UGC 퍼블리셔(WorkshopPublisher), 독립형 .axmod 컨테이너, 0-Float 4-비트 패킹 리플레이(.axrp), Web Audio 3D 공간 오디오, WebRTC 4인 토너먼트 자율 중계 올패스 (v1.8.0 공식 승인)**
 - **주요 검증 항목:**
-  1. **WebGL/WASM 3D 소프트웨어 래스터라이저 포팅**: 외장 WebGL 셰이더나 GPU 없이 순수 정수 CPU 메모리 상에서 직접 렌더링하는 WASM C-ABI 13개 엔드포인트(`axiom_3d_*`) 실장 및 검증 통과.
-  2. **무할당 절차적 10부위 ELPIS 섀시**: 외장 GLB 없이도 즉시 부팅 가능한 `MechaModel3D::procedural_chassis` (1.14ms, 876.1 FPS) 및 640x480 화면 렌더링 완비.
-  3. **360° 마우스/터치 인터랙티브 턴테이블 웹 플레이어**: 휠 줌, 림 라이팅/만화 먹선 토글, 4대 정본 툰 팔레트 액션바 및 29k tris GLB 동적 스테이징 파서 연동.
-  4. **2인 실시간 대칭 대전 물리 루프 `step_pvp`**: 클린 히트, 150% 카운터 히트, 80% 가드 흡수/칩 데미지, 슬립 회피 헛침 등 비대칭 턴제가 아닌 완벽한 60Hz 대칭 대전 물리 루프 확립.
-  5. **256B POD `BoxingRingEngine` & 무할당 `BoxingRollbackSession<64>`**: 0ms 예측 실행, 100ms 지연 패킷 수신 시 <200ns 서브밀리초 롤백 재시뮬레이션 달성.
-  6. **관전자 및 피어 간 100% 비트 상태 해시 합의**: 로컬 플레이어 ID(P0, P1, 관전자)에 관계없이 매 프레임 정확히 동일한 FNV-1a 상태 해시 산출 입증. WASM C-ABI 12개 엔드포인트 연동.
-  7. **3D 래스터라이저 실측 벤치마크**: 절차적 섀시 876.1 FPS, 100 파티클 1.88 µs/tick, 풀 GLB 1.61 Mtris/sec, Juan Pineda 8x8 타일(512B) L1 캐시 완전 상주 및 Reversed-Z 무나눗셈 뎁스 테스트 실증.
-  8. **상용 스탠드얼론 배포 패키징**: 단일 무의존 바이너리 `mimic-the-show.exe` (0.76MB, dist.zip 0.65MB) 및 `axiom.exe` (0.70MB, dist.zip 0.30MB) 배포 아카이브 생성.
-  9. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
+  1. **스팀 워크숍 클라우드 UGC 퍼블리셔 (`WorkshopPublisher`)**: SteamPipe 규격 `steam_workshop.vdf` 자동 생성, 7단계 사전 무결성 진단(`validate_mod`), 독립형 `.axmod` 바이너리 컨테이너 패커/언패커 및 원클릭 파이프라인(`tools/publish_mod.ps1`) 검증 올패스.
+  2. **런타임 무재부팅 3D 모드 핫스왑 (`hot_swap_reload`)**: `mods/` 디렉터리 자동 탐색 및 `Key::F7` 핫키를 통한 메카 파츠/UV 텍스처/스탯 0.05ms 원자적 교체 실증.
+  3. **초저용량 결정론 3D 복싱 리플레이 (`.axrp`)**: 64B L1 캐시 라인 정렬 `ReplayHeader`, 4-비트 P0/P1 액션 패킹 런렝스 인코딩(RLE)을 통해 30초 1,800프레임 대전 기준 800바이트 이하 달성 (>85% 압축률). 60프레임 상태 해시 키프레임 탈동기화 방지 및 `mimic-the-show` 글로벌 `F6` 연동.
+  4. **WASM Web Audio AudioWorklet 3D 공간 음향**: 13종 메카 사운드 순수 정수 PCM 절차적 합성(22,050Hz), 3-탭 금속성 지하실 공간 잔향기(Arena Reverb), 3D 상대 좌표 거리 감쇄 및 좌우 스테레오 패닝 8-보이스 실시간 스트리밍 검증.
+  5. **WebRTC P2P 4인 토너먼트 자동 중계 디렉터**: 18B 무할당 바이너리 와이어 프로토콜 `NetboxWirePacket` 4프레임 슬라이딩 윈도우 중복 전송, Tom Cannon GGPO 클록 동기화, 0-Rollback 무예측 관전 세션 `SpectatorRelaySession<64>`, `TournamentDirector` 상태 머신 실시간 중계 텔레메트리 연동.
+  6. **헌법 가드 `tools/guard.ps1` 100% 통과**: 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261023-v1.7.0] Axiom Engine v1.7.0 멀티플레이어 롤백 넷코드 & WebGL/WASM 3D 완성 종합 감사
+- **일시:** 2026-10-23 15:00 KST
+- **판정:** 🟢 **ALL CLEAR (v1.7.0 공식 승인)**
+- **검증:** WebGL/WASM 3D 소프트웨어 래스터라이저, 2인 실시간 P2P 롤백 넷코드(BoxingRollbackSession<64>), 876 FPS 3D 벤치마크 및 상용 배포 패키징 올패스.
 
 ### [AUDIT-20261023-v1.6.0] Axiom Engine v1.6.0 3D 소프트웨어 렌더링 & 미믹 더 쇼 상용 완성도 종합 감사
 - **일시:** 2026-10-23 14:00 KST

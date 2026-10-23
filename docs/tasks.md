@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-111: Axiom Engine v1.8.0 스팀 워크숍 & 토너먼트 넷코드 공식 릴리즈** (`Cargo.toml`, `docs/`, 워크스페이스 판올림 및 Git 태그)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-112: 스팀 클라우드 세이브(Steam Cloud Save) 및 런타임 저장소 동기화** (`crates/axiom-cli`, `mimic-the-show`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-113: 메카 복싱 3D 리플레이 웹 플레이어 임베딩 및 커스텀 .axrp 뷰어** (`crates/axiom-wasm`, `web/`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-111: Axiom Engine v1.8.0 스팀 워크숍 & 토너먼트 넷코드 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-050]~[D-054], `docs/audit-report.md` [AUDIT-20261023-v1.8.0], 스팀 워크숍 모딩 생태계 및 UGC 클라우드 퍼블리셔 파이프라인, 독립형 `.axmod` 바이너리 컨테이너, 0-Float 4-비트 패킹 결정론 리플레이(`.axrp`), Web Audio AudioWorklet 3D 공간 음향, WebRTC 4인 토너먼트 자동 중계 & 스펙테이터 릴레이 통합 승인, 워크스페이스 v1.8.0 공식 판올림 및 Git 태그 `v1.8.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-110: 스팀 워크숍 클라우드 UGC 업로드 & 원클릭 모드 퍼블리셔 파이프라인** (`crates/axiom-render/src/modding.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-cli/src/main.rs`, `crates/axiom-render/tests/test_workshop_publisher.rs`, `tools/publish_mod.ps1`, Steam UGC VDF 구성 생성기 `generate_steam_vdf`, 무손실 독립형 `.axmod` 바이너리 컨테이너 패커/언패커 `pack_axmod` / `unpack_axmod`, 모드 무결성 자동 검사기 `validate_mod` [슬롯/JSON/바이너리 glTF 매직/프리뷰 이미지/용량 한도 판정], `axiom mod validate / pack / publish` CLI 도구군 및 `tools/publish_mod.ps1` 파이프라인 완성, 4개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-109: 메카 복싱 3D 리플레이 녹화 및 초저용량 바이트 스트림 직렬화 익스포터** (`crates/axiom-core/src/replay.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_replay.rs`, `mimic-the-show/src/view.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `ReplayHeader`, 4-비트 P0/P1 액션 패킹 & 런렝스 인코딩 `RleInputRun` [>85% 압축률, 30초 대전 <800B], 60프레임 주기적 64-bit 상태 해시 검증 키프레임, 서브밀리초 직렬화/역직렬화, `replays/last_match.axrp` 자동 녹화 및 `mimic-the-show` 실시간 전투 프레임 인제스천 & 글로벌 `F6` 리플레이 검사 핫키 연동 완성, 4개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-108: WebRTC 넷코드 4인 토너먼트 자동 중계 & 스펙테이터 룸 브로드캐스트 스트림** (`crates/axiom-game/src/tournament.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `web/axiom_wasm.wasm`, `crates/axiom-game/tests/test_tournament_and_spectator.rs`, 4인 단일리그 자율 진행 중계 디렉터 `TournamentDirector`, 64-Byte L1 캐시 정렬 텔레메트리 `TournamentBroadcastTelemetry`, 실시간 상태 머신 [MatchActive ➔ MatchConcluded ➔ GrandChampionCrowned], WASM C-ABI 8개 엔드포인트 연동, 웹 플레이어 `📡 LIVE 자동 중계` 뷰포트 및 관전자 카운트 HUD·KO/챔피언 대관식 사운드 동기화 완성, 3개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

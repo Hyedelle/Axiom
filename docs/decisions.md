@@ -707,6 +707,58 @@
   2. 전체 워크스페이스 버전을 v1.6.0에서 **v1.7.0**으로 공식 판올림하고 Git 태그 `v1.7.0`을 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-050] WebRTC DataChannel 18B 바이너리 와이어 프로토콜 & GGPO 클록 동기화 (T-102)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **18B 무할당 바이너리 와이어 프로토콜 (`NetboxWirePacket`)**: 현재 프레임과 직전 3개 프레임의 입력을 함께 실어 보내는 4프레임 슬라이딩 윈도우 인풋 중복 전송 메커니즘을 채택하여, 3연속 비신뢰 SCTP/UDP 패킷 드랍 시에도 단 1회 롤백으로 완벽 복구.
+  2. **Tom Cannon GGPO Frame Advantage 클록 동기화 (`RollbackClockSync`)**: 양 피어 간 프레임 어드밴티지 60틱 이동 평균을 산출하여 +2f 이상 앞설 시 1틱 스톨링, -2f 이하로 뒤처질 시 1틱 패스트포워드를 수행해 양 피어의 시뮬레이션을 [-1, +1] 프레임 오차 내로 강제 수렴.
+- **영향:** `crates/axiom-game/src/boxing_netcode.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-051] 스팀 워크숍 3D 파츠 모딩 & 런타임 무재부팅 핫스왑 인제스터 (T-104, T-107)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **스팀 워크숍 매니페스트 및 디렉터리 자동 탐색기 (`WorkshopManager`)**: `mods/` 폴더를 실시간 스캔하여 `mod.json`, GLB 바이너리 및 커스텀 텍스처를 게임 런타임에 동적으로 인제스천.
+  2. **무재부팅 3D 모델 핫스왑 (`hot_swap_reload`)**: 게임을 재시작하지 않고도 `Key::F7` 핫키를 통해 메카 부품, UV 매핑 텍스처, 성능 스탯을 0.05ms 내로 원자적 교체.
+- **영향:** `crates/axiom-render/src/modding.rs`, `crates/axiom-render/src/texture.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-052] WebRTC 4인 토너먼트 자동 중계 & 스펙테이터 릴레이 브로드캐스트 엔진 (T-105, T-108)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **0-Rollback 무예측 관전 세션 (`SpectatorRelaySession<64>`)**: 예측 실행 없이 확정된 패킷만으로 시뮬레이션을 전진시켜 관전자의 CPU 오버헤드를 0으로 유지하고 100% 동일한 비트 단위 상태 해시 합의 달성.
+  2. **4인 단일리그 자율 진행 중계 디렉터 (`TournamentDirector`)**: `MatchActive ➔ MatchConcluded ➔ GrandChampionCrowned` 상태 머신을 기반으로 64B L1 캐시 라인 정렬 `TournamentBroadcastTelemetry`를 웹/WASM 전역으로 실시간 스트리밍.
+- **영향:** `crates/axiom-game/src/tournament.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-053] 0-Float 4-비트 패킹 결정론 리플레이 엔진 (`.axrp`) 및 런렝스 압축 (T-109)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **4-비트 액션 패킹 & 런렝스 인코딩 (`RleInputRun`)**: 4-bit P0/P1 액션 결합 및 1바이트 반복 카운트를 통해 30초 1,800프레임 경기를 800바이트 이하의 초저용량 바이트 스트림으로 압축 (>85% 압축률).
+  2. **탈동기화 방지 60프레임 상태 해시 키프레임 테이블**: 매 1초마다 64-bit FNV-1a 상태 해시를 기록하여 재생 시 나노초 단위 무결성 감시.
+  3. **`mimic-the-show` 실시간 연동**: 경기 종료 시 `replays/last_match.axrp` 자동 내보내기 및 글로벌 `F6` 검사 핫키 연동.
+- **영향:** `crates/axiom-core/src/replay.rs`, `mimic-the-show/src/view.rs`.
+
+---
+
+### [D-054] 스팀 워크숍 클라우드 UGC 퍼블리셔 & Axiom Engine v1.8.0 공식 릴리즈 (T-110, T-111)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. **스팀 워크숍 클라우드 UGC 퍼블리셔 (`WorkshopPublisher`)**: SteamPipe 규격 `steam_workshop.vdf` 자동 생성, 7단계 사전 무결성 진단(`validate_mod`), 독립형 `.axmod` 바이너리 컨테이너 패커 및 원클릭 파이프라인(`tools/publish_mod.ps1`) 완성.
+  2. **Axiom Engine v1.8.0 종합 릴리즈**: 스팀 워크숍 생태계, 초저용량 3D 리플레이, Web Audio 3D 공간 음향, WebRTC 4인 토너먼트 자동 중계 엔진을 통합 승인하고 워크스페이스 버전을 v1.7.0에서 **v1.8.0**으로 공식 판올림 및 Git 태그 `v1.8.0` 발행.
+- **영향:** 전체 워크스페이스 `Cargo.toml`, `docs/architecture.md`, `docs/audit-report.md`.
+
+
 
 
 
