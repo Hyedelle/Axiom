@@ -5,6 +5,7 @@
 
 #![no_std]
 
+pub mod achievement;
 pub mod boxing;
 pub mod boxing_netcode;
 pub mod card;
@@ -15,6 +16,9 @@ pub mod tournament;
 pub mod world_factory;
 pub mod worker;
 
+pub use achievement::{
+    AchievementId, AchievementState, AchievementToast, AchievementTracker, TOTAL_ACHIEVEMENTS,
+};
 pub use boxing::{ActionKind, AiPhase, BoxerAction, BoxerState, BoxingEvent, BoxingRingEngine};
 pub use boxing_netcode::{
     BoxingFrameStats, BoxingInputQueue, BoxingRollbackSession, NetboxWirePacket,

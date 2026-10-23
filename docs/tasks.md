@@ -6,16 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-115: 스팀 업적(Steam Achievements) 및 인게임 메타 챌린지 트래커** (`crates/axiom-game`, `mimic-the-show`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-116: 메카 커스텀 페인팅 및 풀 바디 텍스처 데칼 에디터** (`crates/axiom-render`, `web/`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-117: Axiom Engine v2.0.0 스팀 업적 & 데칼 에디터 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/`)
+- [ ] **T-118: 스팀 멀티플레이어 로비(Steam Lobby / P2P Relay) 및 글로벌 랭킹 리더보드 연동** (`crates/axiom-game`, `crates/axiom-wasm`, `web/`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-115: 스팀 업적(Steam Achievements) 및 인게임 메타 챌린지 트래커** (`crates/axiom-game/src/achievement.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-game/tests/test_achievement.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `AchievementState` [#[repr(C, align(64))]], 64-bit FNV-1a 무결성 체크섬 및 변조 탐지, 12대 스팀웍스 정규 업적 [`FirstBlood`, `CleanSweep`, `SteamOverdrive`, `CounterPuncher`, `TitanSlayer`, `WorkshopPioneer`, `ReplayArchivist`, `PerfectParry`, `LabScholar`, `DeciderChamp`, `IronWall`, `Centurion`], 3초(180프레임) 슬라이드 애니메이션 스팀 스타일 온스크린 골든 토스트 HUD 팝업 렌더러 `render_achievement_toast`, 세이브/로드 및 `saves/achievements.bin` 영구 누적 직렬화, 14개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-114: Axiom Engine v1.9.0 클라우드 세이브 & 리플레이 웹 생태계 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-055]~[D-057], `docs/audit-report.md` [AUDIT-20261023-v1.9.0], Valve Steam Auto-Cloud 호환 크래시 프리 원자적 세이브 동기화 엔진 `CloudSyncManager`, 64B L1 캐시 정렬 `CloudSaveHeader` [#[repr(C, align(64))]], WASM 3D 리플레이 웹 플레이어 및 가변 배속 스크러버, `.axrp` 드래그 앤 드롭 업로더 및 즉각 시연 데모 통합 승인, 워크스페이스 v1.9.0 공식 판올림 및 Git 태그 `v1.9.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-113: 메카 복싱 3D 리플레이 웹 플레이어 임베딩 및 커스텀 .axrp 뷰어** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom_wasm.wasm`, `WasmReplayPlayer` 상태 머신, WASM C-ABI 16개 엔드포인트 [`axiom_replay_load`, `step`, `seek`, `reset`, `state_hash`, `p0/p1_hp`, `action`, `is_finished`], 웹 플레이어 🎞️ 3D Replay (.axrp) 뷰어 모드, 재생/일시정지/프레임 단위 스텝/타임라인 슬라이더 스크러빙/1x~4x 배속 조절, 커스텀 `.axrp` 파일 드래그 앤 드롭 업로더, 데모 리플레이 즉시 시연, 17개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-112: 스팀 클라우드 세이브(Steam Cloud Save) 및 런타임 저장소 동기화** (`crates/axiom-core/src/cloud_save.rs`, `crates/axiom-cli/src/cloud_sync.rs`, `crates/axiom-cli/src/main.rs`, `mimic-the-show/src/season.rs`, `mimic-the-show/src/view.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `CloudSaveHeader` [#[repr(C, align(64))]], 64-bit FNV-1a 무결성 체크섬, 이산 유닉스 에포크 타임스탬프 기반 양방향 충돌 해결기 `resolve_sync_conflict`, Steam Auto-Cloud 양방향 동기화 매니저 `CloudSyncManager`, `axiom save list / backup / restore / sync` CLI 도구군, `mimic-the-show` 원자적 퀵세이브(F5)/퀵로드(F9)/클라우드 수동 동기화(F8) 핫키 및 HUD 연동 완성, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
