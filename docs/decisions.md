@@ -1428,6 +1428,51 @@
   4. 전체 워크스페이스 버전을 v3.2.0에서 **v3.3.0**으로 공식 판올림하고 Git 태그 `v3.3.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `crates/axiom-game/src/network.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-117] 0-Float 64B L1 캐시 정렬 비동기 잡 스케줄러 `JobSystem<CAP>` 및 DAG 의존성 해소 (T-176)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 규격의 정확히 64바이트 1개 캐시라인 잡 서술자 `JobDescriptor64` 도입.
+  2. 슬롯 번호와 세대 번호를 결합한 64비트 정수 `JobHandle`로 ABA 문제 원천 차단.
+  3. `AtomicU32` 잔여 의존성 카운터 및 `continuation` 후속 지속 잡 체인을 통해 잠금(Lock) 없는 부모-자식 DAG 의존성 해소.
+  4. 64-bit FNV-1a 결정론 합의 체크섬을 통한 비트 단위 상태 일치 검증.
+- **영향:** `crates/axiom-core/src/job_system.rs`, `crates/axiom-core/tests/test_job_system.rs`.
+
+---
+
+### [D-118] Chase-Lev 무잠금 SPMC 워크 스틸링 덱 및 N-워커 협력 풀 코디네이터 (T-177)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. Chase-Lev 알고리즘 기반 단일 생산자-다중 소비자(SPMC) 무잠금 원형 덱 `WorkStealingDeque<CAP>` 구현 (소유자 LIFO push/pop, 도둑 FIFO steal).
+  2. 64B L1 캐시 정렬 워커 텔레메트리 슬랩 `WorkerTelemetry64` (실행 횟수, 훔침 횟수, 시도 횟수, 실패 횟수 원자적 계측).
+  3. 라운드 로빈 희생자 선택 및 비차단 협력 드레인 `WorkerPoolCoordinator::drain_all`을 통해 싱글스레드 WASM 및 멀티코어 x86_64 양방향 완전 호환성 확보.
+- **영향:** `crates/axiom-core/src/worker_pool.rs`, `crates/axiom-core/tests/test_worker_pool.rs`.
+
+---
+
+### [D-119] 복셀 유체 및 16-플레이어 롤백 기구학 적분 비동기 잡 병렬 디스패치 파이프라인 (T-178)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `SimdFluidEngine::step_fluid_with_jobs`: 4분면 수직 중력 배수 및 4슬라이스 배치 수평 정수압 확산의 잡 분할 디스패치 (100% 질량 보존 및 수면 슬라이스 스킵).
+  2. `NetworkMatchDirector::advance_tick_with_jobs`: 16대 플레이어 물리 기구학 적분을 4배치 잡으로 분할 디스패치하여 4개 워커 풀에서 병렬 해결 (16/16 피어 0 Desync 합의 달성).
+- **영향:** `crates/axiom-core/src/voxel_fluid_simd.rs`, `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-120] WASM 3D 스튜디오 잡 벤치마크, Mimic The Show 챔피언십 링 잡 스케줄러 결합 및 공식 릴리즈 v3.4.0 (T-179, T-180, T-181)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_job_bench_scheduler` 및 웹 3D 복셀 스튜디오 ⚡ **200 Job System (Chase-Lev)** 대화형 모달 배포 (1.28 MB WASM).
+  2. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `JobSystem<256>` 및 `WorkerPoolCoordinator<4, 64>` 일체화, 글로벌 백틱(`` ` ``) 핫키 및 `F3` HUD 카드 텔레메트리 노출.
+  3. 전체 워크스페이스 버전을 v3.3.0에서 **v3.4.0**으로 공식 판올림하고 `dist/axiom-v3.4.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.4.0` 발행.
+- **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
+
 
 
 

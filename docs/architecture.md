@@ -1199,50 +1199,51 @@ Axiom 180대 과제(T-166 ~ T-170)에서는 복셀 파괴 지형의 메쉬 재�
 
 ---
 
-## 35. Axiom 190대: RFC 5389 STUN / RFC 8445 ICE P2P 홀펀칭(NAT Traversal) & 16-플레이어 분산 롤백 넷코드 (v3.3.0)
+## 36. Axiom 200대: 멀티스레드 비동기 잡 스케줄러 & 무잠금 워크 스틸링 워커 풀 엔진 (v3.4.0)
 
-Axiom 190대 과제(T-171 ~ T-175)에서는 복잡한 NAT/방화벽 환경에서도 중계 서버(TURN/Relay) 비용 없이 피어 간 직접 UDP 패킷을 교환할 수 있는 RFC 5389 STUN 및 RFC 8445 ICE 기반의 P2P 홀펀칭(NAT Traversal) 와이어 프로토콜과 16-플레이어 완전 그물망(Full-Mesh) 분산 롤백 넷코드를 결합했습니다.
+Axiom 200대 과제(T-176 ~ T-181)에서는 엔진의 헌법(0-Float, 64-Byte L1 캐시 라인 정렬, 순수 플랫 어레이 기반 무할당 토폴로지)을 100% 준수하면서, CPU 멀티코어 환경에서 복셀 유체와 16-플레이어 롤백 물리 기구학을 극도로 가속하는 **비동기 잡 스케줄러(`JobSystem<CAP>`)**와 **무잠금 Chase-Lev 워크 스틸링 워커 풀(`WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>`)**을 구축했습니다.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│    Axiom 190대 P2P 홀펀칭(NAT Traversal) & 16-플레이어 분산 롤백 넷코드 (v3.3.0)    │
+│          Axiom 200-Series Multi-Threaded Job System Architecture            │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 1. [0-Float 64B L1 Cache Aligned ICE/STUN Descriptors (axiom-net)]          │
-│    - NatCandidate64 (#[repr(C, align(64))]): Host/ServerReflexive/PeerReflx │
-│    - StunPacket64 (#[repr(C, align(64))]): RFC 5389 Magic Cookie 0x2112A442 │
-│    - XOR-MAPPED-ADDRESS: Port & IPv4 XOR encoding/decoding, 96-bit nonce    │
-│    - RFC 8445 Candidate Pair Priority: compute_pair_priority (64-bit int)  │
+│ 1. [0-Float 64B L1 Cache Aligned Job Descriptor (JobDescriptor64)]          │
+│    - #[repr(C, align(64))] Exact 64-Byte Slab (1 Cacheline = 1 Job)         │
+│    - fn(JobContext) Function Pointer + 64-bit Payload Param & Tag           │
+│    - AtomicU32 Dependencies Counter (Parent-Child DAG Resolution)           │
+│    - JobHandle: 32-bit Slot + 32-bit Generation (ABA-Proof 64-bit Int)      │
+│    - 64-bit FNV-1a Consensus Hash (Bit-Exact Deterministic Agreement)       │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 2. [Full-Mesh NAT Traversal Coordinator & Rollback Coupling (axiom-net)]    │
-│    - NatTraversalSession<16>: 16-peer full-mesh hole-punching coordinator   │
-│    - DistributedRollbackSession::enable_nat_traversal: Wire gating check    │
-│    - NetError::NatPunchBlocked: Blocks wire traffic until hole-punch agreed │
-│    - Speculative rollback resimulation under 15% packet loss + NAT latency │
+│ 2. [Lock-Free SPMC Work-Stealing Deque (Chase-Lev Algorithm)]               │
+│    - Owner Bottom (LIFO): push & pop with Acquire/Release Fences            │
+│    - Stealer Top (FIFO): steal with Atomic CAS (Compare-And-Swap)           │
+│    - Zero Mutexes / Zero Operating System Locks across Workers              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 3. [WASM Studio 🌐 P2P NAT Traversal Benchmark & C-ABI Exports (axiom-wasm)]│
-│    - WASM C-ABI: axiom_net_bench_nat_traversal(peers, loss_permille, stats) │
-│    - Web 3D Studio: 🌐 P2P NAT Traversal interactive modal & telemetry HUD  │
-│    - 16-Peer Full-Mesh 240 bi-directional channels 100% convergence test    │
-│    - 1.28 MB optimized WebAssembly binary deployed across web/ and crates/  │
+│ 3. [N-Worker Cooperative Coordinator (WorkerPoolCoordinator)]               │
+│    - WorkerTelemetry64 (#[repr(C, align(64))]): jobs_executed, jobs_stolen  │
+│    - Round-Robin Victim Selection & Non-Blocking drain_all                  │
+│    - Seamless execution in single-threaded WASM and multi-core x86_64       │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 4. [Mimic The Show 16-Player Battle Royale P2P NAT Radar HUD (mimic)]       │
-│    - Global F3 [16-PEER DISTRIBUTED ROLLBACK & NAT TRAVERSAL: 16/16 P2P DIRECT]│
-│    - 224x126 HUD Card: STUN sent/recv counts, direct P2P status, RTT latency│
-│    - 56x56 Mini Radar: 16-peer dynamic colored indicators & crosshair guide │
-│    - NetworkMatchDirector: nat_connected_mask, nat_probe_counts, RTT query  │
+│ 4. [Physics & Netcode Dispatch Pipeline Integration]                         │
+│    - SimdFluidEngine::step_fluid_with_jobs: 4-Quadrant & 4-Slice Batch      │
+│    - NetworkMatchDirector::advance_tick_with_jobs: 4-Batch Kinematic Inegr. │
+│    - WASM Studio: ⚡ 200 Job System (Chase-Lev) Interactive Modal           │
+│    - Mimic The Show: Desktop View [~: JOBS 4W] & F3 Telemetry HUD Card      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 35.1 핵심 구조 및 기술적 특성
-1. **0-Float 64-바이트 L1 캐시 라인 정렬 ICE/STUN 서술자 (`NatCandidate64`, `StunPacket64`)**:
-   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 캐시 라인을 차지하며, 네트워크 송수신 및 메모리 복사 시 캐시 라인 분할 없는 무잠금 단일 사이클 전송을 보장합니다.
-   - RFC 5389 규격을 준수하여 매직 쿠키 `0x2112A442`와 96비트 난수 논스 트랜잭션 ID를 부호화하고, XOR-MAPPED-ADDRESS 속성을 통해 NAT 라우터의 공인 반사형(Server-Reflexive) IP/포트를 비트 단위로 정확히 복원합니다.
-2. **분산 롤백 세션과 P2P 홀펀칭의 무잠금 상태 기계 결합 (`NatTraversalSession`)**:
-   - `DistributedRollbackSession` 내부에 16-피어 전용 홀펀칭 코디네이터를 직결하여, 상대 피어와 홀펀칭 바인딩(`NatPunchPing` / `NatPunchPong`)이 성립되기 전까지 미인증 와이어 패킷을 차단(`NetError::NatPunchBlocked`)합니다.
-   - P2P 다이렉트 펀칭 성공 즉시 8-프레임 슬라이딩 윈도우 인풋 스트리밍을 활성화하여 15% 패킷 손실 및 66ms 지연 하에서도 16대 전원 0 Desync 물리 합의를 유지합니다.
-3. **WASM 3D 스튜디오 🌐 P2P NAT Traversal 벤치마크 및 Mimic The Show 16-인 레이더 HUD**:
-   - 웹 브라우저 환경에서 `axiom_net_bench_nat_traversal` C-ABI를 통해 16대 피어 240개 양방향 P2P 채널의 홀펀칭 수렴 라운드와 평균 왕복 지연(RTT), 64-bit FNV-1a 상태 합의 체크섬을 실시간으로 계측할 수 있습니다.
-   - `mimic-the-show` 인게임 글로벌 `F3` 오버레이에 224x126 크기의 전용 넷코드 HUD 카드와 56x56 16-인 원형 레이더 텔레메트리를 탑재하여, 실시간 P2P 홀펀칭 진행 상태와 상대 피어의 다이렉트 핑/위치를 직관적으로 모니터링할 수 있습니다.
+### 36.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 잡 서술자 (`JobDescriptor64`, `JobHandle`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 캐시 라인을 차지하여 False Sharing(거짓 공유)을 완벽 차단합니다.
+   - `AtomicU32` 잔여 의존성 카운터를 통해 부모-자식 DAG(Directed Acyclic Graph) 의존성을 잠금 없이 원자적으로 감소시키며, 카운터가 0이 되는 순간 부모 작업이 자동으로 준비 상태로 승격됩니다.
+   - 슬롯 번호(32-bit)와 세대 번호(32-bit)를 결합한 64비트 정수 `JobHandle`을 통해 슬롯 재사용 시 발생하는 ABA 문제를 원천 차단합니다.
+2. **Chase-Lev 무잠금 SPMC 워크 스틸링 덱 (`WorkStealingDeque<CAP>`)**:
+   - 덱의 소유자(Owner) 스레드는 하단(Bottom)에서 LIFO 방식으로 작업을 Push/Pop하여 L1 CPU 캐시가 따뜻한 최근 생성 작업을 우선 실행합니다.
+   - 다른 워커(Stealer) 스레드는 상단(Top)에서 FIFO 방식으로 작업을 훔쳐가므로 장기 대기 중인 오래된 작업부터 우선 처리되어 스레드 간 작업 부하가 균일하게 분산됩니다.
+3. **WASM 3D 스튜디오 ⚡ 200 Job System 대화형 모달 및 Mimic The Show 챔피언십 링 결합**:
+   - WebAssembly C-ABI `axiom_job_bench_scheduler`를 통해 웹 환경에서도 4~8개 워커 협력 스틸링 큐를 가동하여 초당 수백만 잡 처리량(Jobs/sec)과 64-bit FNV-1a 상태 합의 체크섬을 실시간 검증합니다.
+   - `mimic-the-show` 인게임의 글로벌 백틱(`` ` ``) 핫키 및 `F3` 텔레메트리 HUD 카드를 통해 16-플레이어 롤백 물리 기구학 및 3D 복셀 유체 연산이 워커 풀에서 병렬 해결되는 과정을 실시간 모니터링할 수 있습니다.
+
 
 
 
