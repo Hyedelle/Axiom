@@ -8,24 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 08:10 KST
-- **감사 대상:** Axiom Engine 240대 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 연구 (T-200, `docs/audit-report.md`, `axiom-ragdoll-and-ik-physics-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` 슬랩 설계 승인, Position-Based Dynamics (PBD) 순수 정수 거리/힌지 제약 조건 해석기 및 폐형식(Closed-form) Two-Bone IK 수식화 완료, 기구학 ➔ 물리 래그돌 동적 전이(Kinematic-to-Dynamic Blending) 및 파츠 절단(Limb Severance) 분리 역학 명세 확정, 230대 Swept CCD / 220대 SpatialHashGrid / 200대 JobSystem / 210대 EventBus (`EVENT_RAGDOLL_IMPACT = 0x0240`) 연계 아키텍처 승인**
+- **일시:** 2026-10-24 08:16 KST
+- **감사 대상:** Axiom Engine 240대 64B L1 캐시 정렬 래그돌 본/조인트 슬랩 및 제약 조건 해석기 구현 (T-201, `crates/axiom-core/src/ragdoll.rs`, `crates/axiom-core/tests/test_ragdoll.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` (`size_of == 64, align_of == 64`), Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 완화기(`solve_distance_constraint`), 폐형식(Closed-form) $O(1)$ Two-Bone IK 해석적 해법기(`solve_two_bone_ik`), 관절 파단 및 사체 절단(`sever_joint`) 분리 다이나믹스, `RagdollEngine` PBD 스텝 및 64-bit FNV-1a 결정론 합의 해시 검증, 신규 5개 단위 테스트 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`RagdollBoneSlab64`, `RagdollJointSlab64`)**:
+  1. **64B L1 캐시 라인 정렬 슬랩 검증**:
      - `RagdollBoneSlab64`: 24B 좌표/선속도, 6B BAMS 각도, 6B 각속도, 4B 역질량($Q16.16$), 4B 반경/길이, 4B 부모/ID/플래그/레이어, 4B 마찰/반발 계수, 12B 예약 패딩으로 구성된 정확히 64B 무패딩 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
-     - `RagdollJointSlab64`: 4B 본 인덱스/타입/절단플래그, 10B 기준길이/최소최대가동각/강성/감쇠/목표각, 4B 모터토크, 12B 힌지 주축 벡터($Q16.16$), 4B 파단한계외력, 2B 플래그, 26B 예약 패딩으로 구성된 정확히 64B 슬랩.
-  2. **0-Float PBD 메카 관절 제약 해석기 및 Two-Bone IK 수식화**:
-     - 역질량 가중치 기반 정수 변위 보정 $\Delta \mathbf{p} = \frac{C \cdot w_i}{W \cdot d} \Delta \mathbf{x}$ 알고리즘.
-     - 코사인 법칙 및 Pole Vector 기하 투영을 통한 $O(1)$ 닫힌 형식 Two-Bone IK 수식화.
-  3. **파츠 절단 및 동적 전이**:
-     - 피니셔 및 신체 절단 시 관절 슬랩의 `is_severed` 비트를 통해 독립 래그돌 서브트리로 즉시 분리 비산.
-  4. **엔진 파이프라인 결합**:
-     - 230 Swept CCD, 220 SpatialHashGrid, 200 JobSystem (`dispatch_ragdoll_with_jobs`), 210 EventBus (`EVENT_RAGDOLL_IMPACT`) 연계 규격 수립.
+     - `RagdollJointSlab64`: 4B 본 인덱스/타입/절단플래그, 10B 기준길이/최소최대가동각/강성/감쇠/목표각, 4B 모터토크, 12B 힌지 주축 벡터($Q16.16$), 4B 파단한계외력, 2B 플래그, 26B 예약 패딩으로 구성된 정확히 64B 슬랩 (`size_of == 64, align_of == 64`).
+  2. **Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 해석기**:
+     - 무한 질량(고정 앵커)과 유한 질량 본 사이의 거리 편차 $C = d - L_0$를 정밀 보정하고, `u16::MAX` (65535) 강성 인가 시 1.0 ($65536$) 완전 강체로 매핑하여 $1\text{mm}$ 오차 없이 $L_0$를 즉시 복원.
+  3. **폐형식 Two-Bone IK 해석적 해법기**:
+     - 코사인 법칙 및 Pole Vector 기하 투영을 통한 $O(1)$ 고정 시간 어깨-팔꿈치-손목 관절 위치 해석. 사정거리 초과 시 최대 도달 거리($L_1 + L_2 - 2$)로 안정적 클램핑.
+  4. **관절 파단 및 사체 절단 분리 역학**:
+     - `sever_joint` 호출 시 관절 `is_severed = 1` 및 자식 본 `RAGDOLL_BONE_FLAG_SEVERED` 플래그 설정 후, 제약 조건 해석 루프에서 영구 제외되어 물리적으로 독립 비산.
+  5. **결정론 합의 해시**:
+     - 30틱 중력 낙하 및 바닥 충돌 시뮬레이션 후 `compute_consensus_hash()`가 동일한 FNV-1a 해시를 산출함을 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T200] Axiom Engine 240대 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 연구
+- **일시:** 2026-10-24 08:10 KST
+- **판정:** 🟢 **ALL CLEAR (아키텍처 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` 슬랩 설계 승인, Position-Based Dynamics (PBD) 순수 정수 거리/힌지 제약 조건 해석기 및 폐형식(Closed-form) Two-Bone IK 수식화 완료, 기구학 ➔ 물리 래그돌 동적 전이(Kinematic-to-Dynamic Blending) 및 파츠 절단(Limb Severance) 분리 역학 명세 확정, 230대 Swept CCD / 220대 SpatialHashGrid / 200대 JobSystem / 210대 EventBus (`EVENT_RAGDOLL_IMPACT = 0x0240`) 연계 아키텍처 승인.
 
 ### [AUDIT-20261024-v3.7.0] Axiom Engine v3.7.0 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 물리 엔진 마일스톤 종합 감사
 - **일시:** 2026-10-24 08:06 KST

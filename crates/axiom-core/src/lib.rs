@@ -33,6 +33,7 @@ pub mod pathfinding;
 pub mod pcg;
 pub mod power_grid;
 pub mod quest;
+pub mod ragdoll;
 pub mod replay;
 pub mod schema;
 pub mod serialization;
@@ -82,6 +83,13 @@ pub use ccd::{
     ContactNormal6, HitType, HitboxSlab64, SweptAabbResult64, EVENT_CCD_HIT, HITBOX_FLAG_ACTIVE,
     HITBOX_FLAG_COUNTER_HIT, HITBOX_FLAG_GUARD_BREAK, HITBOX_FLAG_PIERCING, HITBOX_FLAG_SWEPT_CCD,
     TOI_ONE_Q16,
+};
+pub use ragdoll::{
+    isqrt_i64, solve_distance_constraint, solve_two_bone_ik, RagdollBoneSlab64, RagdollEngine,
+    RagdollJointSlab64, RagdollJointType, Q16_ONE as RAGDOLL_Q16_ONE,
+    RAGDOLL_BONE_FLAG_ACTIVE, RAGDOLL_BONE_FLAG_FROZEN, RAGDOLL_BONE_FLAG_GROUNDED,
+    RAGDOLL_BONE_FLAG_SEVERED, RAGDOLL_JOINT_FLAG_ACTIVE, RAGDOLL_JOINT_FLAG_LIMITED,
+    RAGDOLL_JOINT_FLAG_MOTOR,
 };
 
 pub use audio::{
