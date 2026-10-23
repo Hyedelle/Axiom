@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-182: Axiom 210대 결정론적 분산 이벤트 버스(Deterministic Event Bus) 및 컴포넌트 쿼리 파이프라인 연구** (`crates/axiom-core`, `crates/axiom-game`)
+- [ ] **T-183: Axiom 210대 컴포넌트 쿼리 시스템 및 엔티티 슬랩 필터링 구현** (`crates/axiom-core/src/event_bus.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_event_bus.rs`)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-183: Axiom 210대 컴포넌트 쿼리 시스템 및 엔티티 슬랩 필터링 구현** (`crates/axiom-core/src/query.rs`)
+- [ ] **T-184: Axiom 분산 이벤트 버스 멀티스레드 잡 시스템 병렬 디스패치 파이프라인 연계** (`crates/axiom-core`, `crates/axiom-game`)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-182: Axiom 210대 결정론적 분산 이벤트 버스(Deterministic Event Bus) 및 컴포넌트 쿼리 파이프라인 연구** (`docs/audit-report.md`, `axiom-deterministic-event-bus-and-component-query-research.md`, 0-Float 64B L1 캐시 정렬 `EventSlab64` [#[repr(C, align(64))], exact 64B slab, tick/sequence/event_type/channel_mask/source_id/target_id/40B inline payload], 0-Heap 고정 용량 링 버퍼 `DeterministicEventBus<CAP>` [emit/pop/rollback_to/compute_consensus_hash], 64-컴포넌트 비트마스크 `ComponentMask64` 및 1-사이클 비트 필터 `ComponentQuery` [all/any/none], 200대 JobSystem/WorkerPoolCoordinator 병렬 디스패치 연계 명세 수립 완료)
 - [x] **T-181: Axiom 200대 차세대 비동기 잡 스케줄러 & 멀티스레드 물리 엔진 공식 릴리즈 v3.4.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-117]~[D-120], `docs/audit-report.md` [AUDIT-20261024-v3.4.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 잡 서술자 `JobDescriptor64` [#[repr(C, align(64))], exact 64B slab], 64-bit ABA 방지 잡 핸들 `JobHandle` [slot + generation], 무할당 플랫 어레이 잡 시스템 `JobSystem<CAP>` [부모-자식 DAG 의존성 해소, 원자적 카운터, 후속 지속 잡 체인 `continuation`], Chase-Lev 무잠금 SPMC 워크 스틸링 덱 `WorkStealingDeque<CAP>`, 64B L1 정렬 워커 텔레메트리 슬랩 `WorkerTelemetry64`, N-워커 협력 풀 코디네이터 `WorkerPoolCoordinator`, `SimdFluidEngine::step_fluid_with_jobs` 및 `NetworkMatchDirector::advance_tick_with_jobs` 비동기 잡 병렬 디스패치 파이프라인 연동, WebGL/WASM ⚡ 200 Job System 대화형 모달 및 1.28 MB 바이너리 배포, `mimic-the-show` 글로벌 백틱 [~] 핫키 및 F3 HUD 카드 텔레메트리 탑재 [Jobs: {} | Stolen: {} (4W STEAL)], 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v3.4.0-unified-milestone.zip` 패키징 및 SHA-256 검증, 전체 워크스페이스 v3.4.0 공식 판올림 및 Git 태그 `v3.4.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-180: Mimic The Show 챔피언십 링 잡 시스템 비동기 물리 워커 스케줄러 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `JobSystem<256>` 및 `WorkerPoolCoordinator<4, 64>` 내장, 16-플레이어 롤백 기구학 적분 4배치 비동기 잡 디스패치 `advance_tick_with_jobs`, 3D 복셀 유체 역학 4분면 배수 & 4슬라이스 확산 병렬 디스패치 `step_fluid_with_jobs`, 글로벌 백틱 [~] 핫키 [ASYNC JOB SCHEDULER ACTIVE: CHASE-LEV 4-WORKER POOL] 및 F3 HUD 카드 텔레메트리 연동 [Jobs: {} | Stolen: {} (4W STEAL)], 22개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-179: Axiom 200대 멀티스레드 잡 시스템 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_job_bench_scheduler` [Chase-Lev 무잠금 워크 스틸링 덱 & N-워커 협력 스틸링 벤치마크, 64B L1 슬랩 `JobDescriptor64` & `WorkerTelemetry64`, 부모-자식 DAG 트리 디스패치 및 64-bit FNV-1a 상태 합의 체크섬 계측], 웹 3D 복셀 스튜디오 ⚡ **200 Job System (Chase-Lev)** 대화형 모달 연동, 1.28 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
