@@ -8,29 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 07:12 KST
-- **감사 대상:** Axiom Engine v3.6.0 220대 차세대 공간 해싱 & 브로드페이즈 충돌 감지 가속 엔진 마일스톤 종합 감사 (T-193, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-125]~[D-128], `tools/package.ps1`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `AabbSlab64` & `SpatialCell64<14>`, Wang 3-Prime 코프라임 3D 정수 해시 및 0-힙 `SpatialHashGrid<TABLE_CAP, CELL_CAP>`, 사전식 최소 겹침 규칙(Lexicographical Minimum Overlap Rule) 기반 0-할당 중복 쌍 제거, `dispatch_broadphase_with_jobs` 워커 풀 병렬 디스패치 및 `emit_collision_pairs_to_event_bus` 롤백 지원 이벤트 버스 발행 (`channel::PHYSICS | EVENT_BROADPHASE_PAIR`), WASM 🌐 220 Spatial Broadphase 대화형 모달 및 1.30 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` 64-버킷 그리드, F3 HUD 카드 및 56x56 미니 레이더 충돌 경고 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.6.0-unified-milestone.zip` (2.18 MB, SHA-256 검증 완료), 헌법 가드 100% 올패스 공식 릴리즈 승인**
+- **일시:** 2026-10-24 07:22 KST
+- **감사 대상:** Axiom Engine 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 연구 (T-194, `docs/audit-report.md`, `axiom-ccd-and-nightmare-hitbox-research.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 설계 승인, $O(1)$ 해석적 민코프스키 합 확장 슬랩 교차법(`swept_aabb_toi`, `raycast_aabb_toi`) 수식화 완료, 20~40 m/s 초고속 펀치 터널링 원천 차단, Earliest TOI Priority Rule 및 220대 공간 그리드/200대 잡 시스템/210대 이벤트 버스 결합 명세 확정 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 및 Wang 3D 정수 공간 해시**:
-     - `AabbSlab64`: 8바이트 필드 선두 배치, 4바이트 좌표계/식별자, 12바이트 예약 패딩 자연 정렬로 컴파일러 임의 패딩 0바이트 실현.
-     - `SpatialCell64<14>`: 14개 인라인 `u32` 엔티티 슬롯을 보유하는 64B L1 슬랩.
-     - 대형 소수 3-곱셈 + Wang Finalizer 믹싱으로 음수 좌표 및 대각선 셀 클러스터 전역에 균등 분산도 확보.
-  2. **0-Heap 사전식 최소 겹침 규칙 (Lexicographical Minimum Overlap Rule)**:
-     - 여러 공간 셀에 걸쳐 중복 교차하는 두 AABB에 대해, 겹침 영역의 최소 정수 셀 좌표 `(cx, cy, cz)`에서만 충돌 쌍(`CollisionPair64`)을 등록하여 `HashSet` 없이 100% 무할당 중복 제거.
-  3. **멀티스레드 잡 시스템 및 분산 이벤트 버스 파이프라인 결합**:
-     - `dispatch_broadphase_with_jobs`: 활성 엔티티 슬랩 N-배치 분할 후 Chase-Lev 워커 풀에 병렬 디스패치.
-     - `emit_collision_pairs_to_event_bus`: `channel::PHYSICS` 채널 및 `EVENT_BROADPHASE_PAIR = 0x0220`으로 이벤트 버스에 0-힙 방출, GGPO 롤백 `rollback_to` 지원.
-  4. **WASM 쇼케이스 & Mimic The Show 챔피언십 링 인게임 결합**:
-     - WebGL/WASM 🌐 **220 Spatial Broadphase (64B Slabs)** 대화형 모달 및 `axiom_spatial_bench_broadphase` 배포.
-     - `mimic-the-show` `DesktopGameView`에 `SpatialHashGrid<64, 14>` 내장, `step_broadphase_pipeline`, F3 HUD 카드 `Grid: 64 Buckets | Pairs: {} | 64B`, 56x56 미니 레이더 충돌 경고 점등, 하단 `[GRID: {}P]` 상시 모니터링 연동.
-  5. **상용 크로스 플랫폼 배포 아카이브 무결성**:
-     - `dist/axiom-v3.6.0-unified-milestone.zip` (2.18 MB, SHA-256: `A9E79A37B50C7086582A3B46CE089BCC33C3F8983A8804974DA8302541C66112` 검증).
-     - 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 최신 릴리즈 바이너리 타겟팅 검증 완료.
+  1. **초고속 펀치(20~40 m/s) 터널링 방지 및 수학적 정식화**:
+     - 60Hz 틱레이트 기준 1틱 333mm 이상 이동하는 초고속 타격체에 대해 Swept AABB 바운딩 박스를 생성하여 `SpatialHashGrid` 브로드페이즈 누락 방지.
+     - 상대 변위 $V_{rel} = V_{att} - V_{def}$에 기반한 Minkowski Sum 확장 AABB에 대한 닫힌 형식의 Raycast Slab 계산으로 $O(1)$ 상수 시간 TOI ($Q16.16$) 산출.
+  2. **64B L1 캐시 라인 정렬 슬랩 구조체 설계**:
+     - `HitboxSlab64`: 8바이트 타겟 마스크, 4바이트 Swept 좌표계(`swept_min/max XYZ mm`), 4바이트 속도계(`velocity XYZ mm/s`), 2바이트 데미지/넉백/틱 윈도우/플래그 및 1바이트 타격 부위 자연 정렬.
+     - `SweptAabbResult64`: 4바이트 TOI, 4바이트 접촉 좌표(`hit_x/y/z`), 1바이트 6방향 단위 법선(`normal_x/y/z`), 8바이트 정규 정렬 충돌 쌍 키(`pair_key`).
+  3. **파이프라인 결합 명세**:
+     - `dispatch_ccd_hitboxes_with_jobs`: 히트박스 N-배치 분할 후 Chase-Lev 워커 풀에 락 프리 병렬 디스패치.
+     - `emit_ccd_hits_to_event_bus`: `channel::COMBAT | channel::PHYSICS` 채널 및 `EVENT_COMBAT_HIT = 0x0230`으로 40B 인라인 페이로드 방출.
+  4. **현장 시공팀(Claude Code) 정밀 처방전 발행**:
+     - 대상 파일: `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ccd.rs`.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v3.6.0] Axiom Engine v3.6.0 220대 차세대 공간 해싱 & 브로드페이즈 충돌 감지 가속 엔진 마일스톤 종합 감사
+- **일시:** 2026-10-24 07:12 KST
+- **판정:** 🟢 **ALL CLEAR (v3.6.0 공식 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `AabbSlab64` & `SpatialCell64<14>`, Wang 3-Prime 코프라임 3D 정수 해시 및 0-힙 `SpatialHashGrid<TABLE_CAP, CELL_CAP>`, 사전식 최소 겹침 규칙(Lexicographical Minimum Overlap Rule) 기반 0-할당 중복 쌍 제거, `dispatch_broadphase_with_jobs` 워커 풀 병렬 디스패치 및 `emit_collision_pairs_to_event_bus` 롤백 지원 이벤트 버스 발행 (`channel::PHYSICS | EVENT_BROADPHASE_PAIR`), WASM 🌐 220 Spatial Broadphase 대화형 모달 및 1.30 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` 64-버킷 그리드, F3 HUD 카드 및 56x56 미니 레이더 충돌 경고 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.6.0-unified-milestone.zip` (2.18 MB, SHA-256 검증 완료), 헌법 가드 100% 올패스.
 
 ### [AUDIT-20261024-T192] Mimic The Show 챔피언십 링 3D 공간 해시 브로드페이즈 물리/히트박스 및 HUD 레이더 결합
 - **일시:** 2026-10-24 06:50 KST
