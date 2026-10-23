@@ -52,7 +52,7 @@ fn run_fluid_physics_pipeline(total_steps: usize, seed: u64) -> (u64, u32, u32, 
         total_relaxed += r_stress;
 
         // 2. Advance 3D fluid dynamics (drainage, spreading, porous rock infiltration, steam evaporation)
-        let _fluid_res = fluid.step_fluid(&mut volume, Some(&thermal), 25);
+        let _fluid_res = fluid.step_fluid(&mut volume, Some(&mut thermal), 25);
 
         // 3. Multi-material thermal diffusion & fracture collapse
         let thermal_res = thermal.step_thermal_and_collapse_advanced(

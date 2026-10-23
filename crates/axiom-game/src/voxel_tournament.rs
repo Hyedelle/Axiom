@@ -49,9 +49,10 @@ pub struct VoxelChampionshipTelemetry {
 
     pub active_fluid_cells: u16,
     pub total_fluid_units: u16,
+    pub steam_explosions: u16,
     pub final_score_a: u16,
     pub final_score_b: u16,
-    pub _pad: [u8; 8],
+    pub _pad: [u8; 6],
 }
 
 const _: () = assert!(core::mem::size_of::<VoxelChampionshipTelemetry>() == 64);
@@ -191,10 +192,10 @@ impl VoxelChampionshipDirector {
                     2048,
                 );
 
-                // Advance 3D fluid dynamics and rock infiltration / evaporation
-                self.fluid.step_fluid(&mut self.arena, Some(&self.thermal), 20);
+                // Advance 3D fluid dynamics and rock infiltration / evaporation / steam explosions
+                self.fluid.step_fluid(&mut self.arena, Some(&mut self.thermal), 20);
 
-                // 3. Dynamic Terrain Cratering on heavy combat strikes
+                // 3. Dynamic Terrain Cratering on heavy combat strikes (with pore-water softening expansion)
                 let mut crater_event = false;
                 let is_heavy_0 = matches!(ev0, BoxingEvent::PlayerPunched { .. } | BoxingEvent::OpponentDowned | BoxingEvent::PlayerBlocked { .. });
                 let is_heavy_1 = matches!(ev1, BoxingEvent::PlayerStruck { .. } | BoxingEvent::PlayerDowned | BoxingEvent::PlayerBlocked { .. });
@@ -202,7 +203,9 @@ impl VoxelChampionshipDirector {
                 if is_heavy_0 {
                     let crater_x = ((self.match_frame * 3) % 12 + 2) as i16;
                     let crater_z = ((self.match_frame * 7) % 12 + 2) as i16;
-                    let radius: i16 = if action_a == ActionKind::Finisher { 4 } else { 2 };
+                    let is_softened = self.fluid.is_rock_softened(crater_x as usize, 2, crater_z as usize);
+                    let base_radius: i16 = if action_a == ActionKind::Finisher { 4 } else { 2 };
+                    let radius: i16 = if is_softened { base_radius + 1 } else { base_radius };
                     self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
                     let _ = self.collapse.detect_and_collapse(&mut self.arena, 0, [0, -45000, 0], 2048);
                     if action_a == ActionKind::Finisher {
@@ -215,7 +218,9 @@ impl VoxelChampionshipDirector {
                 if is_heavy_1 {
                     let crater_x = ((self.match_frame * 5) % 12 + 2) as i16;
                     let crater_z = ((self.match_frame * 11) % 12 + 2) as i16;
-                    let radius: i16 = if action_b == ActionKind::Finisher { 4 } else { 2 };
+                    let is_softened = self.fluid.is_rock_softened(crater_x as usize, 2, crater_z as usize);
+                    let base_radius: i16 = if action_b == ActionKind::Finisher { 4 } else { 2 };
+                    let radius: i16 = if is_softened { base_radius + 1 } else { base_radius };
                     self.arena.carve_crater_with_shards(crater_x, crater_z, 2, radius, &mut self.shards, [0, -45000, 0], 2048);
                     let _ = self.collapse.detect_and_collapse(&mut self.arena, 0, [0, -45000, 0], 2048);
                     if action_b == ActionKind::Finisher {
@@ -355,9 +360,10 @@ impl VoxelChampionshipDirector {
             thermal_transitions: self.thermal.phase_transitions.min(65535) as u16,
             active_fluid_cells: self.fluid.active_fluid_cells,
             total_fluid_units: self.fluid.total_fluid_units.min(65535) as u16,
+            steam_explosions: self.fluid.steam_explosions,
             final_score_a: self.ring.player.hp.max(0) as u16,
             final_score_b: self.ring.opponent.hp.max(0) as u16,
-            _pad: [0u8; 8],
+            _pad: [0u8; 6],
         }
     }
 }

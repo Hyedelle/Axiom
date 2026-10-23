@@ -19,6 +19,7 @@ pub struct FluidStepResult {
     pub units_moved: u32,
     pub units_infiltrated: u32,
     pub units_evaporated: u32,
+    pub steam_explosions: u16,
 }
 
 /// 8,256-byte (129 x 64B L1 Cache Lines) 16x16x16 Fluid & Infiltration Field.
@@ -31,7 +32,8 @@ pub struct VoxelFluidField16 {
     pub total_infiltrated: u32,         // 4B: Cumulative units absorbed by terrain
     pub total_evaporated: u32,          // 4B: Cumulative units lost to high temperature
     pub active_fluid_cells: u16,        // 2B: Count of cells with level > 0
-    pub _pad: [u8; 50],                 // 50B: Exact 64-byte alignment padding
+    pub steam_explosions: u16,          // 2B: Cumulative steam explosions
+    pub _pad: [u8; 48],                 // 48B: Exact 64-byte alignment padding
 }
 
 const _: () = assert!(core::mem::size_of::<VoxelFluidField16>() == 8256);
@@ -53,7 +55,8 @@ impl VoxelFluidField16 {
             total_infiltrated: 0,
             total_evaporated: 0,
             active_fluid_cells: 0,
-            _pad: [0u8; 50],
+            steam_explosions: 0,
+            _pad: [0u8; 48],
         }
     }
 
@@ -78,6 +81,12 @@ impl VoxelFluidField16 {
         } else {
             self.infiltrated[Self::index(x, y, z)]
         }
+    }
+
+    /// Checks if a rock voxel is softened by high pore-water infiltration (exceeding ROCK_SATURATION_THRESHOLD).
+    #[inline(always)]
+    pub fn is_rock_softened(&self, x: usize, y: usize, z: usize) -> bool {
+        self.get_infiltrated(x, y, z) >= ROCK_SATURATION_THRESHOLD
     }
 
     /// Injects a discrete quantity of fluid into a specific voxel cell.
@@ -108,17 +117,18 @@ impl VoxelFluidField16 {
         }
     }
 
-    /// Advances 1 tick of discrete 3D fluid flow, spreading, infiltration, and evaporation.
+    /// Advances 1 tick of discrete 3D fluid flow, spreading, infiltration, evaporation, and steam explosions.
     pub fn step_fluid(
         &mut self,
         volume: &mut VoxelVolume16,
-        thermal: Option<&ThermalStressField16>,
+        mut thermal: Option<&mut ThermalStressField16>,
         infiltration_permille: u16,
     ) -> FluidStepResult {
         let mut next_level = self.level;
         let mut units_moved = 0u32;
         let mut units_infiltrated = 0u32;
         let mut units_evaporated = 0u32;
+        let mut steam_explosions = 0u16;
 
         // Process from bottom to top (y = 0..15) to ensure stable gravity drainage
         for y in 0..VOXEL_DIM {
@@ -130,10 +140,29 @@ impl VoxelFluidField16 {
                         continue;
                     }
 
-                    // 1. High-Temperature Evaporation
-                    if let Some(t_field) = thermal {
-                        let temp = t_field.get_temp(x, y, z);
-                        if temp >= TEMP_WARM_THRESHOLD {
+                    // 1. High-Temperature Evaporation & Steam Explosion Flashing
+                    if let Some(ref mut t_field) = thermal {
+                        let temp = t_field.temp[idx];
+                        if temp >= 750 && cur_fluid >= 40 {
+                            // Violent steam explosion: instantaneous flashing of water to steam
+                            let evap = cur_fluid;
+                            units_evaporated += evap as u32;
+                            self.total_evaporated += evap as u32;
+                            self.total_fluid_units = self.total_fluid_units.saturating_sub(evap as u32);
+                            next_level[idx] = 0;
+                            steam_explosions = steam_explosions.saturating_add(1);
+                            self.steam_explosions = self.steam_explosions.saturating_add(1);
+
+                            // Latent heat quench (-250°C) and steam expansion shockwave (+300 stress)
+                            let new_t = temp.saturating_sub(250).max(TEMP_AMBIENT);
+                            t_field.temp[idx] = new_t;
+                            t_field.stress[idx] = t_field.stress[idx].saturating_add(300);
+
+                            if volume.data[idx] == VOXEL_WATER {
+                                volume.data[idx] = VOXEL_AIR;
+                            }
+                            continue;
+                        } else if temp >= TEMP_WARM_THRESHOLD {
                             let evap = ((cur_fluid as u32 * (temp - TEMP_WARM_THRESHOLD) as u32) / 4000)
                                 .max(1)
                                 .min(cur_fluid as u32) as u8;
@@ -292,6 +321,7 @@ impl VoxelFluidField16 {
             units_moved,
             units_infiltrated,
             units_evaporated,
+            steam_explosions,
         }
     }
 
@@ -354,6 +384,9 @@ impl VoxelFluidField16 {
         hash = hash.wrapping_mul(0x100_0000_01B3);
 
         hash ^= self.total_evaporated as u64;
+        hash = hash.wrapping_mul(0x100_0000_01B3);
+
+        hash ^= self.steam_explosions as u64;
         hash = hash.wrapping_mul(0x100_0000_01B3);
 
         hash

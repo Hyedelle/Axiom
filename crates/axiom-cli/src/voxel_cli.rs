@@ -361,7 +361,7 @@ pub fn run_voxel_suite(args: &[String]) {
                 total_quenched += q_temp;
                 total_relaxed += r_stress;
 
-                let _ = fluid.step_fluid(&mut volume, Some(&thermal), 25);
+                let _ = fluid.step_fluid(&mut volume, Some(&mut thermal), 25);
 
                 let thermal_res = thermal.step_thermal_and_collapse_advanced(
                     &mut volume,

@@ -121,11 +121,67 @@ fn test_voxel_fluid_thermal_evaporation() {
 
     // Step 15 ticks with thermal interaction
     for _ in 0..15 {
-        fluid.step_fluid(&mut volume, Some(&thermal), 0);
+        fluid.step_fluid(&mut volume, Some(&mut thermal), 0);
     }
 
     assert!(fluid.total_evaporated > 0, "High temperature must evaporate fluid");
     assert!(fluid.total_fluid_units < 200, "Fluid units must decrease due to evaporation");
+}
+
+#[test]
+fn test_voxel_fluid_steam_explosion_flashing() {
+    let mut fluid = VoxelFluidField16::new();
+    let mut thermal = ThermalStressField16::new();
+    let mut volume = VoxelVolume16::new_empty();
+
+    // Floor at y=0
+    for x in 0..16 {
+        for z in 0..16 {
+            volume.set(x, 0, z, VOXEL_STONE);
+        }
+    }
+
+    // Inject violent heat at (8, 1, 8): temp = 850°C, stress = 100
+    thermal.inject_thermal_pulse(8, 1, 8, 1, 850, 100);
+    let init_temp = thermal.get_temp(8, 1, 8);
+    let init_stress = thermal.get_stress(8, 1, 8);
+    assert!(init_temp >= 850);
+
+    // Inject fluid at (8, 1, 8)
+    fluid.inject_fluid(&mut volume, 8, 1, 8, 100);
+    assert_eq!(fluid.get_level(8, 1, 8), 100);
+
+    // Step 1 tick of fluid dynamics: should trigger steam explosion flashing!
+    let res = fluid.step_fluid(&mut volume, Some(&mut thermal), 0);
+    assert_eq!(res.steam_explosions, 1, "Steam explosion must trigger when temp >= 750 and fluid >= 40");
+    assert_eq!(fluid.steam_explosions, 1);
+    assert_eq!(fluid.get_level(8, 1, 8), 0, "Water must instantly flash into steam");
+    assert_eq!(volume.get(8, 1, 8), VOXEL_AIR);
+
+    // Verify latent heat cooling & steam pressure expansion stress
+    let post_temp = thermal.get_temp(8, 1, 8);
+    let post_stress = thermal.get_stress(8, 1, 8);
+    assert_eq!(post_temp, init_temp - 250, "Cell must be quenched by 250°C latent heat");
+    assert_eq!(post_stress, init_stress + 300, "Cell must experience +300 steam pressure expansion stress");
+}
+
+#[test]
+fn test_voxel_fluid_rock_softening_threshold() {
+    let mut fluid = VoxelFluidField16::new();
+
+    // Below saturation threshold (180)
+    assert!(!fluid.is_rock_softened(4, 2, 4));
+
+    // Manually set infiltration
+    let idx = VoxelFluidField16::index(4, 2, 4);
+    fluid.infiltrated[idx] = 179;
+    assert!(!fluid.is_rock_softened(4, 2, 4), "179 is below 180 threshold");
+
+    fluid.infiltrated[idx] = 180;
+    assert!(fluid.is_rock_softened(4, 2, 4), "180 reaches saturation softening threshold");
+
+    fluid.infiltrated[idx] = 255;
+    assert!(fluid.is_rock_softened(4, 2, 4), "255 is fully saturated and softened");
 }
 
 #[test]

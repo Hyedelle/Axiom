@@ -4763,7 +4763,7 @@ pub extern "C" fn axiom_voxel_inject_fluid(x: i32, y: i32, z: i32, amount: u32) 
 pub extern "C" fn axiom_voxel_step_fluid(infiltration_permille: u32) -> u32 {
     if let Some(eng) = unsafe { VOXEL_ENGINE.as_mut() } {
         let inf = infiltration_permille.min(1000) as u16;
-        let res = eng.fluid.step_fluid(&mut eng.volume, Some(&eng.thermal), inf);
+        let res = eng.fluid.step_fluid(&mut eng.volume, Some(&mut eng.thermal), inf);
         let mesh = extract_voxel_mesh("voxel_scene", &eng.volume, Fixed::from_raw(2048));
         eng.last_triangles = mesh.triangle_count() as u32;
         eng.extracted_mesh = Some(mesh);
@@ -4798,6 +4798,16 @@ pub extern "C" fn axiom_voxel_get_active_fluid_cells() -> u32 {
         VOXEL_ENGINE
             .as_ref()
             .map(|e| e.fluid.active_fluid_cells as u32)
+            .unwrap_or(0)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_voxel_get_steam_explosions() -> u32 {
+    unsafe {
+        VOXEL_ENGINE
+            .as_ref()
+            .map(|e| e.fluid.steam_explosions as u32)
             .unwrap_or(0)
     }
 }
@@ -4914,7 +4924,7 @@ pub extern "C" fn axiom_voxel_bench_fluid(steps: u32, out_stats: *mut u32) -> u3
         total_quenched += q_temp;
         total_relaxed += r_stress;
 
-        let _ = eng.fluid.step_fluid(&mut eng.volume, Some(&eng.thermal), 25);
+        let _ = eng.fluid.step_fluid(&mut eng.volume, Some(&mut eng.thermal), 25);
 
         let res = eng.thermal.step_thermal_and_collapse_advanced(
             &mut eng.volume,

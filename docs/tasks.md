@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-157: Mimic The Show 챔피언십 링 수증기 폭발 및 침투 지반 붕괴 게임플레이 강화** (`mimic-the-show`, `crates/axiom-game`, `crates/axiom-render`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-158: Axiom 복셀 3D 초고속 유체 시뮬레이터 SIMD/멀티스레드 병렬화 연구** (`crates/axiom-core`, `crates/axiom-cli`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-159: Mimic The Show 챔피언십 링 복합 환경 물리 마일스톤 데모 및 WebGL 쇼케이스 고도화** (`crates/axiom-wasm`, `web`, `mimic-the-show`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-157: Mimic The Show 챔피언십 링 수증기 폭발 및 침투 지반 붕괴 게임플레이 강화** (`crates/axiom-core/src/voxel_fluid.rs`, `crates/axiom-core/tests/test_voxel_fluid.rs`, `crates/axiom-core/tests/benchmark_fluid_physics.rs`, `crates/axiom-game/src/voxel_tournament.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, 0-Float 64B L1 캐시 정렬 `VoxelFluidField16` [#[repr(C, align(64))], exact 8,256B slab] 내 고온 접촉(T >= 750°C && fluid >= 40) 시 물 ➔ 수증기 즉시 상변이(Instantaneous Phase Flashing) 및 250°C 잠열 급랭 + 300 유효 전단 팽창 응력 수증기 폭발 모델, 간극수압 포화 임계치(infiltrated >= 180) 도달 시 연약화 판정 `is_rock_softened`, 타격 임팩트 시 연약화 지반 크레이터 굴착 반경 확장(+1) 및 대형 다이나믹 메쉬 연쇄 붕괴 파이프라인, 64B L1 정렬 `VoxelChampionshipTelemetry` 내 `steam_explosions` 텔레메트리 탑재 [정확히 64B 유지], `mimic-the-show` 3D 수증기 파티클 폭발 비산(`spawn_steam`/`spawn_steam_jet`), 지하 지진성 충격음 SFX, 지반 연약화 크레이터 확장 및 카메라 셰이크 강화, WASM C-ABI `axiom_voxel_get_steam_explosions` 연동, 18개 게임 테스트 및 전체 워크스페이스 `tools/guard.ps1` 100% 통과)
 - [x] **T-156: Axiom 복셀 유체-열역학 상용 통합 패키징 및 글로벌 쇼케이스 릴리즈** (`tools/package.ps1`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, `dist/axiom-v2.9.0-unified-milestone.zip` [2.09 MB, SHA-256 검증], WASM C-ABI `axiom_voxel_bench_fluid`, 웹 3D 복셀 스튜디오 ⚡ **10k Fluid Bench** 모달 & 실시간 침투/증발/냉각/응력완화 HUD 계측기, 1.24 MB 최적화 WASM 바이너리 동기화, `tools/guard.ps1` 통과)
 - [x] **T-155: Axiom 160대 대형 복셀 유체 물리 마일스톤 결산 및 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-097]~[D-100], `docs/audit-report.md` [AUDIT-20261023-v2.9.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 3D 복셀 유체 격자 `VoxelFluidField16` [#[repr(C, align(64))], exact 8,256B slab], Reversed-Z 3D 반투명 유체 수면 및 암석 습윤 래스터라이저 `render_voxel_fluid`, 수리-열응력 연성 완화 모델 `relax_thermal_and_stress`, 10,000 스텝 15,494+ TPS 글로벌 복합 물리 벤치마크 및 비트 단위 100% 일치 결정론 입증 [`0x6EC408607380A9CF`], 64B L1 정렬 `VoxelChampionshipTelemetry` 내 `active_fluid_cells`/`total_fluid_units` 탑재, `mimic-the-show` 챔피언십 링 3D 유체 및 글로벌 F12 냉각수 주입 연동, 2.09 MB 단일 크로스 플랫폼 배포 패키지 `dist/axiom-v2.9.0-unified-milestone.zip` [SHA-256 검증], 전체 워크스페이스 v2.9.0 공식 판올림 및 Git 태그 `v2.9.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-154: Axiom 3D 복셀 유체 침투-응력 완화 물리 벤치마크 및 종합 검증** (`crates/axiom-core/src/voxel_fluid.rs`, `crates/axiom-core/tests/benchmark_fluid_physics.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `crates/axiom-render/tests/test_fluid_rendering.rs`, 0-Float 수리적 간극수압 열응력 완화 및 잠열 급속 냉각 모델 `relax_thermal_and_stress`, 10,000 스텝 연속 15,494+ TPS / 64.54 µs 초고속 복합 물리 통합 벤치마크 [64-bit FNV-1a 상태 합의 비트 단위 100% 일치 `0x6EC408607380A9CF`], `axiom voxel bench-fluid` CLI 도구군, 4,096-셀 전역 포화 유체 래스터라이징 무크래시 스트레스 검증 [<50ms 초고속 렌더링], `tools/guard.ps1` 통과)
