@@ -113,3 +113,21 @@ fn test_camera_view_matrix_and_shot_presets() {
     cam.set_shot_mode(axiom_render::camera3d::CameraShot::KnockdownLowAngle);
     assert_eq!(cam.target_pitch, 250);
 }
+
+#[test]
+fn test_steam_jet_directional_thrust() {
+    let mut ps = ParticleSystem3D::<32>::new(999);
+    let origin = Vec3Fixed::new(Fixed::ZERO, Fixed::ZERO, Fixed::ZERO);
+    let upward_dir = Vec3Fixed::new(Fixed::ZERO, Fixed::from_int(1), Fixed::ZERO);
+    let speed = Fixed::from_raw(2800);
+
+    ps.spawn_steam_jet(origin, upward_dir, 8, speed);
+    assert_eq!(ps.active_count, 8);
+
+    // Verify upward velocity
+    for p in &ps.particles {
+        if p.is_active {
+            assert!(p.vel.y.raw() > 1500, "Steam jet particles must have strong upward velocity");
+        }
+    }
+}

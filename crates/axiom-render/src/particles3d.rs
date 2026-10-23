@@ -91,6 +91,46 @@ impl<const CAP: usize> ParticleSystem3D<CAP> {
         }
     }
 
+    /// Spawns a high-pressure directional steam jet (e.g. from 4 ring corner celebration valves).
+    pub fn spawn_steam_jet(
+        &mut self,
+        origin: Vec3Fixed,
+        dir: Vec3Fixed,
+        count: usize,
+        speed: Fixed,
+    ) {
+        for _ in 0..count {
+            if self.active_count >= CAP {
+                break;
+            }
+
+            let r = self.next_rng();
+            let spread_x = (((r & 0xFF) as i64) - 128) * 8;
+            let spread_y = ((((r >> 8) & 0xFF) as i64) - 128) * 6;
+            let spread_z = ((((r >> 16) & 0xFF) as i64) - 128) * 8;
+
+            let vx = (dir.x.raw() * speed.raw()) / 65536 + spread_x;
+            let vy = (dir.y.raw() * speed.raw()) / 65536 + spread_y;
+            let vz = (dir.z.raw() * speed.raw()) / 65536 + spread_z;
+
+            for p in &mut self.particles {
+                if !p.is_active {
+                    p.is_active = true;
+                    p.pos = origin;
+                    p.vel = Vec3Fixed::from_raw(vx, vy, vz);
+                    p.color = 0xCCE8ECF0;
+                    p.kind = ParticleKind::Steam;
+                    p.life = 34;
+                    p.max_life = 34;
+                    p.size = 2;
+                    p.restitution = 0;
+                    self.active_count += 1;
+                    break;
+                }
+            }
+        }
+    }
+
     /// Spawns high-velocity kinetic sparks on punch contact with ground bounce.
     pub fn spawn_sparks(&mut self, origin: Vec3Fixed, count: usize) {
         for _ in 0..count {
