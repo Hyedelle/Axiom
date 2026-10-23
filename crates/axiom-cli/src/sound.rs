@@ -369,6 +369,65 @@ pub fn compute_spatial_stereo(x: i32, z: i32, base_vol_permill: u16) -> (u16, u1
     (left, right)
 }
 
+/// Applies a 0-Float linear interpolation pitch shift to PCM samples.
+/// - `pitch_permill`: 1000 = original pitch, >1000 = higher pitch/snappier, <1000 = lower pitch/heavier.
+pub fn apply_pitch_shift(samples: &[i16], pitch_permill: u16) -> Vec<i16> {
+    if pitch_permill == 1000 || samples.is_empty() {
+        return samples.to_vec();
+    }
+    let p = pitch_permill.max(200) as u64;
+    let orig_len = samples.len();
+    let new_len = ((orig_len as u64 * 1000) / p) as usize;
+    let mut output = Vec::with_capacity(new_len);
+
+    for i in 0..new_len {
+        let src_fixed = (i as u64 * p) / 1000;
+        let src_idx = src_fixed as usize;
+        if src_idx + 1 < orig_len {
+            let frac = (src_fixed % 1000) as i32;
+            let s0 = samples[src_idx] as i32;
+            let s1 = samples[src_idx + 1] as i32;
+            let interp = s0 + ((s1 - s0) * frac) / 1000;
+            output.push(interp.clamp(-32768, 32767) as i16);
+        } else if src_idx < orig_len {
+            output.push(samples[src_idx]);
+        } else {
+            break;
+        }
+    }
+    output
+}
+
+/// Applies a 0-Float 3-tap metallic cavern reverb to PCM samples.
+/// - `decay_permill`: 0 = dry signal, 1000 = maximum cavernous decay.
+pub fn apply_arena_reverb(samples: &[i16], decay_permill: u16) -> Vec<i16> {
+    if decay_permill == 0 || samples.is_empty() {
+        return samples.to_vec();
+    }
+    let delays = [727usize, 1036, 1367];
+    let gains = [420u32, 340, 260];
+    let extra_tail = 4410; // ~200ms tail
+    let total_len = samples.len() + extra_tail;
+    let mut output = vec![0i32; total_len];
+
+    // Copy dry signal
+    for (i, &s) in samples.iter().enumerate() {
+        output[i] = s as i32;
+    }
+
+    // Mix early reflections and cavern comb reverb
+    for (tap, &d) in delays.iter().enumerate() {
+        let g = (gains[tap] * (decay_permill.min(1000) as u32)) / 1000;
+        for i in d..total_len {
+            let src_idx = i - d;
+            let feed = (output[src_idx] * g as i32) / 1000;
+            output[i] += feed;
+        }
+    }
+
+    output.into_iter().map(|s| s.clamp(-32768, 32767) as i16).collect()
+}
+
 /// Packs 16-bit mono PCM samples into a spatialized 2-channel 16-bit Stereo RIFF/WAVE buffer.
 pub fn generate_stereo_wav_bytes(
     samples: &[i16],
@@ -593,6 +652,27 @@ mod tests {
         let byte_rate = u32::from_le_bytes(wav[28..32].try_into().unwrap());
         assert_eq!(byte_rate, 88200);
         assert_eq!(wav.len(), 44 + samples.len() * 4);
+    }
+
+    #[test]
+    fn test_pitch_shift_and_reverb() {
+        let dry = generate_pcm_samples(SoundKind::CounterHit);
+        assert!(!dry.is_empty());
+
+        // Higher pitch -> shorter duration
+        let high = apply_pitch_shift(&dry, 1200);
+        assert!(high.len() < dry.len(), "Higher pitch must result in fewer samples");
+
+        // Lower pitch -> longer duration
+        let low = apply_pitch_shift(&dry, 800);
+        assert!(low.len() > dry.len(), "Lower pitch must result in more samples");
+
+        // Reverb -> extended tail
+        let rev = apply_arena_reverb(&dry, 500);
+        assert!(rev.len() > dry.len(), "Reverb must extend tail duration");
+        // Verify tail contains decaying reverberations
+        let tail_energy: i64 = rev[dry.len()..].iter().map(|&s| s.abs() as i64).sum();
+        assert!(tail_energy > 0, "Reverb tail must contain non-zero acoustic reflections");
     }
 
     #[test]
