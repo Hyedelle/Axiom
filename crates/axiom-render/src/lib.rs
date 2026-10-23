@@ -6,6 +6,7 @@
 pub mod camera3d;
 pub mod cutin;
 pub mod framebuffer;
+pub mod gpu_backend;
 pub mod kinematics3d;
 pub mod math3d;
 pub mod mesh3d;
@@ -19,6 +20,9 @@ pub mod texture;
 pub use camera3d::{Camera3D, CameraShot};
 pub use cutin::{render_cutin_overlay, CutinKind};
 pub use framebuffer::{upscale_nearest_2x, FrameBuffer};
+pub use gpu_backend::{
+    GpuBackendKind, GpuPresenter, GpuPresenterConfig, PresentStats, ScalingMode, ViewportRect,
+};
 pub use kinematics3d::{
     evaluate_forward_kinematics, get_part_matrix, lerp_bams_permille, lerp_vec3_permille,
     AnimBlendTree, CinematicFinisherDirector, FinisherStage, MechaPose3D, PartTransformTable,
