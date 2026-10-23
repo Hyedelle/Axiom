@@ -23,7 +23,8 @@ use axiom_core::state::TickState;
 pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
-use axiom_game::boxing_netcode::{BoxingRollbackSession, NetboxWirePacket};
+use axiom_game::boxing_netcode::{BoxingRollbackSession, NetboxWirePacket, SpectatorRelaySession};
+use axiom_game::tournament::{TournamentEngine, TournamentFighter};
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D};
@@ -2817,6 +2818,8 @@ pub extern "C" fn axiom_3d_get_tick() -> u64 {
 #[allow(static_mut_refs)]
 struct NetboxWasmEngine {
     session: BoxingRollbackSession<64>,
+    spectator: Option<SpectatorRelaySession<64>>,
+    tournament: Option<TournamentEngine<4>>,
     framebuffer: FrameBuffer,
     wire_buffer: [u8; 64],
 }
@@ -2836,6 +2839,8 @@ pub extern "C" fn axiom_netbox_init(local_player_id: u32, seed: u64, width: u32,
     unsafe {
         NETBOX = Some(Box::new(NetboxWasmEngine {
             session,
+            spectator: None,
+            tournament: None,
             framebuffer,
             wire_buffer: [0u8; 64],
         }));
@@ -2955,6 +2960,151 @@ pub extern "C" fn axiom_netbox_get_total_resimulated() -> u64 {
 #[no_mangle]
 pub extern "C" fn axiom_netbox_get_hash() -> u64 {
     netbox_engine().map(|e| e.session.current_state.compute_hash()).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_spectator_init(seed: u64) {
+    if let Some(engine) = netbox_engine() {
+        let ring = BoxingRingEngine::new(seed);
+        engine.spectator = Some(SpectatorRelaySession::new(ring));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_spectator_receive_wire_packet(in_ptr: *const u8, len: u32) -> u32 {
+    let engine = match netbox_engine() {
+        Some(e) => e,
+        None => return 0,
+    };
+    if in_ptr.is_null() || len < NetboxWirePacket::SIZE as u32 {
+        return 0;
+    }
+    let slice = unsafe { core::slice::from_raw_parts(in_ptr, NetboxWirePacket::SIZE) };
+    let pkt = match NetboxWirePacket::from_bytes(slice) {
+        Some(p) => p,
+        None => return 0,
+    };
+    if let Some(spec) = &mut engine.spectator {
+        spec.receive_packet(pkt);
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_spectator_step() -> u32 {
+    let engine = match netbox_engine() {
+        Some(e) => e,
+        None => return 0,
+    };
+    if let Some(spec) = &mut engine.spectator {
+        if spec.step_frame().is_some() {
+            1
+        } else {
+            0
+        }
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_spectator_get_frame() -> u64 {
+    netbox_engine()
+        .and_then(|e| e.spectator.as_ref())
+        .map(|s| s.current_frame)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_netbox_spectator_get_hash() -> u64 {
+    netbox_engine()
+        .and_then(|e| e.spectator.as_ref())
+        .map(|s| s.last_state_hash)
+        .unwrap_or(0)
+}
+
+// --- Tournament Bracket WASM C-ABI ---
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_init_4(p0_id: u32, p1_id: u32, p2_id: u32, p3_id: u32) {
+    if let Some(engine) = netbox_engine() {
+        let names: [&[u8]; 4] = [b"ELPIS", b"TINKER", b"CIPHER", b"THESEUS"];
+        let f0 = TournamentFighter::new(p0_id as u8, 1, names[(p0_id as usize) % 4]);
+        let f1 = TournamentFighter::new(p1_id as u8, 4, names[(p1_id as usize) % 4]);
+        let f2 = TournamentFighter::new(p2_id as u8, 2, names[(p2_id as usize) % 4]);
+        let f3 = TournamentFighter::new(p3_id as u8, 3, names[(p3_id as usize) % 4]);
+        engine.tournament = Some(TournamentEngine::new_4_bracket(f0, f1, f2, f3));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_get_match_status(match_id: u32) -> u32 {
+    netbox_engine()
+        .and_then(|e| e.tournament.as_ref())
+        .and_then(|t| t.matches.get(match_id as usize))
+        .map(|m| m.status as u32)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_get_match_fighter_a(match_id: u32) -> u32 {
+    netbox_engine()
+        .and_then(|e| e.tournament.as_ref())
+        .and_then(|t| t.matches.get(match_id as usize))
+        .and_then(|m| m.fighter_a.as_ref())
+        .map(|f| f.id as u32)
+        .unwrap_or(0xFF)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_get_match_fighter_b(match_id: u32) -> u32 {
+    netbox_engine()
+        .and_then(|e| e.tournament.as_ref())
+        .and_then(|t| t.matches.get(match_id as usize))
+        .and_then(|m| m.fighter_b.as_ref())
+        .map(|f| f.id as u32)
+        .unwrap_or(0xFF)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_get_match_winner(match_id: u32) -> u32 {
+    netbox_engine()
+        .and_then(|e| e.tournament.as_ref())
+        .and_then(|t| t.matches.get(match_id as usize))
+        .and_then(|m| m.winner.as_ref())
+        .map(|w| w.id as u32)
+        .unwrap_or(0xFF)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_record_result(match_id: u32, score_a: u32, score_b: u32) -> u32 {
+    if let Some(engine) = netbox_engine() {
+        if let Some(t) = &mut engine.tournament {
+            if let Ok(winner) = t.record_match_result(match_id as u8, score_a as u8, score_b as u8) {
+                return winner.id as u32;
+            }
+        }
+    }
+    0xFF
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_get_champion() -> u32 {
+    netbox_engine()
+        .and_then(|e| e.tournament.as_ref())
+        .and_then(|t| t.champion.as_ref())
+        .map(|c| c.id as u32)
+        .unwrap_or(0xFF)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_get_hash() -> u64 {
+    netbox_engine()
+        .and_then(|e| e.tournament.as_ref())
+        .map(|t| t.compute_hash())
+        .unwrap_or(0)
 }
 
 #[no_mangle]

@@ -325,6 +325,7 @@
     <button class="action-btn" onclick="sendBoxingInput(7)" style="color: #c084fc; border-color: #7e22ce; font-weight: bold;">⚡ 2D Cut-In (Space)</button>
     <button class="action-btn" id="btnTogglePvp" onclick="toggleNetboxPvp()" style="color: #a855f7; border-color: #9333ea; font-weight: bold;">🌐 P2P Rollback PvP</button>
     <button class="action-btn" id="btnNetboxBroker" onclick="openNetboxRoomModal()" style="display:none; color: #38bdf8; border-color: #0284c7; font-weight: bold;">📡 P2P Room: STS-9021</button>
+    <button class="action-btn" id="btnTournament" onclick="openTournamentModal()" style="display:none; color: #facc15; border-color: #ca8a04; font-weight: bold;">🏆 Tournament</button>
     <button class="action-btn" onclick="switchMode('boxing')" style="color: #94a3b8;">🔄 Rematch</button>
   </div>
 
@@ -488,6 +489,53 @@
         <button class="action-btn" onclick="copyNetboxInviteUrl()" style="flex: 1; color: #c084fc; border-color: #7e22ce;">🔗 초대 링크 복사</button>
       </div>
       <div id="netboxBrokerStatus" style="margin-top: 10px; font-size: 12px; color: #94a3b8; text-align: center;">상태: 로컬 루프백 모드 (100ms 파이프 가동 중)</div>
+    </div>
+  </div>
+
+  <!-- Tournament Bracket Modal -->
+  <div id="tournamentModal" class="modal-overlay">
+    <div class="modal" style="max-width: 600px;">
+      <button class="modal-close" onclick="closeTournamentModal()">✕</button>
+      <h2>🏆 Mecha Championship Knockout Bracket</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 14px 0;">
+        Axiom 0-Float 결정론 토너먼트 브래킷 자동 진행 엔진 및 P2P 실시간 관전 릴레이입니다.
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 12px; align-items: center; margin-bottom: 16px;">
+        <!-- Semifinal 1 -->
+        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px;">
+          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px; font-weight: bold;">SEMIFINAL 1 [M0]</div>
+          <div id="tMatch0A" style="font-size: 13px; color: #38bdf8; padding: 4px; border-bottom: 1px dashed #334155;">#1 TINKER</div>
+          <div id="tMatch0B" style="font-size: 13px; color: #f43f5e; padding: 4px;">#4 CIPHER</div>
+          <div id="tMatch0Status" style="font-size: 11px; color: #facc15; margin-top: 6px; font-weight: bold;">READY</div>
+        </div>
+
+        <!-- Grand Final -->
+        <div style="background: #1e1b4b; border: 2px solid #818cf8; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 11px; color: #c7d2fe; margin-bottom: 6px; font-weight: bold;">👑 GRAND FINAL [M2]</div>
+          <div id="tMatch2A" style="font-size: 13px; color: #cbd5e1; padding: 4px; border-bottom: 1px dashed #4338ca;">TBD (M0 Winner)</div>
+          <div id="tMatch2B" style="font-size: 13px; color: #cbd5e1; padding: 4px;">TBD (M1 Winner)</div>
+          <div id="tMatch2Status" style="font-size: 11px; color: #94a3b8; margin-top: 6px; font-weight: bold;">PENDING</div>
+        </div>
+
+        <!-- Semifinal 2 -->
+        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px;">
+          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px; font-weight: bold;">SEMIFINAL 2 [M1]</div>
+          <div id="tMatch1A" style="font-size: 13px; color: #38bdf8; padding: 4px; border-bottom: 1px dashed #334155;">#2 PIKE</div>
+          <div id="tMatch1B" style="font-size: 13px; color: #f43f5e; padding: 4px;">#3 THESEUS</div>
+          <div id="tMatch1Status" style="font-size: 11px; color: #facc15; margin-top: 6px; font-weight: bold;">READY</div>
+        </div>
+      </div>
+
+      <div id="tournamentChampionBanner" style="display: none; background: #064e3b; border: 1px solid #10b981; border-radius: 8px; padding: 10px; text-align: center; margin-bottom: 12px; color: #a7f3d0; font-weight: bold;">
+        🎉 TOURNAMENT CHAMPION: <span id="tChampionName" style="color: #fde047; font-size: 16px;"></span> 🎉
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button class="action-btn" onclick="advanceTournamentStep()" style="flex: 2; color: #4ade80; border-color: #166534; font-weight: bold;">▶ 다음 경기 자동 진행</button>
+        <button class="action-btn" onclick="resetTournamentBracket()" style="flex: 1; color: #f87171; border-color: #991b1b;">🔄 브래킷 리셋</button>
+      </div>
+      <div id="tournamentHashStatus" style="margin-top: 10px; font-size: 11px; color: #64748b; text-align: center; font-family: monospace;">STATE HASH: 0x0000000000000000</div>
     </div>
   </div>
 
@@ -701,6 +749,7 @@
       isBoxingPvp = !isBoxingPvp;
       const btn = document.getElementById('btnTogglePvp');
       const brokerBtn = document.getElementById('btnNetboxBroker');
+      const tourneyBtn = document.getElementById('btnTournament');
       if (isBoxingPvp) {
         if (btn) {
           btn.innerText = '🥊 Single-Player AI';
@@ -710,6 +759,12 @@
         if (brokerBtn) {
           brokerBtn.style.display = 'inline-block';
           brokerBtn.innerText = '📡 P2P Room: ' + netboxRoomId;
+        }
+        if (tourneyBtn) {
+          tourneyBtn.style.display = 'inline-block';
+        }
+        if (wasmInstance && wasmInstance.axiom_tournament_init_4) {
+          wasmInstance.axiom_tournament_init_4(0, 1, 2, 3);
         }
         wasmInstance.axiom_netbox_init(netboxRole, BigInt(12345), width, height);
         document.getElementById('instruction').innerText = '🌐 P2P 롤백 넷코드 대전: 0ms 예측 실행 | 4-프레임 슬라이딩 윈도우 | GGPO TimeSync 클록 동기화!';
@@ -721,6 +776,9 @@
         }
         if (brokerBtn) {
           brokerBtn.style.display = 'none';
+        }
+        if (tourneyBtn) {
+          tourneyBtn.style.display = 'none';
         }
         wasmInstance.axiom_boxing_init(BigInt(Date.now()), width, height);
         document.getElementById('instruction').innerText = '🥊 A/D: 슬립 위빙 회피 | S: 티타늄 가드 | J/K/L: 잽/크로스/훅 | SPACE: 2D 아니메 컷인 필살기!';
@@ -747,7 +805,12 @@
       document.getElementById('btnRoleGuest').classList.toggle('active', role === 1);
       document.getElementById('btnRoleSpec').classList.toggle('active', role === 2);
       if (wasmInstance && isBoxingPvp) {
-        wasmInstance.axiom_netbox_init(role, BigInt(12345), width, height);
+        if (role === 2 && wasmInstance.axiom_netbox_spectator_init) {
+          wasmInstance.axiom_netbox_spectator_init(BigInt(12345));
+          document.getElementById('netboxBrokerStatus').innerText = '👁️ Spectator Relay Mode Active (P2P Mesh Tree)';
+        } else {
+          wasmInstance.axiom_netbox_init(role, BigInt(12345), width, height);
+        }
       }
     }
     async function startNetboxP2POffer() {
@@ -812,6 +875,77 @@
       const url = `${window.location.origin}${window.location.pathname}?mode=boxing&pvp=1&room=${room}`;
       navigator.clipboard.writeText(url);
       alert('대전 초대 링크가 복사되었습니다:\n' + url);
+    }
+
+    function openTournamentModal() {
+      document.getElementById('tournamentModal').style.display = 'flex';
+      refreshTournamentUI();
+    }
+    function closeTournamentModal() {
+      document.getElementById('tournamentModal').style.display = 'none';
+    }
+    function resetTournamentBracket() {
+      if (wasmInstance && wasmInstance.axiom_tournament_init_4) {
+        wasmInstance.axiom_tournament_init_4(0, 1, 2, 3);
+        refreshTournamentUI();
+      }
+    }
+    function advanceTournamentStep() {
+      if (!wasmInstance || !wasmInstance.axiom_tournament_record_result) return;
+      for (let m = 0; m < 3; m++) {
+        const status = wasmInstance.axiom_tournament_get_match_status(m);
+        if (status === 1) { // Ready
+          const scoreA = 10;
+          const scoreB = 7 + (m % 3);
+          wasmInstance.axiom_tournament_record_result(m, scoreA, scoreB);
+          break;
+        }
+      }
+      refreshTournamentUI();
+    }
+    function refreshTournamentUI() {
+      if (!wasmInstance || !wasmInstance.axiom_tournament_get_match_status) return;
+      const fighterNames = ['ELPIS', 'TINKER', 'CIPHER', 'THESEUS'];
+      const statusLabels = ['PENDING', 'READY', 'IN_PROGRESS', 'COMPLETED'];
+      const statusColors = ['#94a3b8', '#facc15', '#38bdf8', '#4ade80'];
+
+      for (let m = 0; m < 3; m++) {
+        const st = wasmInstance.axiom_tournament_get_match_status(m);
+        const fA = wasmInstance.axiom_tournament_get_match_fighter_a(m);
+        const fB = wasmInstance.axiom_tournament_get_match_fighter_b(m);
+        const win = wasmInstance.axiom_tournament_get_match_winner(m);
+
+        const elA = document.getElementById(`tMatch${m}A`);
+        const elB = document.getElementById(`tMatch${m}B`);
+        const elSt = document.getElementById(`tMatch${m}Status`);
+
+        if (elA) {
+          elA.innerText = fA === 0xFF ? 'TBD' : `#${fA + 1} ${fighterNames[fA % 4]}`;
+          elA.style.fontWeight = (win !== 0xFF && win === fA) ? 'bold' : 'normal';
+          elA.style.color = (win !== 0xFF && win === fA) ? '#4ade80' : '#38bdf8';
+        }
+        if (elB) {
+          elB.innerText = fB === 0xFF ? 'TBD' : `#${fB + 1} ${fighterNames[fB % 4]}`;
+          elB.style.fontWeight = (win !== 0xFF && win === fB) ? 'bold' : 'normal';
+          elB.style.color = (win !== 0xFF && win === fB) ? '#4ade80' : '#f43f5e';
+        }
+        if (elSt) {
+          elSt.innerText = statusLabels[st] || 'PENDING';
+          elSt.style.color = statusColors[st] || '#94a3b8';
+        }
+      }
+
+      const champ = wasmInstance.axiom_tournament_get_champion();
+      const banner = document.getElementById('tournamentChampionBanner');
+      if (champ !== 0xFF) {
+        banner.style.display = 'block';
+        document.getElementById('tChampionName').innerText = fighterNames[champ % 4];
+      } else {
+        banner.style.display = 'none';
+      }
+
+      const hash = wasmInstance.axiom_tournament_get_hash();
+      document.getElementById('tournamentHashStatus').innerText = 'STATE HASH: 0x' + hash.toString(16).toUpperCase().padStart(16, '0');
     }
 
     function setFactoryTool(toolId) {

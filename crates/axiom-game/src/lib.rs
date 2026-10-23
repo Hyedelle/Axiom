@@ -11,15 +11,21 @@ pub mod card;
 pub mod defense;
 pub mod factory;
 pub mod schema_catalog;
+pub mod tournament;
 pub mod world_factory;
 pub mod worker;
 
 pub use boxing::{ActionKind, AiPhase, BoxerAction, BoxerState, BoxingEvent, BoxingRingEngine};
 pub use boxing_netcode::{
-    BoxingFrameStats, BoxingInputQueue, BoxingRollbackSession, DEFAULT_BOXING_BUFFER_SIZE,
-    MAX_SUPPORTED_BOXING_PLAYERS,
+    BoxingFrameStats, BoxingInputQueue, BoxingRollbackSession, NetboxWirePacket,
+    SpectatorRelaySession, DEFAULT_BOXING_BUFFER_SIZE, MAX_SUPPORTED_BOXING_PLAYERS,
+    NETBOX_WIRE_MAGIC,
 };
 pub use card::{CardKind, DeckState, TacticalCard};
+pub use tournament::{
+    MatchStatus, TournamentEngine, TournamentFighter, TournamentMatch, MAX_TOURNAMENT_MATCHES,
+    NO_NEXT_MATCH,
+};
 
 pub use factory::{
     Belt, Chest, Direction, FactoryGrid, FactoryReport, FactoryStructure, FilterInserter,

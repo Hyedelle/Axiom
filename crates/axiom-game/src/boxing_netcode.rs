@@ -360,3 +360,101 @@ impl<const FRAMES: usize> BoxingRollbackSession<FRAMES> {
         (false, 0)
     }
 }
+
+/// Zero-float multi-peer spectator and relay session for P2P tournament broadcasting.
+/// Plays verified synchronized inputs from both players without speculative rollback,
+/// and re-broadcasts packets to downstream spectator peers in a P2P mesh relay tree.
+#[derive(Debug, Clone)]
+pub struct SpectatorRelaySession<const FRAMES: usize = DEFAULT_BOXING_BUFFER_SIZE> {
+    pub engine: BoxingRingEngine,
+    pub input_queues: [BoxingInputQueue<FRAMES>; MAX_SUPPORTED_BOXING_PLAYERS],
+    pub current_frame: u64,
+    pub relay_outbox: [Option<NetboxWirePacket>; 8],
+    pub relay_count: usize,
+    pub desync_detected: bool,
+    pub last_state_hash: u64,
+}
+
+impl<const FRAMES: usize> Default for SpectatorRelaySession<FRAMES> {
+    fn default() -> Self {
+        Self::new(BoxingRingEngine::new(42))
+    }
+}
+
+impl<const FRAMES: usize> SpectatorRelaySession<FRAMES> {
+    pub fn new(engine: BoxingRingEngine) -> Self {
+        Self {
+            engine,
+            input_queues: [BoxingInputQueue::new(), BoxingInputQueue::new()],
+            current_frame: 0,
+            relay_outbox: [None; 8],
+            relay_count: 0,
+            desync_detected: false,
+            last_state_hash: 0,
+        }
+    }
+
+    /// Ingests a wire packet from Player 0 or Player 1, and stages it for downstream relay.
+    pub fn receive_packet(&mut self, pkt: NetboxWirePacket) {
+        let sender = (pkt.sender_id as usize) % MAX_SUPPORTED_BOXING_PLAYERS;
+        let curr_f = pkt.current_frame as u64;
+
+        // Extract redundant sliding window inputs [F, F-1, F-2, F-3]
+        for (i, &raw_act) in pkt.window_inputs.iter().enumerate() {
+            if curr_f < i as u64 {
+                break;
+            }
+            let frame = curr_f - i as u64;
+            let action = ActionKind::from_u8(raw_act);
+            self.input_queues[sender].set_confirmed(frame, action);
+        }
+
+        // Add to relay outbox if not full
+        if self.relay_count < self.relay_outbox.len() {
+            self.relay_outbox[self.relay_count] = Some(pkt);
+            self.relay_count += 1;
+        }
+    }
+
+    /// Advances the spectator simulation by one frame if both players' inputs are confirmed.
+    pub fn step_frame(&mut self) -> Option<BoxingFrameStats> {
+        let f = self.current_frame;
+
+        let slot = (f as usize) % FRAMES;
+        let p0_ready = self.input_queues[0].frame_tags[slot] == f
+            && self.input_queues[0].is_confirmed[slot];
+        let p1_ready = self.input_queues[1].frame_tags[slot] == f
+            && self.input_queues[1].is_confirmed[slot];
+
+        if !p0_ready || !p1_ready {
+            return None; // Waiting for confirmed player inputs
+        }
+
+        let p0_act = self.input_queues[0].get_input(f);
+        let p1_act = self.input_queues[1].get_input(f);
+
+        self.engine.step_pvp(p0_act, p1_act);
+        self.current_frame += 1;
+        self.last_state_hash = self.engine.compute_hash();
+
+        Some(BoxingFrameStats {
+            current_frame: self.current_frame,
+            rolled_back: false,
+            rollback_frames_count: 0,
+            predicted_inputs_used: 0,
+            state_hash: self.last_state_hash,
+        })
+    }
+
+    /// Drains queued relay packets into a slice to forward to downstream peers.
+    pub fn drain_relay_packets(&mut self, out: &mut [NetboxWirePacket]) -> usize {
+        let count = self.relay_count.min(out.len());
+        for i in 0..count {
+            if let Some(pkt) = self.relay_outbox[i].take() {
+                out[i] = pkt;
+            }
+        }
+        self.relay_count = 0;
+        count
+    }
+}

@@ -6,17 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-105: WebRTC P2P 다자간 관전 릴레이 및 토너먼트 브래킷 자동 진행 엔진** (`crates/axiom-game`, `web/`, `tools/guard.ps1` 통과)
+- [ ] **T-106: 실시간 음향 잔향 및 3D 스테레오 패닝 WASM Web Audio AudioWorklet 노드 연동** (`crates/axiom-wasm`, `web/`, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-106: 실시간 음향 잔향 및 3D 스테레오 패닝 WASM Web Audio AudioWorklet 노드 연동** (`crates/axiom-wasm`, `web/`)
 - [ ] **T-107: 스팀 워크숍(Steam Workshop) 원클릭 모드 구독 및 게임 런타임 핫스왑 인제스터** (`crates/axiom-cli`, `mimic-the-show`)
+- [ ] **T-108: WebRTC 넷코드 4인 토너먼트 자동 중계 & 스펙테이터 룸 브로드캐스트 스트림** (`crates/axiom-game`, `web/`)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-105: WebRTC P2P 다자간 관전 릴레이 및 토너먼트 브래킷 자동 진행 엔진** (`crates/axiom-game/src/tournament.rs`, `crates/axiom-game/src/boxing_netcode.rs`, `crates/axiom-wasm/src/lib.rs`, `web/axiom_wasm.wasm`, `web/index.html`, `crates/axiom-game/tests/test_tournament_and_spectator.rs`, 0-Rollback 100% 비트 상태 합의 무예측 관전 세션 `SpectatorRelaySession<64>`, 4프레임 중복 윈도우 인제스천 및 하위 피어 P2P 메시 패킷 재전송 큐 `drain_relay_packets`, 4강 싱글 엘리미네이션 결정론 토너먼트 브래킷 머신 `TournamentEngine<4>`, WASM C-ABI 11개 엔드포인트 및 브래킷 실시간 HUD/웹 모달 연동 완결, 단위/통합 테스트 통과, `tools/guard.ps1` 통과)
 - [x] **T-104: 3D 메카 커스텀 텍스처 UV 매핑 및 스팀 워크숍 부품 모딩 파이프라인** (`crates/axiom-render/src/texture.rs`, `crates/axiom-render/src/modding.rs`, `crates/axiom-render/src/raster3d.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_modding_and_textures.rs`, 0-Float L1 캐시 친화적 `TextureMap` 32-bit ARGB 평면 버퍼, 0..65536 정수 고정소수점 최근접/바이리니어 샘플러, 텍스처 랩 모드(Repeat/Clamp), 후안 피네다(Juan Pineda) 8x8 타일 비닝 어파인 상수 그래디언트(du_dx, dv_dx, du_dy, dv_dy) 무나눗셈 텍스처 래스터라이저 `rasterize_textured_pineda_8x8`, 스팀 워크숍 부품 패키지 `WorkshopModPackage` 및 매니페스트 `WorkshopModManifest` 런타임 동적 인제스천/복원 파이프라인 완성, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-103: Mimic The Show 챔피언십 보스전 연출 강화 및 스팀 덱 60 FPS 컨트롤러 최적화** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/bin/capture_screens.rs`, `mimic-the-show/tools/package.ps1`, Steam Deck / Gamepad 버튼 완벽 매핑 [X/West 잽, Y/North 크로스, B/East 훅, A/South 피니셔, D-pad/Shift 위빙·가드, 인바운드·퍽 1~4 드래프트 픽, 차고/뉴스/연구소 탐색], 챔피언 THESEUS 2단계 전장 연출: 1페이즈 챔피언 브라스(#A06432) & 골든 림, 2페이즈(HP < 50%) 과열 버서크 타이탄 몰든 레드(#DC2626) & 백열 림·보일러 고압 증기 제트 분출·경고 배너 및 저음역 지진성 베이스 럼블 타격음(720 피치 다운)·KO 챔피언 황금 파편 폭풍, 전투 하단 컨트롤러 프롬프트 스트립 완비, 15개 단위/통합 테스트 100% 통과, 단일 실행 파일 0.77MB 패키징 완료, `tools/guard.ps1` 통과, 커밋 `931addd`)
 - [x] **T-102: WebRTC DataChannel 시그널링 브릿지 및 P2P 실시간 룸 브로커 연동** (`crates/axiom-game/src/boxing_netcode.rs`, `crates/axiom-game/src/boxing.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `crates/axiom-game/tests/test_boxing_netcode.rs`, 18-Byte 무할당 바이너리 와이어 프로토콜 `NetboxWirePacket` [F, F-1, F-2, F-3], 3연속 비신뢰 UDP 패킷 유실 시에도 단 1회 롤백으로 완벽 복원 및 상태 해시 합의 검증, Tom Cannon GGPO Frame Advantage 클록 동기화 `RollbackClockSync` 60틱 이동 평균 및 +2f 스톨링/-2f 캐치업, WebRTC 비신뢰/비정렬 SCTP DataChannel({ ordered: false, maxRetransmits: 0 }), P2P 룸 브로커 UI 및 실시간 RTT/Adv/Rollback HUD 연동 완료, `tools/guard.ps1` 통과)
