@@ -32,7 +32,7 @@ pub struct VoxelMaterialProps {
     pub thermal_expansion_permille: u16,
 }
 
-pub const MATERIAL_PROPERTIES: [VoxelMaterialProps; 5] = [
+pub const MATERIAL_PROPERTIES: [VoxelMaterialProps; 6] = [
     // 0: VOXEL_AIR
     VoxelMaterialProps {
         conductivity_permille: 50,
@@ -72,6 +72,14 @@ pub const MATERIAL_PROPERTIES: [VoxelMaterialProps; 5] = [
         melt_temp_threshold: 1000,
         fracture_stress_threshold: 950,
         thermal_expansion_permille: 30,
+    },
+    // 5: VOXEL_WATER
+    VoxelMaterialProps {
+        conductivity_permille: 300,
+        heat_capacity_permille: 1000,
+        melt_temp_threshold: 1000,
+        fracture_stress_threshold: 1000,
+        thermal_expansion_permille: 20,
     },
 ];
 

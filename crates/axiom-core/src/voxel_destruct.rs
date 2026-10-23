@@ -11,6 +11,7 @@ pub const VOXEL_STONE: u8 = 1;
 pub const VOXEL_METAL: u8 = 2;
 pub const VOXEL_MOLTEN: u8 = 3;
 pub const VOXEL_ARMOR: u8 = 4;
+pub const VOXEL_WATER: u8 = 5;
 
 /// 4160-byte (65 x 64B L1 Cache Lines) 16x16x16 Destructible Voxel Slab.
 #[repr(C, align(64))]
