@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-195: Axiom 230대 Swept AABB 및 고정소수점 Raycast 히트박스 연속 충돌 구현** (`crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ccd.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-196: Axiom CCD 히트박스 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/ccd.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ccd_jobs.rs`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-197: Axiom 230대 CCD 히트박스 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-195: Axiom 230대 Swept AABB 및 고정소수점 Raycast 히트박스 연속 충돌 구현** (`crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ccd.rs`, 0-Float 64B L1 캐시 정렬 히트박스 슬랩 `HitboxSlab64` [#[repr(C, align(64))], exact 64B slab, 8B target_mask, 11x 4B coords/velocity, 4x 2B damage/knockback/ticks, 2B hitbox_id, 1B flags, 1B hit_type, 0-암시적 패딩 자연 정렬], 0-Float 64B L1 정렬 충돌 결과 슬랩 `SweptAabbResult64` [#[repr(C, align(64))], exact 64B slab, Q16.16 TOI, hit_xyz, normal_xyz, has_hit, attacker_id, victim_id, pair_key], 64비트 정수 Kay-Kajiya 슬랩 교차법 `raycast_aabb_toi`, 민코프스키 합(Minkowski Sum) 확장 AABB 기반 해석적 $O(1)$ 연속 충돌 알고리즘 `swept_aabb_toi`, 히트박스-허트박스 평가 함수 `swept_hitbox_vs_hurtbox`, 30 m/s 초고속 주먹(500 mm/tick)의 100mm 장애물 관통(터널링) 완벽 차단 실증, 64-bit FNV-1a 상태 합의 체크섬 `compute_ccd_consensus_hash`, 6개 신규 단위 테스트 및 `axiom-core` 전역 60개 단위/37개 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-194: Axiom 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 연구** (`docs/audit-report.md`, `axiom-ccd-and-nightmare-hitbox-research.md`, 0-Float 64B L1 캐시 정렬 히트박스 슬랩 `HitboxSlab64` [#[repr(C, align(64))], exact 64B slab, 8B target_mask, swept_min/max XYZ mm, velocity XYZ mm/s, damage, knockback, active_ticks, hitbox_id, flags, hit_type], 0-Float 64B L1 정렬 충돌 결과 슬랩 `SweptAabbResult64` [#[repr(C, align(64))], exact 64B slab, Q16.16 TOI, hit_xyz, normal_xyz, has_hit, attacker_id, victim_id, pair_key], 20~40 m/s 초고속 펀치 터널링(Bullet-through-Paper) 방지 메커니즘, 민코프스키 합(Minkowski Sum) 기반 $O(1)$ 폐형식(Closed-form) 해석적 Ray-AABB 슬랩 교차법 `swept_aabb_toi`/`raycast_aabb_toi`, Earliest TOI Priority Rule, 220대 SpatialHashGrid/200대 JobSystem/210대 EventBus 연계 아키텍처 명세 수립 완료)
 - [x] **T-193: Axiom 220대 차세대 공간 해싱 & 브로드페이즈 충돌 가속 엔진 공식 릴리즈 v3.6.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-125]~[D-128], `docs/audit-report.md` [AUDIT-20261024-v3.6.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 바운딩 박스 슬랩 `AabbSlab64` [#[repr(C, align(64))], exact 64B slab, 0-암시적 패딩 자연 정렬, min/max XYZ mm, entity_id, generation, layer_mask, flags], 0-Float 64B L1 정렬 공간 셀 슬랩 `SpatialCell64<CAP>` [#[repr(C, align(64))], exact 64B slab, 14-entity inline buffer], 3-Prime Coprime + Wang Finalizer 3D 정수 공간 해시 함수 `spatial_hash_3d`, 0-Heap 고정 크기 플랫 배열 해시 테이블 `SpatialHashGrid<TABLE_CAP, CELL_CAP>`, Lexicographical Minimum Overlap Rule 기반 무할당 0-중복 충돌 쌍 생성 `CollisionPair64`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, `dispatch_broadphase_with_jobs` 워커 풀 병렬 디스패치 및 `emit_collision_pairs_to_event_bus` 롤백 지원 이벤트 버스 발행 [`EVENT_BROADPHASE_PAIR = 0x0220` 및 `channel::PHYSICS` 채널], WebGL/WASM 🌐 **220 Spatial Broadphase (64B Slabs)** 대화형 모달 및 1.30 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` 64-버킷 공간 해시 그리드 내장, `step_broadphase_pipeline`, F3 HUD 카드 `Grid: 64 Buckets | Pairs: {} | 64B`, 56x56 미니 레이더 충돌 경고 인디케이터, 하단 `[GRID: {}P]` 상시 모니터링 연동, 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v3.6.0-unified-milestone.zip` [2.18 MB, SHA-256: `A9E79A37B50C7086582A3B46CE089BCC33C3F8983A8804974DA8302541C66112` 검증], 전체 워크스페이스 v3.6.0 공식 판올림 및 Git 태그 `v3.6.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-192: Mimic The Show 챔피언십 링 3D 공간 해시 브로드페이즈 물리/히트박스 및 HUD 레이더 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `crates/axiom-game/src/network.rs`, `DesktopGameView` 내 `SpatialHashGrid<64, 14>` 및 `broadphase_pairs_count` 탑재, `step_broadphase_pipeline` [싱글플레이 플레이어/상대 3D AABB 슬랩 평가 및 16-인 배틀로얄 `step_broadphase_with_jobs` 워커 풀 분할], F3 HUD 카드 `Grid: 64 Buckets | Pairs: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 충돌 경고 인디케이터, 하단 컨트롤 바 `[GRID: {}P]` 연동, 24개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

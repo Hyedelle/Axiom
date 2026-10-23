@@ -8,25 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 07:22 KST
-- **감사 대상:** Axiom Engine 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 연구 (T-194, `docs/audit-report.md`, `axiom-ccd-and-nightmare-hitbox-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 설계 승인, $O(1)$ 해석적 민코프스키 합 확장 슬랩 교차법(`swept_aabb_toi`, `raycast_aabb_toi`) 수식화 완료, 20~40 m/s 초고속 펀치 터널링 원천 차단, Earliest TOI Priority Rule 및 220대 공간 그리드/200대 잡 시스템/210대 이벤트 버스 결합 명세 확정 승인**
+- **일시:** 2026-10-24 07:35 KST
+- **감사 대상:** Axiom Engine 230대 Swept AABB 및 고정소수점 Raycast 히트박스 연속 충돌 구현 (T-195, `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ccd.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 무결성 검증, $O(1)$ 해석적 Minkowski Sum 확장 슬랩 교차법(`swept_aabb_toi`, `raycast_aabb_toi`) 및 히트박스 판정(`swept_hitbox_vs_hurtbox`), 30 m/s 초고속 펀치 터널링 완벽 차단 실증, 6개 신규 단위 테스트 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **초고속 펀치(20~40 m/s) 터널링 방지 및 수학적 정식화**:
-     - 60Hz 틱레이트 기준 1틱 333mm 이상 이동하는 초고속 타격체에 대해 Swept AABB 바운딩 박스를 생성하여 `SpatialHashGrid` 브로드페이즈 누락 방지.
-     - 상대 변위 $V_{rel} = V_{att} - V_{def}$에 기반한 Minkowski Sum 확장 AABB에 대한 닫힌 형식의 Raycast Slab 계산으로 $O(1)$ 상수 시간 TOI ($Q16.16$) 산출.
-  2. **64B L1 캐시 라인 정렬 슬랩 구조체 설계**:
-     - `HitboxSlab64`: 8바이트 타겟 마스크, 4바이트 Swept 좌표계(`swept_min/max XYZ mm`), 4바이트 속도계(`velocity XYZ mm/s`), 2바이트 데미지/넉백/틱 윈도우/플래그 및 1바이트 타격 부위 자연 정렬.
-     - `SweptAabbResult64`: 4바이트 TOI, 4바이트 접촉 좌표(`hit_x/y/z`), 1바이트 6방향 단위 법선(`normal_x/y/z`), 8바이트 정규 정렬 충돌 쌍 키(`pair_key`).
-  3. **파이프라인 결합 명세**:
-     - `dispatch_ccd_hitboxes_with_jobs`: 히트박스 N-배치 분할 후 Chase-Lev 워커 풀에 락 프리 병렬 디스패치.
-     - `emit_ccd_hits_to_event_bus`: `channel::COMBAT | channel::PHYSICS` 채널 및 `EVENT_COMBAT_HIT = 0x0230`으로 40B 인라인 페이로드 방출.
-  4. **현장 시공팀(Claude Code) 정밀 처방전 발행**:
-     - 대상 파일: `crates/axiom-core/src/ccd.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ccd.rs`.
+  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`HitboxSlab64`, `SweptAabbResult64`)**:
+     - `HitboxSlab64`: 8B 타겟 마스크, 44B 좌표계/속도계, 8B 데미지/넉백/윈도우, 4B 식별자/플래그/타입으로 구성된 64바이트 무패딩 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
+     - `SweptAabbResult64`: 16B 키/유저데이터, 24B TOI/접촉좌표/ID, 8B 속성, 4B 법선/플래그, 12B 예약 패딩 64B 슬랩.
+  2. **$O(1)$ 닫힌 형식(Closed-form) 해석적 CCD 알고리즘**:
+     - `raycast_aabb_toi`: Kay-Kajiya 3D 슬랩 교차법을 64비트 정수 산술로 구현하여 $Q16.16$ TOI 및 6방향 접촉 법선 도출.
+     - `swept_aabb_toi`: 두 이동 박스의 상대 변위 $V_{rel}$을 Minkowski Sum 확장 박스에 대한 광선 교차로 환원하여 해석적 계산.
+  3. **터널링(Bullet-through-Paper) 방지 실증**:
+     - 1틱에 500mm를 이동하는 30 m/s 초고속 펀치가 100mm 두께 안면 장애물을 관통하지 않고 정확한 서브프레임 TOI (0.3)에서 감지됨을 실증.
+  4. **단위 테스트 및 헌법 가드 검증**:
+     - 6개 단위 테스트(`test_ccd.rs`) 통과, 64-bit FNV-1a 상태 합의 체크섬 `compute_ccd_consensus_hash` 결정론 보증.
+     - `tools/guard.ps1` 100% 통과 (0-Float 불변식, 60개 단위/37개 통합 테스트 올패스).
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T194] Axiom Engine 230대 차세대 연속 충돌 감지(CCD) & 나이트메어 복싱 히트박스 물리학 연구
+- **일시:** 2026-10-24 07:22 KST
+- **판정:** 🟢 **ALL CLEAR (아키텍처 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `HitboxSlab64` & `SweptAabbResult64` 설계 승인, $O(1)$ 해석적 민코프스키 합 확장 슬랩 교차법(`swept_aabb_toi`, `raycast_aabb_toi`) 수식화 완료, 20~40 m/s 초고속 펀치 터널링 원천 차단, Earliest TOI Priority Rule 및 220대 공간 그리드/200대 잡 시스템/210대 이벤트 버스 결합 명세 확정.
 
 ### [AUDIT-20261024-v3.6.0] Axiom Engine v3.6.0 220대 차세대 공간 해싱 & 브로드페이즈 충돌 감지 가속 엔진 마일스톤 종합 감사
 - **일시:** 2026-10-24 07:12 KST

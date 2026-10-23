@@ -9,6 +9,7 @@
 #![no_std]
 
 pub mod audio;
+pub mod ccd;
 pub mod chunk;
 pub mod cloud_save;
 pub mod combat;
@@ -74,6 +75,12 @@ pub use spatial_grid::{
     spatial_hash_3d, AabbSlab64, CollisionPair64, SpatialCell64, SpatialHashGrid,
     COLLISION_FLAG_DYNAMIC, COLLISION_FLAG_SLEEPING, COLLISION_FLAG_STATIC, COLLISION_FLAG_TRIGGER,
     DEFAULT_CELL_CAPACITY, DEFAULT_GRID_TABLE_CAP, EVENT_BROADPHASE_PAIR,
+};
+pub use ccd::{
+    compute_ccd_consensus_hash, raycast_aabb_toi, swept_aabb_toi, swept_hitbox_vs_hurtbox,
+    ContactNormal6, HitType, HitboxSlab64, SweptAabbResult64, HITBOX_FLAG_ACTIVE,
+    HITBOX_FLAG_COUNTER_HIT, HITBOX_FLAG_GUARD_BREAK, HITBOX_FLAG_PIERCING, HITBOX_FLAG_SWEPT_CCD,
+    TOI_ONE_Q16,
 };
 
 pub use audio::{
