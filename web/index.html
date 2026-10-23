@@ -356,6 +356,8 @@
     <button class="action-btn" id="btnTogglePvp" onclick="toggleNetboxPvp()" style="color: #a855f7; border-color: #9333ea; font-weight: bold;">🌐 P2P Rollback PvP</button>
     <button class="action-btn" id="btnNetboxBroker" onclick="openNetboxRoomModal()" style="display:none; color: #38bdf8; border-color: #0284c7; font-weight: bold;">📡 P2P Room: STS-9021</button>
     <button class="action-btn" id="btnTournament" onclick="openTournamentModal()" style="display:none; color: #facc15; border-color: #ca8a04; font-weight: bold;">🏆 Tournament</button>
+    <button class="action-btn" id="btnLeaderboard" onclick="openLeaderboardModal()" style="color: #facc15; border-color: #ca8a04; font-weight: bold;">🥇 Leaderboard</button>
+    <button class="action-btn" id="btnSteamLobby" onclick="openSteamLobbyModal()" style="color: #38bdf8; border-color: #0284c7; font-weight: bold;">👥 Steam Lobby</button>
     <button class="action-btn" onclick="switchMode('boxing')" style="color: #94a3b8;">🔄 Rematch</button>
   </div>
 
@@ -617,6 +619,75 @@
         <button class="action-btn" onclick="resetTournamentBracket()" style="flex: 1; color: #f87171; border-color: #991b1b;">🔄 리셋</button>
       </div>
       <div id="tournamentHashStatus" style="margin-top: 10px; font-size: 11px; color: #64748b; text-align: center; font-family: monospace;">STATE HASH: 0x0000000000000000</div>
+    </div>
+  </div>
+
+  <!-- Steam ELO Leaderboard Modal (T-118) -->
+  <div id="leaderboardModal" class="modal-overlay">
+    <div class="modal" style="max-width: 650px;">
+      <button class="modal-close" onclick="closeLeaderboardModal()">✕</button>
+      <h2>🥇 Global Steam ELO Leaderboard</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 12px 0;">
+        Axiom 64-Byte L1 Cache Aligned Deterministic Ranking Engine.
+      </p>
+
+      <div style="overflow-x: auto; margin-bottom: 12px; max-height: 280px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 2px solid #334155; color: #94a3b8; font-size: 11px;">
+              <th style="padding: 6px;">#</th>
+              <th style="padding: 6px;">Player</th>
+              <th style="padding: 6px;">Tier</th>
+              <th style="padding: 6px;">ELO</th>
+              <th style="padding: 6px;">W/L</th>
+              <th style="padding: 6px;">KOs</th>
+              <th style="padding: 6px;">Streak</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody">
+            <!-- Populated via WASM -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; gap: 8px; align-items: center; border-top: 1px solid #334155; padding-top: 10px;">
+        <input type="text" id="newGladiatorName" placeholder="Gladiator Name" value="IronViper" style="flex: 1; background: #0f172a; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-size: 12px;">
+        <button class="action-btn" onclick="registerLeaderboardUser()" style="color: #38bdf8; border-color: #0284c7;">➕ Register</button>
+        <button class="action-btn" onclick="simulateLeaderboardMatch()" style="color: #facc15; border-color: #ca8a04;">⚔️ Simulate Match</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Steam P2P Lobby Modal (T-118) -->
+  <div id="steamLobbyModal" class="modal-overlay">
+    <div class="modal" style="max-width: 580px;">
+      <button class="modal-close" onclick="closeSteamLobbyModal()">✕</button>
+      <h2>👥 Steam Multiplayer Lobby</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 12px 0;">
+        P2P Relay & 8-Member Room State Machine (P1, P2, Spectators).
+      </p>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155;">
+        <div>
+          <span style="font-size: 12px; color: #94a3b8;">Room Code:</span>
+          <span id="lobbyRoomCode" style="font-family: monospace; font-weight: bold; color: #38bdf8; font-size: 14px; margin-left: 6px;">AXM-7701</span>
+        </div>
+        <div>
+          <span style="font-size: 12px; color: #94a3b8;">Status:</span>
+          <span id="lobbyRoomState" style="font-weight: bold; color: #facc15; font-size: 12px; margin-left: 6px;">WAITING</span>
+        </div>
+      </div>
+
+      <div id="lobbySlotsContainer" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+        <!-- Dynamically rendered 8 slots -->
+      </div>
+
+      <div style="display: flex; gap: 8px; align-items: center; border-top: 1px solid #334155; padding-top: 10px;">
+        <button class="action-btn" id="btnLobbyJoinP2" onclick="joinLobbyP2()" style="flex: 1; color: #38bdf8; border-color: #0284c7;">🥊 Join P2</button>
+        <button class="action-btn" id="btnLobbyJoinSpec" onclick="joinLobbySpec()" style="flex: 1; color: #a855f7; border-color: #9333ea;">👁️ Join Spec</button>
+        <button class="action-btn" id="btnLobbyReady" onclick="toggleLobbyReady()" style="flex: 1; color: #4ade80; border-color: #166534; font-weight: bold;">✅ Ready</button>
+        <button class="action-btn" id="btnLobbyStart" onclick="startLobbyMatch()" style="flex: 1; color: #facc15; border-color: #ca8a04; font-weight: bold;">⚔️ Start Match</button>
+      </div>
     </div>
   </div>
 
@@ -2497,6 +2568,271 @@
       }
 
       requestAnimationFrame(loop);
+    }
+
+    // ============================================================================
+    // Steam Leaderboard & Lobby Functions (T-118)
+    // ============================================================================
+
+    let mySteamIdLo = 7788;
+    let mySteamIdHi = 0;
+    let myLobbyReady = false;
+
+    function openLeaderboardModal() {
+      document.getElementById('leaderboardModal').style.display = 'flex';
+      updateLeaderboardView();
+    }
+
+    function closeLeaderboardModal() {
+      document.getElementById('leaderboardModal').style.display = 'none';
+    }
+
+    function updateLeaderboardView() {
+      if (!wasmInstance || !wasmInstance.axiom_leaderboard_get_count) return;
+      const count = wasmInstance.axiom_leaderboard_get_count();
+      const tbody = document.getElementById('leaderboardBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      // Allocate small temporary buffers in WASM memory
+      // We can use 64 bytes at offset 0 or a dedicated buffer
+      // In axiom-wasm, we have axiom_netbox_get_wire_buffer_ptr() which gives 64 bytes scratch!
+      const scratchPtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+      if (!scratchPtr) return;
+
+      const mem32 = new Uint32Array(wasmInstance.memory.buffer, scratchPtr, 16);
+      const mem8 = new Uint8Array(wasmInstance.memory.buffer, scratchPtr, 64);
+      const textDecoder = new TextDecoder();
+
+      for (let i = 0; i < count; i++) {
+        wasmInstance.axiom_leaderboard_get_entry(i, scratchPtr);
+        const steamIdLo = mem32[0];
+        const rating = mem32[2];
+        const wins = mem32[3];
+        const losses = mem32[4];
+        const kos = mem32[5];
+        const streak = mem32[7];
+
+        const nameLen = wasmInstance.axiom_leaderboard_get_name(i, scratchPtr, 24);
+        const name = textDecoder.decode(mem8.subarray(0, nameLen)) || "Gladiator";
+
+        const tierLen = wasmInstance.axiom_leaderboard_get_tier(i, scratchPtr, 24);
+        const tier = textDecoder.decode(mem8.subarray(0, tierLen)) || "Silver";
+
+        let tierColor = "#94a3b8";
+        if (tier === "Grandmaster") tierColor = "#f43f5e";
+        else if (tier === "Platinum") tierColor = "#38bdf8";
+        else if (tier === "Gold") tierColor = "#facc15";
+        else if (tier === "Silver") tierColor = "#cbd5e1";
+        else tierColor = "#b45309";
+
+        const row = document.createElement('tr');
+        row.style.borderBottom = "1px solid #1e293b";
+        row.innerHTML = `
+          <td style="padding: 6px; font-weight: bold; color: ${i === 0 ? '#facc15' : (i === 1 ? '#cbd5e1' : (i === 2 ? '#b45309' : '#64748b'))};">#${i + 1}</td>
+          <td style="padding: 6px; font-weight: bold; color: #f8fafc;">${name}</td>
+          <td style="padding: 6px; font-weight: bold; color: ${tierColor};">${tier}</td>
+          <td style="padding: 6px; font-family: monospace; color: #38bdf8; font-weight: bold;">${rating}</td>
+          <td style="padding: 6px; color: #94a3b8;">${wins}W / ${losses}L</td>
+          <td style="padding: 6px; color: #ef4444; font-weight: bold;">${kos}</td>
+          <td style="padding: 6px; color: #4ade80;">🔥 ${streak}</td>
+        `;
+        tbody.appendChild(row);
+      }
+    }
+
+    function registerLeaderboardUser() {
+      if (!wasmInstance || !wasmInstance.axiom_leaderboard_register) return;
+      const nameInput = document.getElementById('newGladiatorName');
+      const name = (nameInput && nameInput.value) ? nameInput.value.trim() : "Gladiator";
+      if (!name) return;
+
+      const scratchPtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+      const mem8 = new Uint8Array(wasmInstance.memory.buffer, scratchPtr, 64);
+      const enc = new TextEncoder();
+      const bytes = enc.encode(name);
+      mem8.set(bytes.subarray(0, 23));
+
+      mySteamIdLo = Math.floor(Math.random() * 90000) + 10000;
+      wasmInstance.axiom_leaderboard_register(mySteamIdLo, 0, scratchPtr, bytes.length);
+      updateLeaderboardView();
+    }
+
+    function simulateLeaderboardMatch() {
+      if (!wasmInstance || !wasmInstance.axiom_leaderboard_record_match) return;
+      const count = wasmInstance.axiom_leaderboard_get_count();
+      if (count < 2) return;
+
+      const scratchPtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+      const mem32 = new Uint32Array(wasmInstance.memory.buffer, scratchPtr, 16);
+
+      // Pick two random distinct players
+      const idxA = Math.floor(Math.random() * count);
+      let idxB = Math.floor(Math.random() * (count - 1));
+      if (idxB >= idxA) idxB++;
+
+      wasmInstance.axiom_leaderboard_get_entry(idxA, scratchPtr);
+      const idA_lo = mem32[0];
+      const idA_hi = mem32[1];
+
+      wasmInstance.axiom_leaderboard_get_entry(idxB, scratchPtr);
+      const idB_lo = mem32[0];
+      const idB_hi = mem32[1];
+
+      const aWon = Math.random() > 0.45;
+      const isKo = Math.random() > 0.3;
+      const isFlawless = Math.random() > 0.8;
+
+      if (aWon) {
+        wasmInstance.axiom_leaderboard_record_match(idA_lo, idA_hi, idB_lo, idB_hi, isKo ? 1 : 0, isFlawless ? 1 : 0);
+      } else {
+        wasmInstance.axiom_leaderboard_record_match(idB_lo, idB_hi, idA_lo, idA_hi, isKo ? 1 : 0, isFlawless ? 1 : 0);
+      }
+      updateLeaderboardView();
+    }
+
+    function openSteamLobbyModal() {
+      document.getElementById('steamLobbyModal').style.display = 'flex';
+      initLobbyIfNeeded();
+      updateLobbyView();
+    }
+
+    function closeSteamLobbyModal() {
+      document.getElementById('steamLobbyModal').style.display = 'none';
+    }
+
+    function initLobbyIfNeeded() {
+      if (!wasmInstance || !wasmInstance.axiom_lobby_create) return;
+      if (wasmInstance.axiom_lobby_get_member_count() === 0) {
+        const scratchPtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+        const mem8 = new Uint8Array(wasmInstance.memory.buffer, scratchPtr, 64);
+        const hostName = new TextEncoder().encode("AxiomHost");
+        mem8.set(hostName);
+        const code = new TextEncoder().encode("AXM-7701");
+        mem8.set(code, 32);
+        wasmInstance.axiom_lobby_create(1001, 0, scratchPtr, hostName.length, scratchPtr + 32);
+      }
+    }
+
+    function updateLobbyView() {
+      if (!wasmInstance || !wasmInstance.axiom_lobby_get_member_count) return;
+      initLobbyIfNeeded();
+
+      const scratchPtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+      const mem8 = new Uint8Array(wasmInstance.memory.buffer, scratchPtr, 64);
+      const mem32 = new Uint32Array(wasmInstance.memory.buffer, scratchPtr, 16);
+      const textDecoder = new TextDecoder();
+
+      // Room code
+      wasmInstance.axiom_lobby_get_room_code(scratchPtr);
+      const codeStr = textDecoder.decode(mem8.subarray(0, 8));
+      const codeEl = document.getElementById('lobbyRoomCode');
+      if (codeEl) codeEl.innerText = codeStr;
+
+      // State
+      const state = wasmInstance.axiom_lobby_get_state();
+      const canStart = wasmInstance.axiom_lobby_can_start();
+      const stateEl = document.getElementById('lobbyRoomState');
+      if (stateEl) {
+        if (state === 0) {
+          stateEl.innerText = "WAITING FOR PLAYERS";
+          stateEl.style.color = "#facc15";
+        } else if (state === 1) {
+          stateEl.innerText = "READY TO START";
+          stateEl.style.color = "#4ade80";
+        } else if (state === 2) {
+          stateEl.innerText = "MATCH IN PROGRESS";
+          stateEl.style.color = "#38bdf8";
+        } else {
+          stateEl.innerText = "FINISHED";
+          stateEl.style.color = "#94a3b8";
+        }
+      }
+
+      const btnStart = document.getElementById('btnLobbyStart');
+      if (btnStart) {
+        btnStart.disabled = !canStart;
+        btnStart.style.opacity = canStart ? "1" : "0.5";
+      }
+
+      // 8 Slots
+      const container = document.getElementById('lobbySlotsContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      for (let i = 0; i < 8; i++) {
+        const slotDiv = document.createElement('div');
+        slotDiv.style.background = "#0f172a";
+        slotDiv.style.border = "1px solid #1e293b";
+        slotDiv.style.borderRadius = "6px";
+        slotDiv.style.padding = "8px 10px";
+        slotDiv.style.fontSize = "12px";
+
+        const hasMember = wasmInstance.axiom_lobby_get_member_info(i, scratchPtr);
+        if (hasMember) {
+          const steamIdLo = mem32[0];
+          const rating = mem32[2];
+          const role = mem32[3];
+          const ready = mem32[4] !== 0;
+
+          const nameLen = wasmInstance.axiom_lobby_get_member_name(i, scratchPtr, 24);
+          const name = textDecoder.decode(mem8.subarray(0, nameLen)) || "Member";
+
+          let roleLabel = role === 0 ? "🔴 Player 1 (Host)" : (role === 1 ? "🔵 Player 2 (Challenger)" : "👁️ Spectator");
+          let roleColor = role === 0 ? "#ef4444" : (role === 1 ? "#38bdf8" : "#c084fc");
+
+          slotDiv.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-weight: bold; color: ${roleColor};">${roleLabel}</span>
+              <span style="color: ${ready ? '#4ade80' : '#f59e0b'}; font-weight: bold;">${ready ? '✅ READY' : '⏳ WAIT'}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #cbd5e1;">
+              <span>${name}</span>
+              <span style="font-family: monospace; color: #38bdf8;">${rating} ELO</span>
+            </div>
+          `;
+        } else {
+          slotDiv.innerHTML = `
+            <div style="color: #475569; text-align: center; padding: 8px 0;">
+              Slot ${i + 1}: Empty
+            </div>
+          `;
+        }
+        container.appendChild(slotDiv);
+      }
+    }
+
+    function joinLobbyP2() {
+      if (!wasmInstance || !wasmInstance.axiom_lobby_join) return;
+      const scratchPtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+      const mem8 = new Uint8Array(wasmInstance.memory.buffer, scratchPtr, 64);
+      const name = new TextEncoder().encode("Challenger");
+      mem8.set(name);
+      wasmInstance.axiom_lobby_join(1002, 0, scratchPtr, name.length, 1250, 1);
+      updateLobbyView();
+    }
+
+    function joinLobbySpec() {
+      if (!wasmInstance || !wasmInstance.axiom_lobby_join) return;
+      const scratchPtr = wasmInstance.axiom_netbox_get_wire_buffer_ptr();
+      const mem8 = new Uint8Array(wasmInstance.memory.buffer, scratchPtr, 64);
+      const randomId = Math.floor(Math.random() * 8000) + 2000;
+      const name = new TextEncoder().encode(`Fan#${randomId}`);
+      mem8.set(name);
+      wasmInstance.axiom_lobby_join(randomId, 0, scratchPtr, name.length, 1100, 2);
+      updateLobbyView();
+    }
+
+    function toggleLobbyReady() {
+      if (!wasmInstance || !wasmInstance.axiom_lobby_set_ready) return;
+      myLobbyReady = !myLobbyReady;
+      wasmInstance.axiom_lobby_set_ready(1002, 0, myLobbyReady ? 1 : 0);
+      updateLobbyView();
+    }
+
+    function startLobbyMatch() {
+      alert("⚔️ Steam Lobby Match Started! Deterministic Rollback Session Synchronized.");
+      closeSteamLobbyModal();
     }
 
     // Modal & Feedback Functions

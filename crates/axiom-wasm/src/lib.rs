@@ -26,6 +26,10 @@ pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_game::boxing_netcode::{BoxingRollbackSession, NetboxWirePacket, SpectatorRelaySession};
+use axiom_game::lobby::{
+    calculate_elo, LeaderboardEntry, LeaderboardTable, LobbyMember, LobbyRole, LobbyState,
+    SteamLobby, DEFAULT_ELO, ELO_K_FACTOR, MAX_LOBBY_MEMBERS,
+};
 use axiom_game::tournament::{
     TournamentBroadcastTelemetry, TournamentDirector, TournamentEngine, TournamentFighter,
 };
@@ -3711,6 +3715,344 @@ pub extern "C" fn axiom_replay_free() {
     }
 }
 
+// ============================================================================
+// Track 5: Steamworks Multiplayer Lobby & Global ELO Leaderboard C-ABI Bridge
+// ============================================================================
+
+#[allow(static_mut_refs)]
+static mut ACTIVE_LOBBY: Option<SteamLobby<MAX_LOBBY_MEMBERS>> = None;
+#[allow(static_mut_refs)]
+static mut GLOBAL_LEADERBOARD: Option<LeaderboardTable<64>> = None;
+
+#[inline(always)]
+#[allow(static_mut_refs)]
+fn get_lobby() -> Option<&'static mut SteamLobby<MAX_LOBBY_MEMBERS>> {
+    unsafe { (*core::ptr::addr_of_mut!(ACTIVE_LOBBY)).as_mut() }
+}
+
+#[inline(always)]
+#[allow(static_mut_refs)]
+fn get_leaderboard() -> &'static mut LeaderboardTable<64> {
+    unsafe {
+        if GLOBAL_LEADERBOARD.is_none() {
+            let mut lb = LeaderboardTable::<64>::new();
+            lb.find_or_create(76561198000000001, b"AxiomPrime");
+            lb.find_or_create(76561198000000002, b"SteelVanguard");
+            lb.find_or_create(76561198000000003, b"ShadowStrike");
+            lb.find_or_create(76561198000000004, b"NeonGladiator");
+            if let Some(idx) = lb.find_or_create(76561198000000001, b"AxiomPrime") {
+                lb.entries[idx].rating = 2150;
+                lb.entries[idx].matches_won = 42;
+                lb.entries[idx].kos = 31;
+                lb.entries[idx].flawless_victories = 12;
+                lb.entries[idx].highest_win_streak = 15;
+                lb.entries[idx].current_win_streak = 8;
+            }
+            if let Some(idx) = lb.find_or_create(76561198000000002, b"SteelVanguard") {
+                lb.entries[idx].rating = 1820;
+                lb.entries[idx].matches_won = 28;
+                lb.entries[idx].kos = 19;
+                lb.entries[idx].flawless_victories = 5;
+            }
+            if let Some(idx) = lb.find_or_create(76561198000000003, b"ShadowStrike") {
+                lb.entries[idx].rating = 1540;
+                lb.entries[idx].matches_won = 17;
+                lb.entries[idx].kos = 11;
+            }
+            if let Some(idx) = lb.find_or_create(76561198000000004, b"NeonGladiator") {
+                lb.entries[idx].rating = 1280;
+                lb.entries[idx].matches_won = 8;
+                lb.entries[idx].kos = 4;
+            }
+            lb.sort_by_rank();
+            GLOBAL_LEADERBOARD = Some(lb);
+        }
+        (*core::ptr::addr_of_mut!(GLOBAL_LEADERBOARD)).as_mut().unwrap()
+    }
+}
+
+#[inline(always)]
+fn combine_u64(lo: u32, hi: u32) -> u64 {
+    ((hi as u64) << 32) | (lo as u64)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_create(
+    host_id_lo: u32,
+    host_id_hi: u32,
+    name_ptr: *const u8,
+    name_len: u32,
+    code_ptr: *const u8,
+) -> u32 {
+    let host_id = combine_u64(host_id_lo, host_id_hi);
+    let name_slice = if !name_ptr.is_null() && name_len > 0 {
+        unsafe { core::slice::from_raw_parts(name_ptr, name_len as usize) }
+    } else {
+        b"Host"
+    };
+
+    let mut code_bytes = *b"AXM-0001";
+    if !code_ptr.is_null() {
+        let code_slice = unsafe { core::slice::from_raw_parts(code_ptr, 8) };
+        code_bytes.copy_from_slice(code_slice);
+    }
+
+    unsafe {
+        ACTIVE_LOBBY = Some(SteamLobby::new(host_id, name_slice, &code_bytes));
+    }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_join(
+    id_lo: u32,
+    id_hi: u32,
+    name_ptr: *const u8,
+    name_len: u32,
+    rating: u32,
+    role: u32,
+) -> u32 {
+    let lobby = match get_lobby() {
+        Some(l) => l,
+        None => return 0,
+    };
+    let steam_id = combine_u64(id_lo, id_hi);
+    let name_slice = if !name_ptr.is_null() && name_len > 0 {
+        unsafe { core::slice::from_raw_parts(name_ptr, name_len as usize) }
+    } else {
+        b"Challenger"
+    };
+
+    let lobby_role = match role {
+        0 => LobbyRole::Player1,
+        1 => LobbyRole::Player2,
+        _ => LobbyRole::Spectator,
+    };
+
+    if lobby.join(steam_id, name_slice, rating, lobby_role) {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_leave(id_lo: u32, id_hi: u32) -> u32 {
+    let lobby = match get_lobby() {
+        Some(l) => l,
+        None => return 0,
+    };
+    let steam_id = combine_u64(id_lo, id_hi);
+    if lobby.leave(steam_id) {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_set_ready(id_lo: u32, id_hi: u32, ready: u32) -> u32 {
+    let lobby = match get_lobby() {
+        Some(l) => l,
+        None => return 0,
+    };
+    let steam_id = combine_u64(id_lo, id_hi);
+    if lobby.set_ready(steam_id, ready != 0) {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_get_state() -> u32 {
+    get_lobby().map(|l| l.state as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_get_member_count() -> u32 {
+    get_lobby().map(|l| l.member_count() as u32).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_can_start() -> u32 {
+    get_lobby().map(|l| if l.can_start_match() { 1 } else { 0 }).unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_get_room_code(out_buf: *mut u8) -> u32 {
+    let lobby = match get_lobby() {
+        Some(l) => l,
+        None => return 0,
+    };
+    if out_buf.is_null() {
+        return 0;
+    }
+    unsafe {
+        core::ptr::copy_nonoverlapping(lobby.room_code.as_ptr(), out_buf, 8);
+    }
+    8
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_get_member_info(index: u32, out_stats: *mut u32) -> u32 {
+    let lobby = match get_lobby() {
+        Some(l) => l,
+        None => return 0,
+    };
+    let idx = index as usize;
+    if idx >= lobby.members.len() || out_stats.is_null() {
+        return 0;
+    }
+
+    if let Some(m) = &lobby.members[idx] {
+        let lo = (m.steam_id & 0xFFFF_FFFF) as u32;
+        let hi = (m.steam_id >> 32) as u32;
+        unsafe {
+            *out_stats.add(0) = lo;
+            *out_stats.add(1) = hi;
+            *out_stats.add(2) = m.rating;
+            *out_stats.add(3) = m.role as u32;
+            *out_stats.add(4) = if m.ready { 1 } else { 0 };
+        }
+        5
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_lobby_get_member_name(index: u32, out_buf: *mut u8, max_len: u32) -> u32 {
+    let lobby = match get_lobby() {
+        Some(l) => l,
+        None => return 0,
+    };
+    let idx = index as usize;
+    if idx >= lobby.members.len() || out_buf.is_null() || max_len == 0 {
+        return 0;
+    }
+
+    if let Some(m) = &lobby.members[idx] {
+        let name_bytes = m.name_str().as_bytes();
+        let copy_len = name_bytes.len().min(max_len as usize);
+        unsafe {
+            core::ptr::copy_nonoverlapping(name_bytes.as_ptr(), out_buf, copy_len);
+        }
+        copy_len as u32
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_leaderboard_register(
+    id_lo: u32,
+    id_hi: u32,
+    name_ptr: *const u8,
+    name_len: u32,
+) -> u32 {
+    let lb = get_leaderboard();
+    let steam_id = combine_u64(id_lo, id_hi);
+    let name_slice = if !name_ptr.is_null() && name_len > 0 {
+        unsafe { core::slice::from_raw_parts(name_ptr, name_len as usize) }
+    } else {
+        b"Gladiator"
+    };
+
+    if lb.find_or_create(steam_id, name_slice).is_some() {
+        lb.sort_by_rank();
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_leaderboard_record_match(
+    winner_lo: u32,
+    winner_hi: u32,
+    loser_lo: u32,
+    loser_hi: u32,
+    is_ko: u32,
+    is_flawless: u32,
+) -> u32 {
+    let lb = get_leaderboard();
+    let winner_id = combine_u64(winner_lo, winner_hi);
+    let loser_id = combine_u64(loser_lo, loser_hi);
+
+    if lb.record_match(winner_id, loser_id, is_ko != 0, is_flawless != 0) {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_leaderboard_get_count() -> u32 {
+    get_leaderboard().len as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_leaderboard_get_entry(rank_idx: u32, out_stats: *mut u32) -> u32 {
+    let lb = get_leaderboard();
+    let idx = rank_idx as usize;
+    if idx >= lb.len || out_stats.is_null() {
+        return 0;
+    }
+    let e = &lb.entries[idx];
+    let lo = (e.steam_id & 0xFFFF_FFFF) as u32;
+    let hi = (e.steam_id >> 32) as u32;
+    unsafe {
+        *out_stats.add(0) = lo;
+        *out_stats.add(1) = hi;
+        *out_stats.add(2) = e.rating;
+        *out_stats.add(3) = e.matches_won;
+        *out_stats.add(4) = e.matches_lost;
+        *out_stats.add(5) = e.kos;
+        *out_stats.add(6) = e.flawless_victories;
+        *out_stats.add(7) = e.current_win_streak;
+        *out_stats.add(8) = e.highest_win_streak;
+    }
+    9
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_leaderboard_get_name(rank_idx: u32, out_buf: *mut u8, max_len: u32) -> u32 {
+    let lb = get_leaderboard();
+    let idx = rank_idx as usize;
+    if idx >= lb.len || out_buf.is_null() || max_len == 0 {
+        return 0;
+    }
+    let name_bytes = lb.entries[idx].name_str().as_bytes();
+    let copy_len = name_bytes.len().min(max_len as usize);
+    unsafe {
+        core::ptr::copy_nonoverlapping(name_bytes.as_ptr(), out_buf, copy_len);
+    }
+    copy_len as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_leaderboard_get_tier(rank_idx: u32, out_buf: *mut u8, max_len: u32) -> u32 {
+    let lb = get_leaderboard();
+    let idx = rank_idx as usize;
+    if idx >= lb.len || out_buf.is_null() || max_len == 0 {
+        return 0;
+    }
+    let tier_bytes = lb.entries[idx].tier_name().as_bytes();
+    let copy_len = tier_bytes.len().min(max_len as usize);
+    unsafe {
+        core::ptr::copy_nonoverlapping(tier_bytes.as_ptr(), out_buf, copy_len);
+    }
+    copy_len as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_leaderboard_get_rank(id_lo: u32, id_hi: u32) -> u32 {
+    let lb = get_leaderboard();
+    let steam_id = combine_u64(id_lo, id_hi);
+    lb.rank_of(steam_id).map(|r| r as u32).unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4351,5 +4693,75 @@ mod tests {
         assert!(!axiom_3d_get_framebuffer_ptr().is_null());
 
         axiom_texture_remove_from_3d();
+    }
+
+    #[test]
+    fn test_lobby_and_leaderboard_wasm_bindings() {
+        // Leaderboard test
+        assert!(axiom_leaderboard_get_count() >= 4);
+
+        // Register two players
+        let name_a = b"CyberViper";
+        let reg_a = axiom_leaderboard_register(9991, 0, name_a.as_ptr(), name_a.len() as u32);
+        assert_eq!(reg_a, 1);
+        let name_b = b"IronFang";
+        let reg_b = axiom_leaderboard_register(9992, 0, name_b.as_ptr(), name_b.len() as u32);
+        assert_eq!(reg_b, 1);
+        let count = axiom_leaderboard_get_count();
+        assert!(count >= 6);
+
+        // Record match: CyberViper (9991) beats IronFang (9992)
+        let rec = axiom_leaderboard_record_match(9991, 0, 9992, 0, 1, 1);
+        assert_eq!(rec, 1);
+
+        let rank = axiom_leaderboard_get_rank(9991, 0);
+        assert!(rank > 0);
+
+        let mut stats = [0u32; 9];
+        let n = axiom_leaderboard_get_entry(0, stats.as_mut_ptr());
+        assert_eq!(n, 9);
+        assert!(stats[2] > 0); // Rating > 0
+
+        let mut name_buf = [0u8; 32];
+        let name_len = axiom_leaderboard_get_name(0, name_buf.as_mut_ptr(), 32);
+        assert!(name_len > 0);
+
+        let mut tier_buf = [0u8; 32];
+        let tier_len = axiom_leaderboard_get_tier(0, tier_buf.as_mut_ptr(), 32);
+        assert!(tier_len > 0);
+
+        // Lobby test
+        let host_name = b"HostGamer";
+        let code = b"AXM-TEST";
+        let created = axiom_lobby_create(1001, 0, host_name.as_ptr(), host_name.len() as u32, code.as_ptr());
+        assert_eq!(created, 1);
+        assert_eq!(axiom_lobby_get_member_count(), 1);
+        assert_eq!(axiom_lobby_get_state(), 0); // WaitingForPlayers
+        assert_eq!(axiom_lobby_can_start(), 0);
+
+        let mut room_code = [0u8; 8];
+        axiom_lobby_get_room_code(room_code.as_mut_ptr());
+        assert_eq!(&room_code, b"AXM-TEST");
+
+        // Join challenger as Player2
+        let ch_name = b"ChallengerGamer";
+        let joined = axiom_lobby_join(1002, 0, ch_name.as_ptr(), ch_name.len() as u32, 1250, 1);
+        assert_eq!(joined, 1);
+        assert_eq!(axiom_lobby_get_member_count(), 2);
+        assert_eq!(axiom_lobby_can_start(), 0);
+
+        // Ready
+        axiom_lobby_set_ready(1002, 0, 1);
+        assert_eq!(axiom_lobby_can_start(), 1);
+        assert_eq!(axiom_lobby_get_state(), 1); // ReadyToStart
+
+        // Member info
+        let mut m_stats = [0u32; 5];
+        let info_len = axiom_lobby_get_member_info(1, m_stats.as_mut_ptr());
+        assert_eq!(info_len, 5);
+        assert_eq!(m_stats[0], 1002);
+        assert_eq!(m_stats[2], 1250);
+        assert_eq!(m_stats[3], 1); // Player2
+        assert_eq!(m_stats[4], 1); // Ready
     }
 }

@@ -11,6 +11,7 @@ pub mod boxing_netcode;
 pub mod card;
 pub mod defense;
 pub mod factory;
+pub mod lobby;
 pub mod schema_catalog;
 pub mod tournament;
 pub mod world_factory;
@@ -26,6 +27,10 @@ pub use boxing_netcode::{
     NETBOX_WIRE_MAGIC,
 };
 pub use card::{CardKind, DeckState, TacticalCard};
+pub use lobby::{
+    calculate_elo, LeaderboardEntry, LeaderboardTable, LobbyMember, LobbyRole, LobbyState,
+    SteamLobby, DEFAULT_ELO, ELO_K_FACTOR, MAX_LOBBY_MEMBERS,
+};
 pub use tournament::{
     BroadcastPhase, MatchStatus, TournamentBroadcastTelemetry, TournamentDirector,
     TournamentEngine, TournamentFighter, TournamentMatch, MAX_TOURNAMENT_MATCHES,

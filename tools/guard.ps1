@@ -8,7 +8,7 @@ Set-Location $Root
 $TmpDir = Join-Path $Root "tmp"
 if (-not (Test-Path $TmpDir)) { New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null }
 $VerdictFile = Join-Path $TmpDir "verdict.txt"
-$LogFile = Join-Path $TmpDir "guard.log"
+$LogFile = Join-Path $TmpDir "guard_cargo.log"
 
 Write-Host "[Axiom Guard] Running mechanical constitutional checks..." -ForegroundColor Cyan
 
@@ -37,7 +37,7 @@ if ($secretMatches) {
 
 # Check 3: Rust test verification via cmd to avoid PowerShell stderr trap
 Write-Host "[Axiom Guard] Executing cargo test --workspace..." -ForegroundColor Cyan
-cmd.exe /c "cargo test --workspace > tmp\guard.log 2>&1"
+cmd.exe /c "cargo test --workspace > tmp\guard_cargo.log 2>&1"
 $TestCode = $LASTEXITCODE
 
 if ($TestCode -ne 0) {
