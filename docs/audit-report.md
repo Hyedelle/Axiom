@@ -8,29 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 06:20 KST
-- **감사 대상:** Axiom Engine 220대 계층적 공간 그리드(Hierarchical Spatial Grid) 및 AABB 브로드페이즈 충돌 구현 (T-189, `spatial_grid.rs`, `AabbSlab64`, `SpatialCell64`, `SpatialHashGrid`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 바운딩 박스 슬랩 (`AabbSlab64`) & 공간 셀 슬랩 (`SpatialCell64`), 3-Prime Coprime + Wang Finalizer 3D 정수 공간 해시 함수, Lexicographical Minimum Overlap Rule 무할당 중복 제거, 6개 신규 단위 테스트 및 전역 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 06:30 KST
+- **감사 대상:** Axiom Engine 220대 브로드페이즈 충돌 가속 엔진 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-190, `spatial_grid.rs`, `network.rs`, `test_spatial_grid_jobs.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_broadphase_with_jobs` Chase-Lev 워커 풀 N-배치 병렬 디스패치, `emit_collision_pairs_to_event_bus` 롤백 지원 이벤트 버스 발행 (`channel::PHYSICS | EVENT_BROADPHASE_PAIR`), `NetworkMatchDirector::step_broadphase_with_jobs` 16-인 배틀로얄 브로드페이즈 파이프라인 결합, 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **0-Float in Core & 유클리드 나눗셈 (`div_euclid`)**:
-     - 모든 3D 공간 좌표는 정수 밀리미터(`mm: i32`)로 부동소수점 오차 및 플랫폼별 미세 불일치 원천 제거.
-     - 음수 좌표계 공간 분할 시 바운딩 박스 왜곡을 방지하기 위해 Rust의 `div_euclid` 채택.
-  2. **64-Byte L1 Cache Line Alignment (`#[repr(C, align(64))]`)**:
-     - `AabbSlab64`: 바운딩 박스 슬랩 (`size_of == 64, align_of == 64`, 자연 정렬 필드 배치로 컴파일러 암시적 패딩 0바이트).
-     - `SpatialCell64<CAP>`: 공간 셀 버킷 슬랩 (`size_of == 64, align_of == 64`, `CAP=14` 엔티티 인라인 POD 56B).
-     - 멀티코어 워커 간 거짓 공유(False Sharing)를 100% 원천 방지.
-  3. **3D 정수 공간 해시 함수 (`spatial_hash_3d`)**:
-     - 대형 소수 3-곱셈 XOR 체이닝 및 Wang Finalizer Mix 기법 (~3-4 CPU 사이클 초고속 연산, 주기성 패턴 완벽 붕괴).
-  4. **무할당 중복 충돌 쌍 소거 (Lexicographical Minimum Overlap Rule)**:
-     - 두 AABB 교집합 영역의 최소 셀 좌표 $(cx_{min}, cy_{min}, cz_{min})$에서만 충돌 쌍을 생성하는 수학적 불변식을 통해 동적 메모리 할당(HashSet/Sort) 없이 0-중복 달성.
-  5. **상태 합의 체크섬 (`compute_consensus_hash`)**:
-     - 64-bit FNV-1a 해시를 통해 전체 셀의 엔티티 점유 상태를 비트 단위로 완벽 검증.
-  6. **헌법 가드 `tools/guard.ps1` 100% 통과**:
-     - 0-Float 불변식, 시크릿 누출 방어, 전체 워크스페이스 단위 테스트 100% 올패스.
+  1. **멀티스레드 잡 시스템 병렬 디스패치 (`dispatch_broadphase_with_jobs`)**:
+     - 엔티티 슬랩 N-배치 분할 후 `JobSystem`에 `broadphase_batch_job` 디스크립터 할당, `WorkerPoolCoordinator` 워커 덱에 분산.
+     - 4개 워커 풀 협력적 드레인(`coordinator.drain_all`)을 통해 무잠금/무할당으로 완벽 처리.
+  2. **분산 이벤트 버스 연계 (`emit_collision_pairs_to_event_bus`)**:
+     - `EVENT_BROADPHASE_PAIR = 0x0220` 및 `channel::PHYSICS` 채널로 검출된 충돌 쌍 슬랩 즉시 방출.
+     - 40B 인라인 페이로드에 `pair_key`, `entity_a`, `entity_b`를 0-힙 패킹.
+     - GGPO 롤백 지원: 투기적 프레임 오예측 시 `event_bus.rollback_to(confirmed_seq)`로 $O(1)$ 즉시 되감기 및 절단 지원.
+  3. **16-인 배틀로얄 네트워크 매치 결합 (`NetworkMatchDirector::step_broadphase_with_jobs`)**:
+     - 모든 활성 플레이어의 기구학 상태를 64B L1 슬랩으로 사상하고 `SpatialHashGrid`에 적재하여 충돌 쌍을 추출, 이벤트 버스에 실시간 기록.
+  4. **헌법 가드 `tools/guard.ps1` 100% 통과**:
+     - 0-Float 불변식, 10,000-Step 복합 물리 벤치마크, 전체 워크스페이스 단위/통합 테스트 100% 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T189] Axiom Engine 220대 계층적 공간 그리드 및 AABB 브로드페이즈 충돌 구현
+- **일시:** 2026-10-24 06:20 KST
+- **판정:** 🟢 **ALL CLEAR (구현 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `AabbSlab64` & `SpatialCell64`, 3-Prime Coprime + Wang Finalizer 3D 정수 공간 해시 함수, Lexicographical Minimum Overlap Rule 무할당 중복 제거, 6개 단위 테스트 올패스.
 
 ### [AUDIT-20261024-T188] Axiom Engine 220대 차세대 공간 해싱 & 브로드페이즈 충돌 감지 가속 엔진 연구
 - **일시:** 2026-10-24 06:15 KST

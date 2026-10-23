@@ -7,6 +7,10 @@
 use axiom_core::event_bus::{
     channel, dispatch_events_with_jobs, DeterministicEventBus,
 };
+use axiom_core::spatial_grid::{
+    dispatch_broadphase_with_jobs, emit_collision_pairs_to_event_bus, AabbSlab64, CollisionPair64,
+    SpatialHashGrid, COLLISION_FLAG_DYNAMIC,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -605,6 +609,55 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         }
 
         pkt
+    }
+
+    /// Executes a parallel 3D broadphase spatial collision detection pass using SpatialHashGrid,
+    /// dispatching partitioning jobs across the worker pool and recording broadphase collision
+    /// pairs to the deterministic event bus under channel::PHYSICS.
+    pub fn step_broadphase_with_jobs<
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> usize {
+        let mut slabs = [AabbSlab64::empty(); MAX_PEERS];
+        for i in 0..MAX_PEERS {
+            let p = &self.current_world.players[i];
+            if (self.current_world.active_mask & (1 << i)) != 0 && p.health > 0 {
+                slabs[i] = AabbSlab64::new(
+                    (i + 1) as u32,
+                    1,
+                    0b01,
+                    COLLISION_FLAG_DYNAMIC,
+                    (p.pos_x - PLAYER_RADIUS_MM, p.pos_y - PLAYER_RADIUS_MM, p.pos_z),
+                    (p.pos_x + PLAYER_RADIUS_MM, p.pos_y + PLAYER_RADIUS_MM, p.pos_z + 1800),
+                );
+            }
+        }
+
+        // Parallel broadphase partition dispatch across worker pool
+        dispatch_broadphase_with_jobs(&slabs, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+
+        // Populate spatial hash grid and detect broadphase collision pairs
+        let mut grid = SpatialHashGrid::<1024, 14>::new(1000);
+        for i in 0..MAX_PEERS {
+            grid.insert(&slabs[i]);
+        }
+        let mut collision_pairs = [CollisionPair64::default(); 32];
+        let pair_count = grid.query_all_collision_pairs(&slabs, &mut collision_pairs);
+        if pair_count > 0 {
+            emit_collision_pairs_to_event_bus(
+                &collision_pairs[..pair_count],
+                self.current_world.tick,
+                &mut self.event_bus,
+            );
+        }
+
+        pair_count
     }
 
     fn kinematic_batch_job(_ctx: axiom_core::job_system::JobContext) {

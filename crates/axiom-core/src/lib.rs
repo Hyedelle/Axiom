@@ -70,9 +70,10 @@ pub use event_bus::{
     ComponentMask64, ComponentQuery, DeterministicEventBus, EventSlab64, DEFAULT_EVENT_CAPACITY,
 };
 pub use spatial_grid::{
+    broadphase_batch_job, dispatch_broadphase_with_jobs, emit_collision_pairs_to_event_bus,
     spatial_hash_3d, AabbSlab64, CollisionPair64, SpatialCell64, SpatialHashGrid,
     COLLISION_FLAG_DYNAMIC, COLLISION_FLAG_SLEEPING, COLLISION_FLAG_STATIC, COLLISION_FLAG_TRIGGER,
-    DEFAULT_CELL_CAPACITY, DEFAULT_GRID_TABLE_CAP,
+    DEFAULT_CELL_CAPACITY, DEFAULT_GRID_TABLE_CAP, EVENT_BROADPHASE_PAIR,
 };
 
 pub use audio::{

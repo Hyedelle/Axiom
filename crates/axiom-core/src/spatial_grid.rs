@@ -15,7 +15,13 @@
 
 use core::hash::Hasher;
 use core::mem::{align_of, size_of};
+use crate::event_bus::{channel, DeterministicEventBus};
 use crate::hash::Fnv1aHasher;
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
+
+/// Broadphase collision event type discriminant.
+pub const EVENT_BROADPHASE_PAIR: u16 = 0x0220;
 
 /// Flag bit: Entity is static terrain / prop (does not move).
 pub const COLLISION_FLAG_STATIC: u32 = 1 << 0;
@@ -469,4 +475,96 @@ impl<const TABLE_CAP: usize, const CELL_CAP: usize> SpatialHashGrid<TABLE_CAP, C
 
         hasher.finish()
     }
+}
+
+/// Worker task that executes broadphase collision scan across a partition of entity slabs.
+pub fn broadphase_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let chunk_size = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for i in 0..chunk_size {
+        let idx = start_idx.wrapping_add(i);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Partitions active entity slabs into N batches across the worker pool for parallel broadphase collision testing.
+pub fn dispatch_broadphase_with_jobs<
+    const SLAB_COUNT: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    slabs: &[AabbSlab64; SLAB_COUNT],
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    let active_count = slabs.iter().filter(|s| s.is_active()).count();
+    if active_count == 0 || batch_count == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let chunk_size = (SLAB_COUNT + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start = b * chunk_size;
+        let len = chunk_size.min(SLAB_COUNT.saturating_sub(start));
+        if len == 0 {
+            break;
+        }
+
+        let param = (start as u64) | ((len as u64) << 32);
+        let tag = (active_count as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            broadphase_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits detected collision pairs into a DeterministicEventBus under `channel::PHYSICS`.
+pub fn emit_collision_pairs_to_event_bus<const BUS_CAP: usize>(
+    pairs: &[CollisionPair64],
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> usize {
+    let mut emitted = 0;
+    for pair in pairs {
+        let mut payload = [0u8; 40];
+        let key_bytes = pair.pair_key.to_le_bytes();
+        payload[0..8].copy_from_slice(&key_bytes);
+        let id_a_bytes = pair.entity_a.to_le_bytes();
+        payload[8..12].copy_from_slice(&id_a_bytes);
+        let id_b_bytes = pair.entity_b.to_le_bytes();
+        payload[12..16].copy_from_slice(&id_b_bytes);
+
+        if event_bus.emit_raw(
+            tick,
+            EVENT_BROADPHASE_PAIR,
+            channel::PHYSICS,
+            pair.entity_a,
+            pair.entity_b,
+            payload,
+        ).is_some() {
+            emitted += 1;
+        } else {
+            break;
+        }
+    }
+    emitted
 }

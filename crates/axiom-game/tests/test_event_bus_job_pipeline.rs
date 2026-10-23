@@ -98,3 +98,38 @@ fn test_filter_entities_parallel_with_jobs() {
     assert_eq!(dispatched, 4, "Must dispatch 4 parallel query evaluation jobs");
     assert!(coordinator.total_jobs_executed() >= 4);
 }
+
+#[test]
+fn test_network_match_broadphase_spatial_grid_jobs_pipeline() {
+    use axiom_core::spatial_grid::EVENT_BROADPHASE_PAIR;
+
+    let mut dir = NetworkMatchDirector::<32>::new(0, 0x000F); // 4 peers
+    let mut job_system = JobSystem::<256>::new();
+    let mut coordinator = WorkerPoolCoordinator::<4, 64>::new(4);
+
+    // Place Player 0 and Player 1 close to each other (colliding AABBs)
+    dir.current_world.players[0].pos_x = 1000;
+    dir.current_world.players[0].pos_y = 1000;
+    dir.current_world.players[1].pos_x = 1400; // Overlapping since radius is 450mm (distance 400 < 900)
+    dir.current_world.players[1].pos_y = 1000;
+
+    // Place Player 2 and Player 3 far away
+    dir.current_world.players[2].pos_x = -4000;
+    dir.current_world.players[2].pos_y = -4000;
+    dir.current_world.players[3].pos_x = 4000;
+    dir.current_world.players[3].pos_y = -4000;
+
+    let pairs_detected = dir.step_broadphase_with_jobs(&mut job_system, &mut coordinator);
+    assert_eq!(pairs_detected, 1, "Exactly one colliding pair (P0, P1) should be found");
+
+    // Check broadphase event emitted to event bus under channel::PHYSICS
+    let mut physics_broadphase_events = 0;
+    dir.event_bus.for_each_matching(channel::PHYSICS, |ev| {
+        if ev.event_type == EVENT_BROADPHASE_PAIR {
+            assert_eq!(ev.source_id, 1); // Player 0 has entity_id 1
+            assert_eq!(ev.target_id, 2); // Player 1 has entity_id 2
+            physics_broadphase_events += 1;
+        }
+    });
+    assert_eq!(physics_broadphase_events, 1);
+}

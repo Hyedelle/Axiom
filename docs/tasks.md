@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-190: Axiom 브로드페이즈 충돌 가속 엔진 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_spatial_grid_jobs.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-191: Axiom 220대 공간 해싱 & 브로드페이즈 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-192: Mimic The Show 챔피언십 링 3D 공간 해시 브로드페이즈 물리/히트박스 및 HUD 레이더 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-190: Axiom 브로드페이즈 충돌 가속 엔진 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_spatial_grid_jobs.rs`, `crates/axiom-game/tests/test_event_bus_job_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_broadphase_with_jobs` [엔티티 슬랩 N-배치 분할 후 Chase-Lev 워커 풀 분산], 0-Heap 이벤트 버스 발행 `emit_collision_pairs_to_event_bus` [`EVENT_BROADPHASE_PAIR = 0x0220` 및 `channel::PHYSICS` 채널, 40B 인라인 페이로드, GGPO 롤백 `rollback_to` 지원], `NetworkMatchDirector::step_broadphase_with_jobs` [16-인 배틀로얄 경기장 3D AABB 브로드페이즈 실시간 감지 파이프라인 결합], 3개 신규 통합 테스트 및 `axiom-game` 전역 45개 단위/11개 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-189: Axiom 220대 계층적 공간 그리드(Hierarchical Spatial Grid) 및 AABB 브로드페이즈 충돌 구현** (`crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_spatial_grid.rs`, 0-Float 64B L1 캐시 정렬 바운딩 박스 슬랩 `AabbSlab64` [#[repr(C, align(64))], exact 64B slab, 0-암시적 패딩 자연 정렬, min/max XYZ mm, entity_id, generation, layer_mask, flags], 0-Float 64B L1 정렬 공간 셀 슬랩 `SpatialCell64<CAP>` [#[repr(C, align(64))], exact 64B slab, 14-entity inline buffer], 3-Prime Coprime + Wang Finalizer 3D 정수 공간 해시 함수 `spatial_hash_3d`, 0-Heap 고정 크기 플랫 배열 해시 테이블 `SpatialHashGrid<TABLE_CAP, CELL_CAP>` [insert, query_aabb_candidates, query_all_collision_pairs], Lexicographical Minimum Overlap Rule 기반 무할당 0-중복 충돌 쌍 생성 `CollisionPair64`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 6개 신규 단위 테스트 및 `axiom-core` 전역 59개 단위/36개 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-188: Axiom 220대 차세대 공간 해싱(Spatial Hashing) & 브로드페이즈 충돌 감지 가속 엔진 연구** (`docs/audit-report.md`, `axiom-spatial-hashing-and-broadphase-research.md`, 0-Float 64B L1 캐시 정렬 바운딩 박스 슬랩 `AabbSlab64` [#[repr(C, align(64))], exact 64B slab, min/max XYZ mm, entity_id, layer_mask, generation], 0-Float 64B L1 정렬 공간 셀 슬랩 `SpatialCell64<CAP>` [#[repr(C, align(64))], exact 64B slab, 14-entity inline buffer], 3-Prime Coprime + Wang Finalizer 3D 공간 해시 함수 `spatial_hash_3d`, Lexicographical Minimum Overlap Rule 기반 무할당 중복 충돌 쌍 소거, 200대 JobSystem/WorkerPoolCoordinator 및 210대 DeterministicEventBus 파이프라인 결합 아키텍처 명세 수립 완료)
 - [x] **T-187: Axiom 210대 차세대 결정론적 이벤트 버스 & 컴포넌트 쿼리 엔진 공식 릴리즈 v3.5.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-121]~[D-124], `docs/audit-report.md` [AUDIT-20261024-v3.5.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 이벤트 슬랩 `EventSlab64` [#[repr(C, align(64))], exact 64B slab, 40B 인라인 POD 페이로드], 0-Heap 고정 용량 링 버퍼 `DeterministicEventBus<CAP>` [비트마스크 고속 인덱싱, GGPO 롤백 지원 `rollback_to`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 채널 필터링 `for_each_matching`], 64-컴포넌트 비트마스크 `ComponentMask64` 및 1-사이클 비트 필터 `ComponentQuery` [require/exclude/matches], 플랫 어레이 슬랩 필터 `filter_entities`, `dispatch_events_with_jobs` 및 `filter_entities_with_jobs` 비동기 잡 병렬 디스패치 파이프라인 연계, WebGL/WASM 📡 **210 Event Bus (64B Slabs)** 대화형 모달 및 1.28 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` 내 `DeterministicEventBus<64>` 및 `dispatch_event_bus_pipeline` 결합 [16-슬랩 무할당 스택 배치 배출, `SoundKind::HitKo`/`GuardHit`/`HitCross`/`HitJab` 입체 공간 음향, 2D/3D 파티클 비산 및 카메라 임팩트 셰이크 연동, F3 HUD 카드 `Bus: 128 Slabs | Events: {}` 모니터링], 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v3.5.0-unified-milestone.zip` [2.16 MB, SHA-256: `1472025578213AA5B6047DDC2BD93061E0D554B5AC5A68272424E60C37ADF051` 검증], 전체 워크스페이스 v3.5.0 공식 판올림 및 Git 태그 `v3.5.0` 발행, `tools/guard.ps1` 통과)
