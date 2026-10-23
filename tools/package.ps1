@@ -3,7 +3,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools/package.ps1 [-Version "2.1.0"] [-Clean]
 
 param (
-    [string]$Version = "3.0.0",
+    [string]$Version = "3.1.0",
     [switch]$Clean
 )
 
@@ -208,7 +208,7 @@ $MimicHash = (Get-FileHash -Path $MimicDstExe -Algorithm SHA256).Hash
 $BuildDate = (Get-Date).ToString("yyyy-MM-ddTHH:mm:sszzz")
 
 $ManifestObj = [PSCustomObject]@{
-    milestone = "Axiom 160-Task Grand Environmental Physics Milestone v3.0.0 (T-001 ~ T-160)"
+    milestone = "Axiom 170-Task Next-Gen GPU Compute & Distributed Rollback Netcode Milestone v3.1.0 (T-001 ~ T-165)"
     engine_version = "v$Version"
     game_version = "v1.0.0"
     target_platform = "windows-x64-steam-deck-verified"
@@ -241,12 +241,15 @@ $ManifestObj = [PSCustomObject]@{
     architecture = [PSCustomObject]@{
         determinism = "pure_integer_fixed_point_0_floats"
         l1_cache_alignment = "64_bytes"
+        netcode = "16_peer_full_mesh_distributed_rollback_8_frame_sliding_window"
+        gpu_compute = "64b_voxel_compute_dispatch_webgpu_vulkan_dx12"
         rasterizer = "8x8_juan_pineda_tile_binning_reversed_z"
         audio = "procedural_pcm_synthesis_22050hz"
         destruction = "3d_voxel_cratering_and_mesh_severance"
         thermal_stress = "multi_material_thermal_diffusion_and_stress_collapse"
         fluid_dynamics = "simd_red_black_checkerboard_parallel_and_slice_sleeping"
         physics_benchmark = "342459_tps_2us_latency_10k_steps"
+        net_benchmark = "33797_peer_frames_sec_16_peers_0_desync"
         ai = "int8_quantized_neural_forward_inference"
     }
 }

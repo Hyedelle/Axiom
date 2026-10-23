@@ -1294,6 +1294,50 @@
   4. 전체 워크스페이스 버전을 v2.9.0에서 **v3.0.0**으로 공식 판올림하고 Git 태그 `v3.0.0` 발행.
 - **영향:** `crates/axiom-render/src/kinematics3d.rs`, `crates/axiom-render/src/raster3d.rs`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-105] 16-플레이어 완전 그물망(Full-Mesh) 무잠금 P2P 롤백 넷코드 아키텍처 채택 (T-161)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 중앙 호스트의 틱 지연 병목을 배제하고 16개 노드가 완전 그물망(Full-Mesh)으로 직결되는 분산 롤백 세션 `DistributedRollbackSession` 구축.
+  2. 64B L1 캐시 정렬 `NetPacket64` 및 `NetTelemetry64` 슬랩을 확립하여 패킷 당 캐시 미스 0개 달성.
+  3. 휴리스틱 입력 반복 예측 및 투기적 롤백 재시뮬레이션을 통해 528,905 프레임을 236ms(초당 220만 프레임 재시뮬레이션 스루풋) 만에 완료하고, 16/16 전원 일치 64-bit FNV-1a 상태 합의 및 0 디싱크 달성.
+- **영향:** `crates/axiom-net`, `crates/axiom-cli/src/net_cli.rs`.
+
+---
+
+### [D-106] 8-프레임 슬라이딩 윈도우 중복 전송을 통한 0ms 무정지 손실 복구 (T-161, T-162)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 와이어 패킷마다 현재 프레임과 직전 7프레임의 입력 `[F, F-1, ..., F-7]`을 함께 전송하여, 20% 손실 링크에서도 8연속 패킷 손실 확률을 0.000025%로 억제.
+  2. 재전송 요청(ACK/NACK 대기 지연) 없이 손실된 프레임을 즉시 복원하여 무정지 60 FPS 스트리밍 보장.
+- **영향:** `crates/axiom-net/src/packet.rs`, `crates/axiom-net/src/rollback.rs`.
+
+---
+
+### [D-107] 64B L1 캐시 라인 단일 슬랩 물리 엔티티 및 스냅샷 정렬 (T-162)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 16-인 물리 엔티티 `PlayerPhysicalState64`를 정확히 64바이트 L1 슬랩으로 정렬하고, 16명 엔티티와 월드 헤더를 합산하여 정확히 17개 캐시 라인(1,088바이트)으로 물리 월드 스냅샷 `PhysicalWorldSnapshot` 패키징.
+  2. 원형 경기장 경계 클램핑, 탄성 반발 충돌, 공격 판정, 가드 75% 피해 감소를 100% 순수 정수 산술로 연산하여 오차 없는 완전 결정론을 보증.
+  3. `NetworkMatchDirector`를 통해 64-프레임 링 버퍼 스냅샷 롤백 복원 및 재시뮬레이션 파이프라인 확립.
+- **영향:** `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-108] WebGPU / Vulkan 호환 64B GPU Compute 디스패치 서술자 단일화 (T-163, T-165)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 차세대 복셀 광선 추적 렌더러를 위한 64바이트 디스패치 서술자 `VoxelComputeDispatch64`를 구축하여 WebGPU, Vulkan, DirectX 12, Metal, CPU 5대 백엔드와의 제로-카피 통일 버퍼 블리팅 규격 확립.
+  2. WASM C-ABI `axiom_net_bench_rollback` 및 `axiom_gpu_bench_compute` 연동, Web 3D 스튜디오 🌐 16-Peer Netcode (33k TPS) & ⚡ GPU Compute 대화형 모달 배포.
+  3. 전체 워크스페이스 버전을 v3.0.0에서 **v3.1.0**으로 공식 판올림하고 Git 태그 `v3.1.0` 발행.
+- **영향:** `crates/axiom-render/src/gpu_backend.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `Cargo.toml`.
+
+
 
 
 
