@@ -27,13 +27,12 @@ use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_game::boxing_netcode::{BoxingRollbackSession, NetboxWirePacket, SpectatorRelaySession};
 use axiom_game::lobby::{
-    calculate_elo, LeaderboardEntry, LeaderboardTable, LobbyMember, LobbyRole, LobbyState,
-    SteamLobby, DEFAULT_ELO, ELO_K_FACTOR, MAX_LOBBY_MEMBERS,
+    LeaderboardTable, LobbyRole, SteamLobby, MAX_LOBBY_MEMBERS,
 };
 use axiom_game::tournament::{
     TournamentBroadcastTelemetry, TournamentDirector, TournamentEngine, TournamentFighter,
 };
-use axiom_core::voxel_destruct::{VoxelVolume16, VOXEL_AIR, VOXEL_DIM, VOXEL_METAL, VOXEL_MOLTEN, VOXEL_STONE};
+use axiom_core::voxel_destruct::VoxelVolume16;
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D, PartMesh};
@@ -3497,6 +3496,26 @@ pub extern "C" fn axiom_audio_worklet_render_block() -> *const i16 {
 pub extern "C" fn axiom_audio_worklet_active_voices() -> u32 {
     let mixer = audio::get_worklet_mixer();
     mixer.active_voice_count() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_play_voxel_blast(x_norm: i32, z_norm: i32, radius: i32) -> i32 {
+    let x_mm = x_norm.clamp(-1000, 1000);
+    let z_mm = z_norm.clamp(-1000, 1000);
+    let pitch = (1000 - (radius * 30)).clamp(600, 1200) as u32;
+    axiom_audio_worklet_play(14, pitch, 850, x_mm, z_mm)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_play_debris_bounce(x_norm: i32, z_norm: i32, material: u32) -> i32 {
+    let x_mm = x_norm.clamp(-1000, 1000);
+    let z_mm = z_norm.clamp(-1000, 1000);
+    let pitch = match material {
+        2 => 1200, // Metal: higher pitch clank
+        3 => 800,  // Molten slag: sizzle
+        _ => 1000, // Stone: clatter
+    };
+    axiom_audio_worklet_play(15, pitch, 600, x_mm, z_mm)
 }
 
 // ---------------------------------------------------------------------------

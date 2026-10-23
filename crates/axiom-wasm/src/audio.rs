@@ -46,6 +46,10 @@ pub enum SoundKind {
     Build = 12,
     /// Structure demolition crunch (falling noise + rumble, 80ms).
     Demolish = 13,
+    /// Seismic crater blast: deep 80->28Hz sub-bass shockwave + pulverized stone crunch (800ms).
+    VoxelBlast = 14,
+    /// Debris particles scattering and bouncing across metal/stone ground (350ms).
+    DebrisScatter = 15,
 }
 
 impl SoundKind {
@@ -64,6 +68,8 @@ impl SoundKind {
             11 => SoundKind::Shoot,
             12 => SoundKind::Build,
             13 => SoundKind::Demolish,
+            14 => SoundKind::VoxelBlast,
+            15 => SoundKind::DebrisScatter,
             _ => SoundKind::None,
         }
     }
@@ -456,6 +462,32 @@ pub fn generate_pcm_samples(kind: SoundKind) -> Vec<i16> {
                 accum.push((((mixed * amp) / total as i32).clamp(-32767, 32767)) as i16);
             }
             accum
+        }
+        SoundKind::VoxelBlast => {
+            let total = 17640usize; // ~800ms
+            let mut accum = vec![0i32; total];
+            mix_boom(&mut accum, 0, 14000, 32000);
+            mix_knock(&mut accum, 0, 6000, 85, 30, 29000, 0xABCDEF01);
+            mix_body(&mut accum, 400, 12000, 22000);
+            mix_tail(&mut accum, 1000, 16000, 18000, 0x98761234);
+            accum.into_iter().map(|s| s.clamp(-32768, 32767) as i16).collect()
+        }
+        SoundKind::DebrisScatter => {
+            let total = 7717usize; // ~350ms
+            let mut accum = vec![0i32; total];
+            let mut lcg: u32 = 0x55AA1122;
+            let mut filter = 0i32;
+            for i in 0..total {
+                lcg = lcg.wrapping_mul(1664525).wrapping_add(1013904223);
+                let noise = (lcg >> 16) as i16 as i32;
+                filter = (filter * 3 + noise * 5) / 8;
+                let is_click = (i % 882 == 0) || (i % 1323 == 0) || (i % 2205 == 0);
+                let click = if is_click { 18000 } else { 0 };
+                let mixed = (filter * 12000) / 32768 + click;
+                let env = (total - i) as i64 * 20000 / total as i64;
+                accum[i] = ((mixed as i64 * env) / 32768) as i32;
+            }
+            accum.into_iter().map(|s| s.clamp(-32768, 32767) as i16).collect()
         }
         SoundKind::None => Vec::new(),
     }

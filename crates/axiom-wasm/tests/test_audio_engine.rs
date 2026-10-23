@@ -3,7 +3,7 @@
 use axiom_wasm::audio::{
     apply_arena_reverb, apply_pitch_shift, compute_spatial_stereo, generate_pcm_samples,
     get_stereo_buffer_ptr, get_stereo_frame_count, get_worklet_mixer, render_worklet_block,
-    synthesize_to_static_buffer, SoundKind, SAMPLE_RATE,
+    synthesize_to_static_buffer, SoundKind, WorkletMixer, SAMPLE_RATE,
 };
 
 #[test]
@@ -24,6 +24,8 @@ fn test_all_sound_kinds_synthesis() {
         SoundKind::Shoot,
         SoundKind::Build,
         SoundKind::Demolish,
+        SoundKind::VoxelBlast,
+        SoundKind::DebrisScatter,
     ];
 
     for &k in &kinds {
@@ -109,4 +111,20 @@ fn test_worklet_multi_voice_streaming() {
 
     let block_ptr = render_worklet_block();
     assert!(!block_ptr.is_null());
+}
+
+#[test]
+fn test_voxel_blast_and_debris_spatial_audio() {
+    let pcm_blast = generate_pcm_samples(SoundKind::VoxelBlast);
+    assert!(!pcm_blast.is_empty());
+    assert!(pcm_blast.len() >= 17640);
+
+    let pcm_debris = generate_pcm_samples(SoundKind::DebrisScatter);
+    assert!(!pcm_debris.is_empty());
+    assert!(pcm_debris.len() >= 7700);
+
+    let mut mixer = WorkletMixer::new();
+    assert!(mixer.play_sound(SoundKind::VoxelBlast, 800, 850, 0, 1000));
+    assert!(mixer.play_sound(SoundKind::DebrisScatter, 1150, 400, 200, 1000));
+    assert_eq!(mixer.active_voice_count(), 2);
 }

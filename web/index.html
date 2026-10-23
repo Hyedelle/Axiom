@@ -881,6 +881,43 @@
       }
     }
 
+    function playVoxelBlastSfx(gridX = 8, gridZ = 8, radius = 4) {
+      try {
+        const ctx = getAudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+        const panX = ((gridX - 8) * 100);
+        const panZ = 1000;
+        if (wasmInstance && wasmInstance.axiom_audio_synthesize && wasmInstance.axiom_audio_get_interleaved_ptr) {
+          const kind = 14; // VoxelBlast
+          const pitch = Math.max(600, Math.min(1200, 1000 - (radius * 30)));
+          const reverb = 850;
+          const frames = wasmInstance.axiom_audio_synthesize(kind, pitch, reverb, panX, panZ);
+          if (frames > 0) {
+            const ptr = wasmInstance.axiom_audio_get_interleaved_ptr();
+            const pcm16 = new Int16Array(wasmInstance.memory.buffer, ptr, frames * 2);
+            const sampleRate = wasmInstance.axiom_audio_sample_rate() || 22050;
+            const audioBuffer = ctx.createBuffer(2, frames, sampleRate);
+            const leftCh = audioBuffer.getChannelData(0);
+            const rightCh = audioBuffer.getChannelData(1);
+            for (let i = 0; i < frames; i++) {
+              leftCh[i] = pcm16[i * 2] / 32768.0;
+              rightCh[i] = pcm16[i * 2 + 1] / 32768.0;
+            }
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            source.start();
+            return;
+          }
+        }
+        if (wasmInstance && wasmInstance.axiom_audio_play_voxel_blast) {
+          wasmInstance.axiom_audio_play_voxel_blast(panX, panZ, radius);
+        }
+      } catch (e) {
+        console.warn('Voxel blast audio notice:', e);
+      }
+    }
+
     let selectedTool = 2; // Default: Mining Drill
     let selectedDir = 1; // Default: East
     const dirNames = ['North', 'East', 'South', 'West'];
@@ -1230,6 +1267,7 @@
         const gridZ = Math.max(1, Math.min(14, Math.round((mouseY / height) * 16)));
         if (wasmInstance && wasmInstance.axiom_voxel_carve_crater) {
           wasmInstance.axiom_voxel_carve_crater(gridX, gridZ, 3, 4);
+          playVoxelBlastSfx(gridX, gridZ, 4);
         }
       } else if (mode === 'boxing') {
         const phase = wasmInstance ? wasmInstance.axiom_boxing_get_phase() : 0;
@@ -1434,6 +1472,7 @@
         const gridZ = Math.max(1, Math.min(14, Math.round((mouseY / height) * 16)));
         if (wasmInstance && wasmInstance.axiom_voxel_carve_crater) {
           wasmInstance.axiom_voxel_carve_crater(gridX, gridZ, 3, 4);
+          playVoxelBlastSfx(gridX, gridZ, 4);
         }
       } else if (mode === 'boxing') {
         const phase = wasmInstance.axiom_boxing_get_phase();
@@ -2918,6 +2957,7 @@
     function carveVoxelCenterBlast() {
       if (wasmInstance && wasmInstance.axiom_voxel_carve_crater) {
         wasmInstance.axiom_voxel_carve_crater(8, 8, 4, 6);
+        playVoxelBlastSfx(8, 8, 6);
       }
     }
 
