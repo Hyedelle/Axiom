@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-186: Mimic The Show 챔피언십 링 분산 이벤트 버스 사운드/VFX/전투 파이프라인 결합** (`mimic-the-show/src/view.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-187: Axiom 210대 차세대 결정론적 이벤트 버스 & 컴포넌트 쿼리 엔진 공식 릴리즈 v3.5.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-188: Axiom 220대 차세대 공간 해싱(Spatial Hashing) & 브로드페이즈 충돌 감지 가속 엔진 연구** (`crates/axiom-core/src/spatial_grid.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_spatial_grid.rs`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-186: Mimic The Show 챔피언십 링 분산 이벤트 버스 사운드/VFX/전투 파이프라인 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `DeterministicEventBus<64>` 및 `event_bus_events_processed` 탑재, `dispatch_event_bus_pipeline` [L1 캐시 스택 16-슬랩 무할당 배치 배출, `SoundKind::HitKo`/`GuardHit`/`HitCross`/`HitJab` 입체 공간 음향, 2D/3D 파티클 비산 및 카메라 임팩트 셰이크 연동], `step_frame` 싱글플레이 타격/피격/가드 실시간 슬랩 발행, F3 HUD 카드 `Bus: 128 Slabs | Events: {} (SFX/VFX)` 모니터링 연동, 23개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-185: Axiom 210대 이벤트 버스 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_event_bench_bus` [256-슬랩 링 버퍼 다중 채널 이벤트 발행, `channel::COMBAT` 매칭 필터링, 투기적 롤백 되감기 `rollback_to`, 4-워커 잡 시스템 병렬 디스패치 및 64-bit FNV-1a 상태 합의 체크섬 계측], 웹 3D 복셀 스튜디오 📡 **210 Event Bus (64B Slabs)** 대화형 모달 연동, 1.28 MB 최적화 WASM 바이너리 동기화, 24개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-184: Axiom 분산 이벤트 버스 멀티스레드 잡 시스템 병렬 디스패치 파이프라인 연계** (`crates/axiom-core/src/event_bus.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-game/tests/test_event_bus_job_pipeline.rs`, `dispatch_events_with_jobs` [활성 이벤트 N-배치 분할 및 워커 풀 병렬 채널 필터링], `filter_entities_with_jobs` [엔티티 슬랩 N-배치 병렬 아키타입 평가], `NetworkMatchDirector` 내 `DeterministicEventBus<128>` 내장 및 `CombatHitPayload` 24B POD 자동 방출 연동 [`EVENT_COMBAT_HIT`/`EVENT_COMBAT_GUARD`/`EVENT_COMBAT_DAMAGE`/`EVENT_COMBAT_KNOCKDOWN`], `advance_tick_with_jobs` 이벤트 워커 풀 디스패치, 2개 신규 통합 테스트 및 전체 워크스페이스 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-183: Axiom 210대 컴포넌트 쿼리 시스템 및 엔티티 슬랩 필터링 구현** (`crates/axiom-core/src/event_bus.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_event_bus.rs`, 0-Float 64B L1 캐시 정렬 `EventSlab64` [#[repr(C, align(64))], exact 64B slab, 40B 인라인 POD 페이로드], 0-Heap 고정 용량 링 버퍼 `DeterministicEventBus<CAP>` [비트마스크 고속 인덱싱, GGPO 롤백 지원 `rollback_to`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 채널 필터링 `for_each_matching`], 64-컴포넌트 비트마스크 `ComponentMask64` 및 1-사이클 비트 필터 `ComponentQuery`, 플랫 어레이 슬랩 필터 `filter_entities`, 7개 단위 테스트 및 `axiom-core` 전역 59개 단위/35개 통합 테스트 100% 통과, `tools/guard.ps1` 통과)
