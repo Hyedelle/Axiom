@@ -567,15 +567,74 @@
     }
 
     let audioCtx = null;
+    let audioWorkletReady = false;
+
     function getAudioContext() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        initAudioWorklet();
+      }
       if (audioCtx.state === 'suspended') audioCtx.resume();
       return audioCtx;
     }
 
-    function playBoxingSfx(code) {
+    async function initAudioWorklet() {
+      if (audioCtx && audioCtx.audioWorklet && !audioWorkletReady) {
+        try {
+          await audioCtx.audioWorklet.addModule('axiom-audio-worklet.js');
+          audioWorkletReady = true;
+          console.log('✅ Axiom 3D Spatial AudioWorklet Node initialized');
+        } catch (e) {
+          console.warn('AudioWorklet module notice:', e);
+        }
+      }
+    }
+
+    function playBoxingSfx(code, panX = 0, panZ = 1000) {
       try {
         const ctx = getAudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+
+        // 1. WASM Zero-Float Procedural Synthesizer & 3-Tap Arena Reverb + 3D Panning
+        if (wasmInstance && wasmInstance.axiom_audio_synthesize && wasmInstance.axiom_audio_get_interleaved_ptr) {
+          let kind = 1;
+          let pitch = 1000;
+          let reverb = 150;
+
+          if (code === 1) { kind = 1; pitch = 1050; reverb = 100; } // Jab: snappy knock
+          else if (code === 2) { kind = 2; pitch = 1000; reverb = 250; } // Cross: frame resonance
+          else if (code === 3) { kind = 3; pitch = 940; reverb = 450; } // Hook: heavy frame reverb
+          else if (code === 4) { kind = 7; pitch = 1000; reverb = 0; } // Slip: whoosh
+          else if (code === 5) { kind = 6; pitch = 1000; reverb = 200; } // Guard: metallic deflection
+          else if (code === 6) { kind = 4; pitch = 900; reverb = 600; } // Counter: sub-bass & bell ring
+          else if (code === 7) { kind = 5; pitch = 820; reverb = 800; } // KO: seismic sub-bass boom
+          else if (code === 8) { kind = 9; pitch = 1000; reverb = 700; } // Bell: brass chime
+          else if (code === 9) { kind = 8; pitch = 1000; reverb = 300; } // Steam: valve latch & hiss
+          else if (code === 10) { kind = 10; pitch = 1000; reverb = 500; } // Fanfare: victory chord
+
+          const frames = wasmInstance.axiom_audio_synthesize(kind, pitch, reverb, panX, panZ);
+          if (frames > 0) {
+            const ptr = wasmInstance.axiom_audio_get_interleaved_ptr();
+            const pcm16 = new Int16Array(wasmInstance.memory.buffer, ptr, frames * 2);
+            const sampleRate = wasmInstance.axiom_audio_sample_rate() || 22050;
+            const audioBuffer = ctx.createBuffer(2, frames, sampleRate);
+            const leftCh = audioBuffer.getChannelData(0);
+            const rightCh = audioBuffer.getChannelData(1);
+
+            for (let i = 0; i < frames; i++) {
+              leftCh[i] = pcm16[i * 2] / 32768.0;
+              rightCh[i] = pcm16[i * 2 + 1] / 32768.0;
+            }
+
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            source.start();
+            return;
+          }
+        }
+
+        // 2. Pure Oscillator Fallback if WASM sound module not yet ready
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -648,7 +707,9 @@
           osc.start(t);
           osc.stop(t + 0.15);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Audio playback skipped:", e);
+      }
     }
 
     let selectedTool = 2; // Default: Mining Drill

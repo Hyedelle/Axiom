@@ -3,6 +3,8 @@
 //! Exposes zero-copy C-ABI interfaces for WebAssembly execution in the browser.
 //! Allows running 100% deterministic simulations and rendering in 60fps canvas.
 
+pub mod audio;
+
 extern crate alloc;
 
 use alloc::boxed::Box;
@@ -3192,9 +3194,97 @@ pub extern "C" fn axiom_netbox_get_framebuffer_len() -> u32 {
     netbox_engine().map(|e| e.framebuffer.pixels.len() as u32).unwrap_or(0)
 }
 
+// ---------------------------------------------------------------------------
+// Zero-Float Procedural Audio Synthesis, 3D Spatial Panning & AudioWorklet C-ABI
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_sample_rate() -> u32 {
+    audio::SAMPLE_RATE
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_synthesize(
+    kind: u32,
+    pitch_permill: u32,
+    reverb_decay_permill: u32,
+    pan_x: i32,
+    pan_z: i32,
+) -> u32 {
+    let sound_kind = audio::SoundKind::from_u32(kind);
+    audio::synthesize_to_static_buffer(
+        sound_kind,
+        pitch_permill as u16,
+        reverb_decay_permill as u16,
+        pan_x,
+        pan_z,
+    ) as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_get_interleaved_ptr() -> *const i16 {
+    audio::get_stereo_buffer_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_get_frame_count() -> u32 {
+    audio::get_stereo_frame_count() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_worklet_play(
+    kind: u32,
+    pitch_permill: u32,
+    reverb_decay_permill: u32,
+    pan_x: i32,
+    pan_z: i32,
+) -> i32 {
+    let mixer = audio::get_worklet_mixer();
+    let sound_kind = audio::SoundKind::from_u32(kind);
+    if mixer.play_sound(
+        sound_kind,
+        pitch_permill as u16,
+        reverb_decay_permill as u16,
+        pan_x,
+        pan_z,
+    ) {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_worklet_render_block() -> *const i16 {
+    audio::render_worklet_block()
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_audio_worklet_active_voices() -> u32 {
+    let mixer = audio::get_worklet_mixer();
+    mixer.active_voice_count() as u32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_audio_synthesis_and_worklet() {
+        assert_eq!(axiom_audio_sample_rate(), 22050);
+        // Synthesize jab: pitch 1000, reverb 0, center
+        let frames = axiom_audio_synthesize(1, 1000, 0, 0, 1000);
+        assert!(frames > 0);
+        assert_eq!(axiom_audio_get_frame_count(), frames);
+        let ptr = axiom_audio_get_interleaved_ptr();
+        assert!(!ptr.is_null());
+
+        // Test worklet streaming
+        assert_eq!(axiom_audio_worklet_play(2, 1000, 300, -300, 800), 1);
+        assert!(axiom_audio_worklet_active_voices() > 0);
+        let block_ptr = axiom_audio_worklet_render_block();
+        assert!(!block_ptr.is_null());
+    }
 
     #[test]
     fn test_wasm_3d_lifecycle_and_render() {
