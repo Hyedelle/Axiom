@@ -67,6 +67,10 @@ struct GltfNode {
     #[serde(default)]
     name: Option<String>,
     mesh: Option<usize>,
+    #[serde(default)]
+    translation: Option<[f32; 3]>,
+    #[serde(default)]
+    children: Option<Vec<usize>>,
 }
 
 #[derive(Deserialize)]
@@ -158,12 +162,39 @@ pub fn parse_glb(bytes: &[u8]) -> Result<MechaModel3D, String> {
 
     let mut model = MechaModel3D::default();
 
-    // Iterate through nodes to preserve Blender part names
-    for node in &root.nodes {
+    // Build parent-child map to accumulate rest translations down the node hierarchy
+    let mut parent_map = vec![None; root.nodes.len()];
+    for (i, node) in root.nodes.iter().enumerate() {
+        if let Some(children) = &node.children {
+            for &child in children {
+                if child < root.nodes.len() {
+                    parent_map[child] = Some(i);
+                }
+            }
+        }
+    }
+
+    let mut node_translations: Vec<[f32; 3]> = Vec::with_capacity(root.nodes.len());
+    for i in 0..root.nodes.len() {
+        let mut t = root.nodes[i].translation.unwrap_or([0.0, 0.0, 0.0]);
+        let mut curr = i;
+        while let Some(parent) = parent_map[curr] {
+            let pt = root.nodes[parent].translation.unwrap_or([0.0, 0.0, 0.0]);
+            t[0] += pt[0];
+            t[1] += pt[1];
+            t[2] += pt[2];
+            curr = parent;
+        }
+        node_translations.push(t);
+    }
+
+    // Iterate through nodes to preserve Blender part names and rest positions
+    for (node_idx, node) in root.nodes.iter().enumerate() {
         let mesh_idx = match node.mesh {
             Some(idx) if idx < root.meshes.len() => idx,
             _ => continue,
         };
+        let node_t = node_translations[node_idx];
 
         let mesh = &root.meshes[mesh_idx];
         let part_name = node
@@ -227,9 +258,9 @@ pub fn parse_glb(bytes: &[u8]) -> Result<MechaModel3D, String> {
                 if p_off + 12 > bin_bytes.len() {
                     break;
                 }
-                let px = f32::from_le_bytes(bin_bytes[p_off..p_off + 4].try_into().unwrap());
-                let py = f32::from_le_bytes(bin_bytes[p_off + 4..p_off + 8].try_into().unwrap());
-                let pz = f32::from_le_bytes(bin_bytes[p_off + 8..p_off + 12].try_into().unwrap());
+                let px = f32::from_le_bytes(bin_bytes[p_off..p_off + 4].try_into().unwrap()) + node_t[0];
+                let py = f32::from_le_bytes(bin_bytes[p_off + 4..p_off + 8].try_into().unwrap()) + node_t[1];
+                let pz = f32::from_le_bytes(bin_bytes[p_off + 8..p_off + 12].try_into().unwrap()) + node_t[2];
 
                 // Read normal if available
                 let norm = if let Some((n_off_base, count)) = norm_data {

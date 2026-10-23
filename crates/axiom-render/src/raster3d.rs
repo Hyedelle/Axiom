@@ -39,40 +39,57 @@ impl Default for CelShadingPalette {
 /// Palette presets mapped to canon materials from Steel-the-Show `color-grammar-v1.md`.
 impl CelShadingPalette {
     pub fn for_part(name: &str) -> Self {
-        if name.contains("eye") {
-            // Canon AMBER optic visor glow (#FD9F07)
+        let n = name.to_ascii_lowercase();
+        if n.contains("eye") {
+            // Canon glowing orange porthole eye (#FF660A / glowing warm gold highlight #FFD973)
             Self {
-                highlight: 0xFFFED7AA,
-                base: 0xFFFD9F07,
-                shadow: 0xFFC2410C,
+                highlight: 0xFFFFD973,
+                base: 0xFFFF660A,
+                shadow: 0xFFEA580C,
                 outline: Self::INK,
             }
-        } else if name.contains("glove") {
-            // Canon RED weathered boxing gloves (#DC2626)
+        } else if n.contains("head") {
+            // Canon Gunmetal Gray dome (#514447)
             Self {
-                highlight: 0xFFFCA5A5,
-                base: 0xFFDC2626,
-                shadow: 0xFF7F1D1D,
+                highlight: 0xFF7D7275,
+                base: 0xFF514447,
+                shadow: 0xFF352B2D,
                 outline: Self::INK,
             }
-        } else if name.contains("torso") {
-            // Canon OLIVE / IRON hero torso (#686536 / #5A5148)
+        } else if n.contains("glove") {
+            // Canon Weathered Red boxing gloves (#8A2B17)
             Self {
-                highlight: 0xFFA3A06B,
-                base: 0xFF686536,
-                shadow: 0xFF332D28,
+                highlight: 0xFFB9442C,
+                base: 0xFF8A2B17,
+                shadow: 0xFF541508,
                 outline: Self::INK,
             }
-        } else if name.contains("pelvis") || name.contains("boot") || name.contains("leg") {
-            // Canon IRON worn gunmetal chassis (#5A5148)
+        } else if n.contains("torso") {
+            // Canon Olive Drab chassis (#7F772B)
             Self {
-                highlight: 0xFF8D8378,
+                highlight: 0xFFA8A03E,
+                base: 0xFF7F772B,
+                shadow: 0xFF4D4818,
+                outline: Self::INK,
+            }
+        } else if n.contains("pelvis") || n.contains("boot") || n.contains("leg") {
+            // Canon Brown boots & chassis (#6F4430)
+            Self {
+                highlight: 0xFF8F5F49,
+                base: 0xFF6F4430,
+                shadow: 0xFF442619,
+                outline: Self::INK,
+            }
+        } else if n.contains("arm") {
+            // Canon Dark worn iron chassis (#5A5148)
+            Self {
+                highlight: 0xFF7E7367,
                 base: 0xFF5A5148,
                 shadow: 0xFF332D28,
                 outline: Self::INK,
             }
-        } else if name.contains("brass") || name.contains("piston") {
-            // Canon BRASS fittings (#A06432)
+        } else if n.contains("brass") || n.contains("piston") {
+            // Canon Brass fittings (#A06432)
             Self {
                 highlight: 0xFFFED7AA,
                 base: 0xFFA06432,
@@ -80,7 +97,7 @@ impl CelShadingPalette {
                 outline: Self::INK,
             }
         } else {
-            // Primary mecha armor
+            // Primary mecha armor default
             Self::default()
         }
     }
@@ -171,7 +188,7 @@ impl Rasterizer3D {
                     );
 
                     let p_world = effective_world.transform_point(p_extruded);
-                    let vz = (p_world.z + cam_dist).raw();
+                    let vz = (cam_dist - p_world.z).raw();
 
                     if vz <= 65536 / 10 {
                         outline_verts.push((0, 0, i32::MIN));
@@ -237,7 +254,7 @@ impl Rasterizer3D {
                 let p_world = effective_world.transform_point(v.pos);
                 let n_world = effective_world.transform_vector(v.norm);
 
-                let vz = (p_world.z + cam_dist).raw();
+                let vz = (cam_dist - p_world.z).raw();
 
                 if vz <= 65536 / 10 {
                     view_verts.push((0, 0, i32::MIN, n_world));

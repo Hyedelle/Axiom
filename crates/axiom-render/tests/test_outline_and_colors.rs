@@ -11,17 +11,17 @@ fn test_canon_color_grammar_palette_mapping() {
     assert_eq!(CelShadingPalette::INK, 0xFF2B222A);
 
     let eye_pal = CelShadingPalette::for_part("hero_eye");
-    assert_eq!(eye_pal.base, 0xFFFD9F07, "Eye must be Canon AMBER");
+    assert_eq!(eye_pal.base, 0xFFFF660A, "Eye must be Canon Orange");
     assert_eq!(eye_pal.outline, CelShadingPalette::INK);
 
     let glove_pal = CelShadingPalette::for_part("hero_glove_L");
-    assert_eq!(glove_pal.base, 0xFFDC2626, "Glove must be Canon RED");
+    assert_eq!(glove_pal.base, 0xFF8A2B17, "Glove must be Canon RED");
 
     let torso_pal = CelShadingPalette::for_part("hero_torso");
-    assert_eq!(torso_pal.base, 0xFF686536, "Torso must be Canon OLIVE");
+    assert_eq!(torso_pal.base, 0xFF7F772B, "Torso must be Canon OLIVE");
 
     let chassis_pal = CelShadingPalette::for_part("hero_pelvis");
-    assert_eq!(chassis_pal.base, 0xFF5A5148, "Chassis must be Canon IRON");
+    assert_eq!(chassis_pal.base, 0xFF6F4430, "Chassis must be Canon Brown");
 }
 
 #[test]
