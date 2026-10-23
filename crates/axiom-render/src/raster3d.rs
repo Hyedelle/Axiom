@@ -388,8 +388,8 @@ impl Rasterizer3D {
             }
 
             let (x0, y0, z0, n0, u0, v0) = view_verts[i0];
-            let (x1, y1, z1, n1, u1, v1) = view_verts[i1];
-            let (x2, y2, z2, n2, u2, v2) = view_verts[i2];
+            let (x1, y1, z1, n1, _u1, _v1) = view_verts[i1];
+            let (x2, y2, z2, n2, _u2, _v2) = view_verts[i2];
 
             if z0 == i32::MIN || z1 == i32::MIN || z2 == i32::MIN {
                 continue;

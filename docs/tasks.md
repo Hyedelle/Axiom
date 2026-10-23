@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-127: Axiom 차세대 3D 복셀 메카 지형 에디터 및 커스텀 파괴 맵 익스포터** (`crates/axiom-cli`, `crates/axiom-render`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-128: WebGL/WASM 3D 복셀 파괴 웹 시뮬레이터 및 실시간 벤치마크 뷰어** (`crates/axiom-wasm`, `web`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-129: Axiom 3D 복셀 파괴 물리 파티클 사운드 및 입체 음향 반향 연동** (`crates/axiom-wasm`, `mimic-the-show`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-127: Axiom 차세대 3D 복셀 메카 지형 에디터 및 커스텀 파괴 맵 익스포터** (`crates/axiom-render/src/voxel_map.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_voxel_map.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `crates/axiom-cli/src/main.rs`, `crates/axiom-cli/src/lib.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `AxvmHeader` [#[repr(C, align(64))], exact 64-byte header, dim_x/y/z, preset_id, solid_voxels, damaged_count, 64-bit FNV-1a checksum, timestamp, name], 5대 절차적 지형 프리셋 [`FlatArena`, `CrateredArena`, `FortifiedBunker`, `MonolithRuins`, `VolcanicVent`] 결정론적 지형 생성기 `generate_voxel_preset`, 무할당 고속 바이너리 컨테이너 `.axvm` 직렬화/역직렬화 `serialize_axvm`/`deserialize_axvm` [체크섬 변조 실시간 탐지], `axiom voxel list/export/inspect` CLI 도구군 및 단면 ASCII 래스터 뷰어, 4개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-126: Axiom Engine v2.2.0 파괴 및 신경망 인공지능 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-064]~[D-068], `docs/audit-report.md` [AUDIT-20261023-v2.2.0], 64B L1 캐시 정렬 INT8 양자화 신경망 추론 엔진 [320B `NeuralAiWeights`, 384B `NeuralFighterController`], 3D 복셀 지형 파괴 [4160B `VoxelVolume16`, 구형/지면 크레이터 파괴 `carve_sphere`/`carve_crater`, 정수 3D DDA `raycast`], 실시간 3D 기하 평면 물리 절단 `sever_part_mesh`, 단일 파츠 독립 래스터라이저 `Rasterizer3D::render_part`, `mimic-the-show` 피니셔 링 바닥 크레이터 파괴 및 상대 메카 사지 절단·탄도 비산 연출 통합 승인, 워크스페이스 v2.2.0 공식 판올림 및 Git 태그 `v2.2.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-125: Mimic The Show 절단 파츠 파편 비산 및 3D 링 바닥 크레이터 연출 통합** (`mimic-the-show/src/view.rs`, `crates/axiom-render/src/raster3d.rs`, `crates/axiom-render/src/voxel_mesh.rs`, 0-Float 64-Byte L1 정렬 `VoxelVolume16` 3D 링 바닥 복셀 그리드 상주, `CinematicFinisherDirector` NovaStrike 임팩트 순간 `carve_crater` 동적 6-반경 충격파 크레이터 파괴 및 `extract_voxel_mesh` 3D 실시간 렌더링, 상대 메카 파츠 실시간 물리 평면 절단 `sever_part_mesh` [Q16.16 normal [0, 65536, 0]], 절단 상반신 파츠 3D 궤적 비산 시뮬레이션 [pos += vel, vel.y -= 80 gravity], `r.render_part` 단일 PartMesh 래스터라이징 파이프라인, 40개 AMBER 피격 파편 비산 연출, 전체 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-124: Axiom 차세대 3D 복셀 메카 지형 파괴 및 물리 절단 엔진** (`crates/axiom-core/src/voxel_destruct.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_voxel_destruct.rs`, `crates/axiom-render/src/voxel_mesh.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_voxel_and_severance.rs`, 0-Float 64-Byte L1 캐시 라인 정렬 `VoxelVolume16` [#[repr(C, align(64))], exact 4160-byte 65-cacheline slab, 16x16x16 4096-voxel grid, damaged_count, total_solid], 5대 복셀 머티리얼 [`VOXEL_AIR`, `VOXEL_STONE`, `VOXEL_METAL`, `VOXEL_MOLTEN`, `VOXEL_ARMOR`], 구형 폭발 파괴 `carve_sphere`, 링 지면 크레이터 파괴 `carve_crater`, 3D 정수 DDA 광선 추적 `raycast`, 64B L1 정렬 `SeverancePlane` [#[repr(C, align(64))], Q16.16 normal/offset, cut_id], 선분/평면 교차 계산 `intersect_segment`, 0-Float 복셀 경계 메시 추출기 `extract_voxel_mesh`, 실시간 3D 파츠 평면 물리 절단 엔진 `sever_part_mesh` [상/하부 반공간 분할, 절단면 모서리 보간 및 절단 모서리 발광 UV 생성], 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

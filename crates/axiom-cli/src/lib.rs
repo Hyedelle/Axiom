@@ -13,6 +13,7 @@ pub mod session;
 pub mod sound;
 pub mod telemetry;
 pub mod time_travel;
+pub mod voxel_cli;
 pub mod world_view;
 
 pub use balancer::{MatchStats, MonteCarloBalancer};

@@ -22,11 +22,14 @@ fn main() {
     let has_boxing = args.iter().any(|a| a == "--boxing");
     let has_mod = args.iter().any(|a| a == "mod" || a == "--mod");
     let has_save = args.iter().any(|a| a == "save" || a == "--save");
+    let has_voxel = args.iter().any(|a| a == "voxel" || a == "--voxel");
 
     if has_mod {
         run_mod_suite(&args);
     } else if has_save {
         run_save_suite(&args);
+    } else if has_voxel {
+        axiom_cli::voxel_cli::run_voxel_suite(&args);
     } else if has_boxing {
         if let Err(e) = axiom_cli::desktop::run_desktop_window_with_mode(axiom_cli::ViewMode::Boxing) {
             eprintln!("Failed to launch desktop boxing window: {:?}", e);

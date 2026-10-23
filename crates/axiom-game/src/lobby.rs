@@ -2,11 +2,6 @@
 //!
 //! Zero-float, 64-byte L1 cache aligned leaderboard records and lobby state machines.
 
-extern crate alloc;
-
-use alloc::string::String;
-use alloc::vec::Vec;
-
 /// Default initial ELO rating for new competitors.
 pub const DEFAULT_ELO: u32 = 1200;
 
