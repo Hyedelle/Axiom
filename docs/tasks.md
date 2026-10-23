@@ -6,17 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-103: Mimic The Show 챔피언십 보스전 연출 강화 및 스팀 덱 60 FPS 컨트롤러 최적화** (`mimic-the-show`, Gamepad 입력 매핑 및 햅틱 진동, `tools/guard.ps1` 통과)
+- [ ] **T-104: 3D 메카 커스텀 텍스처 UV 매핑 및 스팀 워크숍 부품 모딩 파이프라인** (`crates/axiom-render`, 모드 파츠 동적 인제스천, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-104: 3D 메카 커스텀 텍스처 UV 매핑 및 스팀 워크숍 부품 모딩 파이프라인** (`crates/axiom-render`, 모드 파츠 동적 인제스천)
 - [ ] **T-105: WebRTC P2P 다자간 관전 릴레이 및 토너먼트 브래킷 자동 진행 엔진** (`crates/axiom-game`, `web/`)
+- [ ] **T-106: 실시간 음향 잔향 및 3D 스테레오 패닝 WASM Web Audio AudioWorklet 노드 연동** (`crates/axiom-wasm`, `web/`)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-103: Mimic The Show 챔피언십 보스전 연출 강화 및 스팀 덱 60 FPS 컨트롤러 최적화** (`mimic-the-show/src/view.rs`, `mimic-the-show/src/bin/capture_screens.rs`, `mimic-the-show/tools/package.ps1`, Steam Deck / Gamepad 버튼 완벽 매핑 [X/West 잽, Y/North 크로스, B/East 훅, A/South 피니셔, D-pad/Shift 위빙·가드, 인바운드·퍽 1~4 드래프트 픽, 차고/뉴스/연구소 탐색], 챔피언 THESEUS 2단계 전장 연출: 1페이즈 챔피언 브라스(#A06432) & 골든 림, 2페이즈(HP < 50%) 과열 버서크 타이탄 몰든 레드(#DC2626) & 백열 림·보일러 고압 증기 제트 분출·경고 배너 및 저음역 지진성 베이스 럼블 타격음(720 피치 다운)·KO 챔피언 황금 파편 폭풍, 전투 하단 컨트롤러 프롬프트 스트립 완비, 15개 단위/통합 테스트 100% 통과, 단일 실행 파일 0.77MB 패키징 완료, `tools/guard.ps1` 통과, 커밋 `931addd`)
 - [x] **T-102: WebRTC DataChannel 시그널링 브릿지 및 P2P 실시간 룸 브로커 연동** (`crates/axiom-game/src/boxing_netcode.rs`, `crates/axiom-game/src/boxing.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `crates/axiom-game/tests/test_boxing_netcode.rs`, 18-Byte 무할당 바이너리 와이어 프로토콜 `NetboxWirePacket` [F, F-1, F-2, F-3], 3연속 비신뢰 UDP 패킷 유실 시에도 단 1회 롤백으로 완벽 복원 및 상태 해시 합의 검증, Tom Cannon GGPO Frame Advantage 클록 동기화 `RollbackClockSync` 60틱 이동 평균 및 +2f 스톨링/-2f 캐치업, WebRTC 비신뢰/비정렬 SCTP DataChannel({ ordered: false, maxRetransmits: 0 }), P2P 룸 브로커 UI 및 실시간 RTT/Adv/Rollback HUD 연동 완료, `tools/guard.ps1` 통과)
 - [x] **T-101: Axiom Engine v1.7.0 멀티플레이어 넷코드 & 3D 완성 종합 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-046]~[D-049], `docs/audit-report.md` [AUDIT-20261023-v1.7.0], 0-Float WebGL/WASM 3D 소프트웨어 래스터라이저, 2인 실시간 P2P 롤백 넷코드 `BoxingRollbackSession<64>`, 관전자 비트 일치 합의, 876 FPS 3D 벤치마크, 데스크톱/웹 상용 배포 패키징 완결 및 공식 Git 태그 `v1.7.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-100: Axiom 3D 셰이더 및 메카 복싱 비주얼 벤치마크 & 상용화 데모 배포 패키징** (`crates/axiom-render`, `mimic-the-show`, `web/`, Juan Pineda 8x8 타일 비닝 3D 래스터라이저 실측 벤치마크 완료: 절차적 섀시 876.1 FPS(1.141ms), 100 파티클 1.88 µs/tick, 풀 GLB 1.61 Mtris/sec, 512B 슬랩 L1 캐시 완전 상주 및 Reversed-Z 무나눗셈 어파인 깊이 판정 입증, `mimic-the-show.exe`(0.76MB, dist.zip 0.65MB) 및 `axiom.exe`(0.70MB, dist.zip 0.30MB) 스탠드얼론 배포 패키징, `web/` 7대 통합 웹 플레이어 배포, `tools/guard.ps1` 통과)
