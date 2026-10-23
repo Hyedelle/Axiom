@@ -229,11 +229,11 @@ impl<const CAP: usize> VoxelShardPool<CAP> {
                 s.pos[1] = floor;
                 if s.vel[1] < 0 {
                     let rest = s.restitution_permille as i64;
-                    s.vel[1] = ((-s.vel[1] as i64 * rest) / 1000) as i32;
+                    s.vel[1] = ((s.vel[1].saturating_neg() as i64 * rest) / 1000) as i32;
 
-                    // Ground friction damping on lateral velocities
-                    s.vel[0] = (s.vel[0] * 65) / 100;
-                    s.vel[2] = (s.vel[2] * 65) / 100;
+                    // Ground friction damping on lateral velocities (cast to i64 to prevent overflow)
+                    s.vel[0] = ((s.vel[0] as i64 * 65) / 100) as i32;
+                    s.vel[2] = ((s.vel[2] as i64 * 65) / 100) as i32;
 
                     // Angular velocity decay on ground impact
                     s.ang_vel[0] = (s.ang_vel[0] * 6) / 10;

@@ -124,11 +124,27 @@ impl<const MAX_CHUNKS: usize> DynamicCollapseSystem<MAX_CHUNKS> {
             (((r >> 16) & 0x0F) as i8) - 7,
         ];
 
-        let slot = self.chunks.iter_mut().find(|c| !c.is_active);
-        let chunk = match slot {
-            Some(c) => c,
-            None => return false,
+        let slot_idx = self.chunks.iter().position(|c| !c.is_active);
+        let idx = match slot_idx {
+            Some(i) => {
+                self.active_count += 1;
+                i
+            }
+            None => {
+                // If pool is saturated, evict the chunk with the lowest remaining life
+                let mut min_life = u16::MAX;
+                let mut oldest = 0;
+                for (i, c) in self.chunks.iter().enumerate() {
+                    if c.life < min_life {
+                        min_life = c.life;
+                        oldest = i;
+                    }
+                }
+                oldest
+            }
         };
+
+        let chunk = &mut self.chunks[idx];
 
         *chunk = DynamicVoxelChunk {
             pos: pos_q16,
@@ -148,7 +164,6 @@ impl<const MAX_CHUNKS: usize> DynamicCollapseSystem<MAX_CHUNKS> {
         };
 
         self.total_collapsed += 1;
-        self.active_count += 1;
         true
     }
 
@@ -195,7 +210,7 @@ impl<const MAX_CHUNKS: usize> DynamicCollapseSystem<MAX_CHUNKS> {
                 chunk.pos[1] = floor;
 
                 if chunk.vel[1] < 0 {
-                    let impact_speed = -chunk.vel[1];
+                    let impact_speed = chunk.vel[1].saturating_neg();
 
                     // Check if impact is heavy enough to shatter into shards
                     if impact_speed >= chunk.shatter_threshold || chunk.bounces >= 3 {
@@ -211,9 +226,9 @@ impl<const MAX_CHUNKS: usize> DynamicCollapseSystem<MAX_CHUNKS> {
                     }
 
                     // Otherwise, elastic bounce with heavy fragment damping (350 permille)
-                    chunk.vel[1] = ((-chunk.vel[1] as i64 * 350) / 1000) as i32;
-                    chunk.vel[0] = (chunk.vel[0] * 50) / 100;
-                    chunk.vel[2] = (chunk.vel[2] * 50) / 100;
+                    chunk.vel[1] = ((chunk.vel[1].saturating_neg() as i64 * 350) / 1000) as i32;
+                    chunk.vel[0] = ((chunk.vel[0] as i64 * 50) / 100) as i32;
+                    chunk.vel[2] = ((chunk.vel[2] as i64 * 50) / 100) as i32;
 
                     chunk.ang_vel[0] = (chunk.ang_vel[0] * 5) / 10;
                     chunk.ang_vel[1] = (chunk.ang_vel[1] * 5) / 10;

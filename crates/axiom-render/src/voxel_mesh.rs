@@ -10,8 +10,9 @@ use crate::mesh3d::{PartMesh, Vertex3D};
 
 /// Extracts visible surface boundary mesh from a 16x16x16 voxel volume.
 pub fn extract_voxel_mesh(name: &str, volume: &VoxelVolume16, voxel_scale: Fixed) -> PartMesh {
-    let mut vertices: Vec<Vertex3D> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
+    let est_faces = (volume.total_solid as usize * 3).clamp(32, 2560);
+    let mut vertices: Vec<Vertex3D> = Vec::with_capacity(est_faces * 4);
+    let mut indices: Vec<u32> = Vec::with_capacity(est_faces * 6);
 
     let half_scale = Fixed::from_raw(voxel_scale.raw() / 2);
     let zero = Fixed::ZERO;

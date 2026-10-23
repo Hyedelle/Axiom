@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-139: Axiom 3D 복셀 메카 지형 파괴 & 분절 시뮬레이션 스트레스 테스트 및 최적화** (`crates/axiom-render`, `crates/axiom-wasm`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-140: Axiom 140대 통합 초대형 복셀 메카 파괴 엔진 마일스톤 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-141: Mimic The Show 챔피언십 복셀 파괴 & 메카 잔해 물리 사후 확장팩 연동** (`mimic-the-show`, `crates/axiom-game`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-139: Axiom 3D 복셀 메카 지형 파괴 & 분절 시뮬레이션 스트레스 테스트 및 최적화** (`crates/axiom-core/src/voxel_collapse.rs`, `crates/axiom-core/src/voxel_shard.rs`, `crates/axiom-render/src/voxel_mesh.rs`, `crates/axiom-render/tests/test_voxel_stress_and_optimization.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom_wasm.wasm`, 16-청크 풀 포화 시 최저 잔여 수명 청크 FIFO/LRU 축출 알고리즘, 극단적 속도(`i32::MAX / 4`) 충돌 시 64-bit 정수 곱셈 오버플로우 방어 `saturating_neg()`, 복셀 메쉬 추출기 `extract_voxel_mesh` 동적 힙 재할당 소거 [248 µs/op 초고속 스루풋], 5대 스트레스 테스트 [500연속 크레이터 스위스치즈 침식 불변식 검증, 극단 속도 탄도/분쇄 안정성, 16청크 풀 포화/축출, 400µs 이하 고다공성 메쉬 추출 및 래스터라이징, 1,000스텝 비트 단위 100% 일치 결정론 합의 검증], 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-138: Axiom WebGL/WASM 3D 복셀 다이나믹 메쉬 붕괴 벤치마크 및 웹 UI 컨트롤 패널 완성** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, WASM C-ABI 5대 신규 엔드포인트 [`axiom_voxel_bench_collapse`, `axiom_voxel_set_gravity`, `axiom_voxel_set_drag`, `axiom_voxel_reset_physics`, `axiom_voxel_detonate_meteor`], 웹 플레이어 💥 **3D Voxel Physics & Collapse Control Panel** [중력/공기저항 실시간 슬라이더, ☄️ Meteor Blast 고에너지 메테오 충격파, ⚡ 100-Tick 실시간 붕괴 벤치마크 모달 (TPS / 평균 지연시간 µs / 붕괴 청크 / 샤드 분쇄 / 64-bit 합의 해시 / L1 캐시 무할당 레지던시 검증), 🧹 물리 리셋], 20개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-137: Axiom WebGL/WASM 3D 복셀 다이나믹 메쉬 붕괴 & 파편 비산 웹 시뮬레이터 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/index.html`, `web/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `WasmVoxelEngine` 내 64B L1 캐시 정렬 `VoxelShardPool<128>` 및 `DynamicCollapseSystem<16>` 연동, 3D Reversed-Z 깊이 버퍼 동시 판정 래스터라이저 `render_dynamic_collapse_chunks` & `render_voxel_shards`, C-ABI 신규 엔드포인트 4종 [`axiom_voxel_get_shard_count`, `axiom_voxel_get_collapsed_chunk_count`, `axiom_voxel_trigger_collapse`, `axiom_voxel_spawn_shard_storm`], 웹 UI 🏛️ Dynamic Collapse & 🌪️ Shard Storm(x32) 컨트롤러 및 실시간 청크/샤드 HUD 연동, 20개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-136: Mimic The Show 챔피언십 복셀 지형 실시간 구조 붕괴 및 파괴 파편 벤치마크 모드** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `DesktopGameView` 내 64B L1 캐시 정렬 `DynamicCollapseSystem<16>` 상주, 피니셔 노바 스트라이크 지반 크레이터 굴착 후 `detect_and_collapse` 실시간 공중 부유 고립 지형 자동 분절, 3D Reversed-Z 소프트웨어 래스터라이저 `render_dynamic_collapse_chunks` 실시간 프레임버퍼 렌더링, 청크 바닥 충돌 및 샤드 산산조각 시 `SoundKind::VoxelBlast`/`DebrisScatter` 사운드 동기화, 글로벌 `F10` 핫키 즉시 붕괴 벤치마크 트리거 및 결정론적 벤치마크 메서드 `run_destruction_benchmark` [100% 해시 재현성 검증], `axiom voxel bench` CLI 초당 7,141+ TPS 고속 스루풋 계측기 완비, 18개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
