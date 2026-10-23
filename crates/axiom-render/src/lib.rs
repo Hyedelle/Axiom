@@ -16,6 +16,7 @@ pub mod particles3d;
 pub mod raster3d;
 pub mod sprites;
 pub mod texture;
+pub mod voxel_collapse_render;
 pub mod voxel_map;
 pub mod voxel_mesh;
 pub mod voxel_shard_render;
@@ -48,5 +49,6 @@ pub use voxel_map::{
     deserialize_axvm, generate_voxel_preset, serialize_axvm, AxvmError, AxvmHeader, VoxelPreset,
     AXVM_MAGIC, AXVM_VERSION,
 };
+pub use voxel_collapse_render::render_dynamic_collapse_chunks;
 pub use voxel_mesh::{extract_voxel_mesh, sever_part_mesh};
 pub use voxel_shard_render::{render_voxel_shards, VoxelShardColorMap};
