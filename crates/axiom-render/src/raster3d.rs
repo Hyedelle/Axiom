@@ -235,8 +235,8 @@ impl Rasterizer3D {
                         continue; // Cull front-facing triangles
                     }
 
-                    // Rasterize outline triangle in canon INK or active Rim Light color
-                    let line_color = self.rim_light_color.unwrap_or(self.outline_color);
+                    // Rasterize outline triangle in canon INK
+                    let line_color = self.outline_color;
                     self.rasterize_pineda_8x8(
                         fb,
                         x0, y0, z0,

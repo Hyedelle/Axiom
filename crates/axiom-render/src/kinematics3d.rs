@@ -334,22 +334,36 @@ pub fn evaluate_forward_kinematics(pose: &MechaPose3D, is_opponent: bool) -> Par
         table.transforms[10] = leg_l_mat;
         // 11: hero_boot_R
         table.transforms[11] = leg_r_mat;
+        // 12: cape
+        table.transforms[12] = torso_mat;
     } else {
-        // Opponent slot mappings (foe_* convention):
-        // 0: foe_body
-        table.transforms[0] = torso_mat;
-        // 1: foe_arm_L
-        table.transforms[1] = arm_l_mat;
-        // 2: foe_arm_R
-        table.transforms[2] = arm_r_mat;
-        // 3: foe_glove_L
-        table.transforms[3] = glove_l_mat;
-        // 4: foe_glove_R
-        table.transforms[4] = glove_r_mat;
-        // 5: foe_cape_1
-        table.transforms[5] = torso_mat;
-        // 6: foe_cape_2
-        table.transforms[6] = torso_mat;
+        // Opponent slot mappings (normalized 1:1 with get_part_matrix):
+        // 0: foe_pelvis / root
+        table.transforms[0] = root_mat;
+        // 1: foe_torso / foe_body
+        table.transforms[1] = torso_mat;
+        // 2: foe_head / head
+        table.transforms[2] = head_mat;
+        // 3: foe_eye / eye
+        table.transforms[3] = head_mat;
+        // 4: foe_arm_L
+        table.transforms[4] = arm_l_mat;
+        // 5: foe_arm_R
+        table.transforms[5] = arm_r_mat;
+        // 6: foe_glove_L
+        table.transforms[6] = glove_l_mat;
+        // 7: foe_glove_R
+        table.transforms[7] = glove_r_mat;
+        // 8: foe_leg_L
+        table.transforms[8] = leg_l_mat;
+        // 9: foe_leg_R
+        table.transforms[9] = leg_r_mat;
+        // 10: foe_boot_L
+        table.transforms[10] = leg_l_mat;
+        // 11: foe_boot_R
+        table.transforms[11] = leg_r_mat;
+        // 12: foe_cape
+        table.transforms[12] = torso_mat;
     }
 
     table
@@ -376,7 +390,7 @@ pub fn get_part_matrix(table: &PartTransformTable, part_name: &str) -> Mat4Fixed
     } else if part_name.contains("leg_R") || part_name.contains("boot_R") {
         table.transforms[9]
     } else if part_name.contains("cape") {
-        table.transforms[5]
+        table.transforms[12]
     } else {
         table.transforms[0]
     }

@@ -91,4 +91,18 @@
   4. **미추적 바이너리/클러터 제거**: `bindings/csharp/*.exe`, `*.pdb`, `*.tmp`, `*.rs.bk` 등 테스트 도중 생성된 미추적 잔여물 삭제.
   5. **캐시 최적화 및 헌법 가드 확인**: (`-CargoClean` 옵션 시 수 GB 빌드 슬랩 리셋), 최종적으로 `tools/guard.ps1`을 가동하여 정리 후에도 엔진 무결성 100%를 보증.
 
+---
+
+## 6. 디렉터 정지/마무리 명령 시 3대 동기화 의무 (Triple Sync on Stop)
+
+디렉터(Hyedelle)가 "마무리해줘", "정리하자", "멈춰", "여기까지 하자" 등 세션 정지 또는 작업 종료를 지시할 경우, 에이전트는 일체의 잔여 작업 없이 다음 **3대 최신화 파이프라인**을 완벽히 실행하고 최종 보고해야 합니다:
+
+1. **바탕화면 바로가기 최신화 (Desktop Binary Sync)**:
+   - `C:\Dreamhub\Game\mimic-the-show` 및 `C:\Dreamhub\Engine\Axiom`에서 `cargo build --release`를 가동하여 최신 바이너리를 빌드.
+   - 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`)가 최신 릴리즈 바이너리를 타겟팅하고 정상 구동되는지 검증.
+2. **GitHub 원격 최신화 (Git Remote Sync)**:
+   - 작업 내역을 단일 명확한 커밋으로 완성한 후 원격 저장소(`git push origin <branch>`)에 최신 상태를 동기화.
+3. **홈페이지 및 웹 쇼케이스 최신화 (Web & Showcase Sync)**:
+   - `docs/tasks.md` 작업 큐 결산, `web/` 쇼케이스 데모 및 아티팩트/릴리즈 노트를 최신 상태로 패키징하여 배포 준비 완료.
+
 

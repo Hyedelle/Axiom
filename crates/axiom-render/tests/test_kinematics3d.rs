@@ -66,3 +66,23 @@ fn test_render_posed_mecha() {
     let drawn = fb.pixels.iter().filter(|&&p| p != 0xFF0F172A).count();
     assert!(drawn > 5000, "Should have rendered >5000 pixels of posed mecha, got {}", drawn);
 }
+
+#[test]
+fn test_render_opponent_models() {
+    let files = ["DUMMY.glb", "TINKER.glb", "CIPHER.glb", "PIKE.glb"];
+    let pose = MechaPose3D::idle(0);
+    let transforms = evaluate_forward_kinematics(&pose, true);
+
+    for name in &files {
+        let p = format!(r"C:\Dreamhub\Game\steel-the-show\assets\robot3d\opponents\{}", name);
+        if let Ok(bytes) = fs::read(&p) {
+            if let Ok(model) = parse_glb(&bytes) {
+                for part in &model.parts {
+                    let mat = get_part_matrix(&transforms, &part.name);
+                    // Ensure matrix translation is bounded and valid
+                    assert!(mat.m[1][3].raw().abs() < 100000);
+                }
+            }
+        }
+    }
+}
