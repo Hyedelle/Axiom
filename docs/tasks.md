@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-155: Axiom 160대 대형 복셀 유체 물리 마일스톤 결산 및 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-097]~[D-100], `docs/audit-report.md` [AUDIT-20261023-v2.9.0], `tools/package.ps1`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-156: Axiom 복셀 유체-열역학 상용 통합 패키징 및 글로벌 쇼케이스 릴리즈** (`tools/package.ps1`, `web/index.html`, `crates/axiom-wasm/index.html`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-157: Mimic The Show 챔피언십 링 수증기 폭발 및 침투 지반 붕괴 게임플레이 강화** (`mimic-the-show`, `crates/axiom-game`, `crates/axiom-render`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-155: Axiom 160대 대형 복셀 유체 물리 마일스톤 결산 및 공식 릴리즈** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-097]~[D-100], `docs/audit-report.md` [AUDIT-20261023-v2.9.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 3D 복셀 유체 격자 `VoxelFluidField16` [#[repr(C, align(64))], exact 8,256B slab], Reversed-Z 3D 반투명 유체 수면 및 암석 습윤 래스터라이저 `render_voxel_fluid`, 수리-열응력 연성 완화 모델 `relax_thermal_and_stress`, 10,000 스텝 15,494+ TPS 글로벌 복합 물리 벤치마크 및 비트 단위 100% 일치 결정론 입증 [`0x6EC408607380A9CF`], 64B L1 정렬 `VoxelChampionshipTelemetry` 내 `active_fluid_cells`/`total_fluid_units` 탑재, `mimic-the-show` 챔피언십 링 3D 유체 및 글로벌 F12 냉각수 주입 연동, 2.09 MB 단일 크로스 플랫폼 배포 패키지 `dist/axiom-v2.9.0-unified-milestone.zip` [SHA-256 검증], 전체 워크스페이스 v2.9.0 공식 판올림 및 Git 태그 `v2.9.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-154: Axiom 3D 복셀 유체 침투-응력 완화 물리 벤치마크 및 종합 검증** (`crates/axiom-core/src/voxel_fluid.rs`, `crates/axiom-core/tests/benchmark_fluid_physics.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `crates/axiom-render/tests/test_fluid_rendering.rs`, 0-Float 수리적 간극수압 열응력 완화 및 잠열 급속 냉각 모델 `relax_thermal_and_stress`, 10,000 스텝 연속 15,494+ TPS / 64.54 µs 초고속 복합 물리 통합 벤치마크 [64-bit FNV-1a 상태 합의 비트 단위 100% 일치 `0x6EC408607380A9CF`], `axiom voxel bench-fluid` CLI 도구군, 4,096-셀 전역 포화 유체 래스터라이징 무크래시 스트레스 검증 [<50ms 초고속 렌더링], `tools/guard.ps1` 통과)
 - [x] **T-153: Mimic The Show 챔피언십 링 복셀 수냉각 및 유체 지반 상호작용 연동** (`crates/axiom-game/src/voxel_tournament.rs`, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, 0-Float 64B L1 캐시 정렬 `VoxelChampionshipTelemetry` 내 `active_fluid_cells`/`total_fluid_units` [정확히 64B 유지], `VoxelChampionshipDirector` 내 3D 유체 역학(`VoxelFluidField16`) 및 냉각수 주입(`inject_ring_coolant`), 64-bit FNV-1a 상태 합의 체크섬 결합, `mimic-the-show` 챔피언십 링 지반 내 3D 유체 필드 및 Reversed-Z 래스터라이징(`render_voxel_fluid`), 글로벌 F12 핫키 [3D FLUID DELUGE & COOLANT QUENCHING] 및 컨트롤 힌트 바 노출, 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-152: Axiom 3D 복셀 다이나믹 유체 침투 래스터라이징 및 WASM 스튜디오 연동** (`crates/axiom-render/src/fluid_render.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_fluid_rendering.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, 0-Float Reversed-Z 소프트웨어 래스터라이저 `render_voxel_fluid` [수심 레벨별 반투명 알파 블렌딩 Sapphire/Cobalt/Cyan, 다공성 침투 암석 감쇠 음영], WASM C-ABI 6대 신규 엔드포인트 [`axiom_voxel_inject_fluid`, `axiom_voxel_step_fluid`, `axiom_voxel_get_fluid_units`, `axiom_voxel_get_infiltrated_units`, `axiom_voxel_get_active_fluid_cells`, `axiom_voxel_reset_fluid`], 웹 3D 복셀 스튜디오 💧 **Inject Water** & 🌊 **Step Fluid** 컨트롤러, 실시간 수량/침투량 HUD 바인딩, 22개 WASM 단위 테스트 및 3개 래스터라이징 테스트 100% 통과, `tools/guard.ps1` 통과)

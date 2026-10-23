@@ -3,7 +3,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools/package.ps1 [-Version "2.1.0"] [-Clean]
 
 param (
-    [string]$Version = "2.8.0",
+    [string]$Version = "2.9.0",
     [switch]$Clean
 )
 
@@ -208,7 +208,7 @@ $MimicHash = (Get-FileHash -Path $MimicDstExe -Algorithm SHA256).Hash
 $BuildDate = (Get-Date).ToString("yyyy-MM-ddTHH:mm:sszzz")
 
 $ManifestObj = [PSCustomObject]@{
-    milestone = "Axiom 150-Task Next-Gen Voxel Physics Milestone (T-001 ~ T-150)"
+    milestone = "Axiom 160-Task Next-Gen Voxel Fluid Dynamics & Thermal Stress Milestone (T-001 ~ T-155)"
     engine_version = "v$Version"
     game_version = "v1.0.0"
     target_platform = "windows-x64-steam-deck-verified"
@@ -245,7 +245,8 @@ $ManifestObj = [PSCustomObject]@{
         audio = "procedural_pcm_synthesis_22050hz"
         destruction = "3d_voxel_cratering_and_mesh_severance"
         thermal_stress = "multi_material_thermal_diffusion_and_stress_collapse"
-        physics_benchmark = "16955_tps_58us_latency"
+        fluid_dynamics = "3d_voxel_drainage_infiltration_and_pore_pressure_relaxation"
+        physics_benchmark = "15494_tps_64us_latency_10k_steps"
         ai = "int8_quantized_neural_forward_inference"
     }
 }

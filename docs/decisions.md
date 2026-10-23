@@ -1216,6 +1216,51 @@
   2. 전체 워크스페이스 버전을 v2.7.0에서 **v2.8.0**으로 공식 판올림하고 Git 태그 `v2.8.0` 발행.
 - **영향:** 전체 워크스페이스 `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/audit-report.md`.
 
+---
+
+### [D-097] 0-Float 64B L1 정렬 3D 복셀 유체 역학 격자 (VoxelFluidField16) (T-151)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 16x16x16 4,096-복셀 유체 레벨 및 다공성 암석 침투 격자를 정확히 8,256바이트(129개 64B L1 캐시 라인)의 평면 메모리 배열로 정렬(`#[repr(C, align(64))]`).
+  2. 하향 중력 배수, 정수압 수평 확산, 고온 열응력장 증발 및 암석 침투 시뮬레이션 구축.
+  3. 폐쇄 수조 질량 보존 100% 불변식 및 64-bit FNV-1a 상태 합의 체크섬 입증.
+- **영향:** `crates/axiom-core/src/voxel_fluid.rs`, `crates/axiom-core/src/voxel_destruct.rs`, `crates/axiom-core/src/thermal_stress.rs`.
+
+---
+
+### [D-098] Reversed-Z 3D 반투명 유체 수면 및 암석 습윤 래스터라이징 (render_voxel_fluid) (T-152)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 수심별 3단계 반투명 알파 블렌딩(사파이어 블루 210, 코발트 175, 아쿠아 시안 140)과 다공성 암석 습윤 감쇠 틴트(0x0F172A)를 적용한 0-Float 소프트웨어 래스터라이저 구현.
+  2. 지반 메쉬 위에 안정적인 수막을 형성하도록 `saturating_sub(64)` Reversed-Z 깊이 여유 마진 적용.
+  3. WASM C-ABI 6대 신규 엔드포인트 및 웹 3D 복셀 스튜디오 내 💧 Inject Water, 🌊 Step Fluid 컨트롤러 및 실시간 HUD 바인딩.
+- **영향:** `crates/axiom-render/src/fluid_render.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`.
+
+---
+
+### [D-099] 챔피언십 링 64B L1 텔레메트리 유체 수용 및 인게임 냉각 연동 (T-153)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `VoxelChampionshipTelemetry` 구조체에 `active_fluid_cells`, `total_fluid_units`를 탑재하고 패딩을 12B에서 8B로 보정하여 **정확히 64B 1 캐시 라인 크기**를 사수.
+  2. `VoxelChampionshipDirector` 내 3D 유체 역학 및 64-bit 합의 해시 바인딩.
+  3. `mimic-the-show` 챔피언십 링 지반에 3D 유체 필드를 탑재하고 글로벌 `F12` 냉각수 주입 핫키 및 `[F12: WATER]` 컨트롤 바 완비.
+- **영향:** `crates/axiom-game/src/voxel_tournament.rs`, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`.
+
+---
+
+### [D-100] 수리-열응력 연성 완화 모델 및 10,000 스텝 15,494 TPS 벤치마크 (T-154, T-155)
+- **날짜:** 2026-10-23
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 다공성 암석 내부 침투 유체에 의한 잠열 급속 냉각 및 간극수압 전단응력 완화 모델 `relax_thermal_and_stress` 도입.
+  2. 10,000 스텝 연속 복합 물리 벤치마크에서 15,494 TPS (64.54 µs/step) 스루풋 및 64-bit FNV-1a 상태 합의 비트 단위 100% 일치(`0x6EC408607380A9CF`) 입증.
+  3. `axiom voxel bench-fluid` CLI 도구군 및 4,096-셀 전역 포화 래스터라이징 무크래시 스트레스 검증 완료.
+  4. 전체 워크스페이스 버전을 v2.8.0에서 **v2.9.0**으로 공식 판올림하고 Git 태그 `v2.9.0` 발행.
+- **영향:** `crates/axiom-core/src/voxel_fluid.rs`, `crates/axiom-core/tests/benchmark_fluid_physics.rs`, `crates/axiom-cli/src/voxel_cli.rs`, `Cargo.toml`, `tools/package.ps1`.
+
 
 
 

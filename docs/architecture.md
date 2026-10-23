@@ -1004,6 +1004,53 @@ Axiom Engine v2.8.0은 150대 프로젝트 과제를 공식 완결하고 차세�
 4. **자율 메카 챔피언십 텔레메트리 64B L1 보존 (`crates/axiom-game/src/voxel_tournament.rs`)**:
    - `VoxelChampionshipTelemetry` 구조체에 `max_temperature`와 `thermal_transitions` 필드를 탑재하면서도 정확히 64바이트 1 캐시 라인 크기를 보존하였으며, 노바 피니셔 임팩트 시 950°C 고열 충격파를 바닥 지반에 주입하여 연쇄 메쉬 붕괴와 실시간 융합하였습니다.
 
+---
+
+## 31. 160대 차세대 복셀 유체 역학 & 열응력 완화 물리 엔진 공식 릴리즈 (v2.9.0)
+
+Axiom Engine v2.9.0은 160대 차세대 복셀 엔진 연구 과제를 공식 결산하고, 3D 다이나믹 복셀 유체 역학(Fluid Dynamics), 다공성 지반 침투(Porous Rock Infiltration), 수리-열역학 연성 응력 완화(Hydro-Thermal Stress Relaxation), 그리고 웹 브라우저/인게임 통합 래스터라이저를 완성한 대형 마일스톤입니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Axiom Engine v2.9.0 Architectural Map                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Voxel Fluid Field (VoxelFluidField16)]     │
+│    - 16x16x16 4,096-voxel fluid level & infiltrated lattices (8,256B slab)  │
+│    - Downwards gravity flow, horizontal hydrostatic pressure spreading      │
+│    - High-temperature thermal steam evaporation & closed mass conservation  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Reversed-Z 3D Fluid & Damp Rock Software Rasterizer (render_voxel_fluid)]│
+│    - Fixed-point perspective projection & depth testing (saturating_sub 64) │
+│    - Multi-depth alpha blending: Deep Sapphire, Medium Cobalt, Shallow Cyan │
+│    - Porous rock wetness darkening tint (0x0F172A slate sheen)              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [Hydro-Thermal Mechanical Coupling (relax_thermal_and_stress)]           │
+│    - Rapid latent heat quenching of elevated temperatures                   │
+│    - Pore pressure hydraulic dissipation & thermal expansion shear relief   │
+│    - 10,000 steps continuous benchmark: 15,494 TPS (64.54 µs/step latency)  │
+│    - 100% bit-identical 64-bit FNV-1a consensus hash: 0x6EC408607380A9CF    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Web Voxel Studio & Mimic The Show In-Game Coolant Integration]          │
+│    - WASM C-ABI: inject_fluid, step_fluid, get_fluid_units, reset_fluid     │
+│    - Web UI: 💧 Inject Water, 🌊 Step Fluid buttons & real-time HUD monitor │
+│    - Mimic The Show: 64B L1 telemetry active_fluid_cells, Global F12 key   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 31.1 핵심 구조 및 기술적 특성
+1. **0-Float 64B L1 캐시 정렬 3D 복셀 유체 격자 (`VoxelFluidField16`)**:
+   - `level[4096]` 및 `infiltrated[4096]`를 포함하여 정확히 8,256바이트(129개 64B L1 캐시 라인)의 평면 메모리 배열을 구성했습니다.
+   - 바닥 방향 중력 배수, 4방향 수평 정수압 확산, 다공성 암석 지반 흡수, 고온 증발을 순수 정수 산술로 시뮬레이션하여 닫힌 수조에서 100% 질량 보존을 달성했습니다.
+2. **Reversed-Z 3D 유체 및 지반 습윤 소프트웨어 래스터라이저 (`render_voxel_fluid`)**:
+   - 수심에 따라 3단계 반투명 알파 블렌딩(사파이어 블루 210, 코발트 175, 아쿠아 시안 140)을 적용하고, 지반 암석에 침투한 수분에 비례한 감쇠 음영(Dark Damp Slate Sheen)을 렌더링합니다.
+   - 4,096개 전체 복셀 포화 상태에서도 <50ms 이내에 초고속 렌더링을 보장합니다.
+3. **수리-열응력 연성 완화 모델 (`relax_thermal_and_stress`)**:
+   - 유체가 침투한 암석에서 열에너지를 급속 냉각(잠열 냉각)하고, 간극수압을 통해 열팽창 전단 응력을 완화시킵니다.
+   - 10,000 스텝 복합 물리 벤치마크에서 15,494 TPS 초고속 스루풋과 64-bit FNV-1a 상태 합의 비트 단위 100% 일치를 입증했습니다.
+4. **WASM 3D 스튜디오 & Mimic The Show 인게임 쿨런트 연동**:
+   - 웹 3D 복셀 스튜디오 내 💧 Inject Water / 🌊 Step Fluid 컨트롤러 및 HUD 모니터링 완비.
+   - `mimic-the-show` 챔피언십 링 지반에 3D 유체 필드를 탑재하고 글로벌 `F12` 냉각수 주입 핫키 및 `[F12: WATER]` 컨트롤 바를 연동했습니다.
+
 
 
 
