@@ -260,6 +260,11 @@ impl Default for VoxelComputeDispatch64 {
 }
 
 impl VoxelComputeDispatch64 {
+    /// Returns the WebGPU WGSL compute shader source code for Fast Voxel DDA raymarching.
+    pub fn wgsl_shader_source() -> &'static str {
+        crate::voxel_raymarch_render::VOXEL_RAYMARCH_WGSL
+    }
+
     /// Dispatches a compute shader raymarching pass over a 3D voxel volume.
     pub fn dispatch(&mut self, width: u16, height: u16) -> u32 {
         self.dispatch_x = (width + self.workgroup_x as u16 - 1) / self.workgroup_x as u16;

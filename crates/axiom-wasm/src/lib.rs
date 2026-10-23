@@ -48,6 +48,9 @@ use axiom_render::voxel_mesh::extract_voxel_mesh;
 use axiom_render::voxel_shard_render::render_voxel_shards;
 use axiom_core::thermal_stress::ThermalStressField16;
 use axiom_render::thermal_render::render_thermal_glow;
+use axiom_render::voxel_raymarch_render::{
+    render_voxel_raymarch, VoxelRaymarchRenderConfig, VOXEL_RAYMARCH_WGSL,
+};
 use axiom_render::{cos_bams, sin_bams, FrameBuffer};
 
 #[allow(static_mut_refs)]
@@ -4323,6 +4326,48 @@ pub extern "C" fn axiom_voxel_render() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_voxel_render_raymarch(tile_scale: u32, cast_shadows: u32) -> u32 {
+    let eng = match unsafe { VOXEL_ENGINE.as_mut() } {
+        Some(e) => e,
+        None => return 0,
+    };
+
+    eng.framebuffer.clear(0xFF0F172A); // Dark slate background
+    eng.rasterizer.clear_depth();
+
+    let rot_y = Mat4Fixed::from_rotation_y(eng.yaw_bam);
+    let rot_x = Mat4Fixed::from_rotation_x(eng.pitch_bam);
+    let trans = Mat4Fixed::from_translation(Vec3Fixed::from_raw(0, 0, 15000));
+    let world_mat = trans.mul_mat(&rot_x.mul_mat(&rot_y));
+
+    let voxel_scale = Fixed::from_raw(2048);
+    let world_origin = Vec3Fixed::new(
+        Fixed::from_raw(-16384),
+        Fixed::ZERO,
+        Fixed::from_raw(-16384),
+    );
+
+    let config = VoxelRaymarchRenderConfig {
+        max_steps: 48,
+        cast_shadows: cast_shadows != 0,
+        light_dir: [577, 577, -577],
+        tile_scale: tile_scale.clamp(1, 4) as u8,
+    };
+
+    let fragments = render_voxel_raymarch(
+        &mut eng.framebuffer,
+        &mut eng.rasterizer.depth_buffer,
+        &eng.volume,
+        &world_mat,
+        &config,
+        world_origin,
+        voxel_scale,
+    );
+
+    fragments as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_voxel_get_framebuffer_ptr() -> *const u32 {
     unsafe {
         VOXEL_ENGINE
@@ -5183,6 +5228,24 @@ pub extern "C" fn axiom_gpu_bench_compute(
     }
 
     us
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_gpu_get_raymarch_wgsl_len() -> u32 {
+    VOXEL_RAYMARCH_WGSL.len() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_gpu_get_raymarch_wgsl(out_ptr: *mut u8, max_len: u32) -> u32 {
+    if out_ptr.is_null() || max_len == 0 {
+        return 0;
+    }
+    let bytes = VOXEL_RAYMARCH_WGSL.as_bytes();
+    let to_copy = (bytes.len() as u32).min(max_len);
+    unsafe {
+        core::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, to_copy as usize);
+    }
+    to_copy
 }
 
 #[cfg(test)]
@@ -6080,5 +6143,20 @@ mod tests {
         assert_eq!(gpu_stats[2], 1);
         assert_eq!(gpu_stats[3], 320); // 320 us WebGPU compute
         assert_eq!(gpu_stats[4], 88 * 68);
+
+        // 3. WebGPU WGSL Source Retrieval
+        let wgsl_len = axiom_gpu_get_raymarch_wgsl_len();
+        assert!(wgsl_len > 0);
+        let mut wgsl_buf = vec![0u8; wgsl_len as usize];
+        let copied = axiom_gpu_get_raymarch_wgsl(wgsl_buf.as_mut_ptr(), wgsl_len);
+        assert_eq!(copied, wgsl_len);
+        let wgsl_str = core::str::from_utf8(&wgsl_buf).unwrap();
+        assert!(wgsl_str.contains("@compute @workgroup_size(8, 8, 1)"));
+
+        // 4. Software Voxel Raymarch Rendering
+        let _g = voxel_engine_lock();
+        axiom_voxel_init(64, 64, 0, 12345);
+        let fragments = axiom_voxel_render_raymarch(1, 1);
+        assert!(fragments > 0, "Raymarcher must produce fragments for solid preset");
     }
 }
