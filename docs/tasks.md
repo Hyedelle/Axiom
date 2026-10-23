@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-169: Mimic The Show 챔피언십 링 WebGPU Compute 복셀 광선 추적 렌더러 통합 및 하이브리드 블리팅** (`mimic-the-show/src/view.rs`, `crates/axiom-render/src/voxel_raymarch_render.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-170: Axiom 180대 차세대 WebGPU Compute 실시간 복셀 광선 추적 엔진 공식 릴리즈 v3.2.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-109]~[D-112], `docs/audit-report.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-171: Axiom 190대 초대형 차세대 마일스톤 연구** (`crates/axiom-core`, `crates/axiom-render`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-169: Mimic The Show 챔피언십 링 WebGPU Compute 복셀 광선 추적 렌더러 통합 및 하이브리드 블리팅** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `crates/axiom-render/src/voxel_raymarch_render.rs`, `DesktopGameView` 내 `is_raymarch_active` 토글 및 글로벌 F1 [3D FAST VOXEL DDA RAYMARCH ACTIVE: REVERSED-Z DEPTH BLITTING] 핫키 탑재, 복셀 지형 광선 추적 렌더러와 메카 GLB/파티클 래스터라이저의 Reversed-Z 하이브리드 깊이 버퍼 블리팅, 컨트롤 힌트 바 [F1: RAYMARCH] 노출, 20개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-168: Axiom WebGPU Compute 3D 볼륨 렌더러 벤치마크 및 WASM 스튜디오 쇼케이스 고도화** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_voxel_bench_raymarch` [50-프레임 연속 DDA 광선 행진 벤치마크, 타일 스케일 1x/2x/4x 및 2차 그림자 차폐, 64-bit FNV-1a 상태 합의 체크섬 계측], 웹 3D 복셀 스튜디오 ⚡ **3D Raymarch (CS 6.0)** 인터랙티브 모달 & 📜 **WGSL Shader Inspector** [제로 카피 셰이더 인스펙터], 1.27 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-167: Axiom WebGPU Compute DDA 광선 행진 3D 볼륨 셰이더 및 깊이 버퍼 블리팅** (`crates/axiom-render/src/voxel_raymarch_render.rs`, `crates/axiom-render/src/gpu_backend.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/tests/test_voxel_raymarch_rendering.rs`, `crates/axiom-wasm/src/lib.rs`, 8x8 워크그룹 64-스레드 L1 캐시 정렬 WebGPU WGSL 컴퓨트 셰이더 `VOXEL_RAYMARCH_WGSL`, 0-Float 소프트웨어 DDA 광선 행진 래스터라이저 `render_voxel_raymarch` [Reversed-Z 깊이 버퍼 블리팅, 방향성 디퓨즈 라이팅, 2차 그림자 차폐 및 다운샘플 타일링], WASM C-ABI 신규 엔드포인트 `axiom_voxel_render_raymarch`, `axiom_gpu_get_raymarch_wgsl_len`, `axiom_gpu_get_raymarch_wgsl` 완비, 4개 렌더링 단위 테스트 및 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-166: Axiom 180대 WebGPU Compute 실시간 복셀 광선 추적(Raymarching) 렌더러 기반 연구** (`crates/axiom-core/src/voxel_destruct.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_voxel_raymarch.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-render/src/gpu_backend.rs`, 0-Float 16-바이트 [1/4 64B L1 캐시라인] 정렬 광선 추적 교차 서술자 `VoxelRaymarchHit` [#[repr(C)], hit/voxel_coord/normal/material/steps/dist], 순수 정수 Amanatides-Woo Fast Voxel DDA [Digital Differential Analyzer] 광선 행진 알고리즘 `raymarch_dda` [바운딩 박스 클리핑 및 3D 복셀 그리드 증분 탐색], 6면 큐브 법선 벡터[-X, +X, -Y, +Y, -Z, +Z] 비트 결정론 추출, 2차 방향성 그림자 차폐 판정 `is_shadowed`, 10,000회 연속 광선 추적 벤치마크 검증, 5개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
