@@ -9,7 +9,9 @@ use axiom_core::fixed::FixedVec2;
 use axiom_core::input::InputState;
 use axiom_core::state::TickState;
 use axiom_render::mesh3d::MechaModel3D;
-use axiom_render::modding::{WorkshopManager, WorkshopModManifest};
+use axiom_render::modding::{
+    SteamUgcConfig, WorkshopManager, WorkshopModManifest, WorkshopPublisher,
+};
 use std::time::Instant;
 
 fn main() {
@@ -178,7 +180,7 @@ pub fn run_mod_suite(args: &[String]) {
         "test" | "hot-swap" => {
             println!("🔄 Testing Hot-Swap Ingestion against MechaModel3D...");
             let mut mecha = MechaModel3D::procedural_chassis();
-            let initial_parts = mecha.parts.len();
+            let _initial_parts = mecha.parts.len();
             match manager.hot_swap_reload(&mut mecha) {
                 Ok(replaced) => {
                     println!("✅ Hot-Swap Ingestion Success!");
@@ -187,6 +189,96 @@ pub fn run_mod_suite(args: &[String]) {
                     println!("   Final Model Parts Count: {}", mecha.parts.len());
                 }
                 Err(e) => eprintln!("❌ Hot-swap failed: {:?}", e),
+            }
+        }
+        "validate" => {
+            let mod_path = args.get(3).cloned().unwrap_or_else(|| "mods/custom_hazard_arm".to_string());
+            println!("🔍 Validating Workshop Mod Package at: {}", mod_path);
+            let p = std::path::Path::new(&mod_path);
+            match WorkshopPublisher::validate_mod(p) {
+                Ok(report) => {
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    println!("  Mod ID:      {}", report.mod_id);
+                    println!("  Title:       {}", report.title);
+                    println!("  Version:     {}", report.version);
+                    println!("  Target Slot: {}", report.target_slot);
+                    println!("  Asset Files: {} ({} bytes)", report.total_asset_files, report.total_bytes);
+                    println!("  Manifest:    {}", if report.has_manifest { "✅ OK" } else { "❌ MISSING" });
+                    println!("  Mesh (GLB):  {}", if report.has_mesh { "✅ FOUND" } else { "⚠️  NONE" });
+                    println!("  Texture:     {}", if report.has_texture { "✅ FOUND" } else { "⚠️  NONE" });
+                    println!("  Preview:     {}", if report.has_preview { "✅ FOUND" } else { "⚠️  DEFAULT" });
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    if report.is_valid {
+                        println!("🎉 Validation PASSED: Mod is 100% compliant with Steam Workshop standards!");
+                    } else {
+                        println!("❌ Validation FAILED: Encountered {} error(s):", report.errors.len());
+                        for err in &report.errors {
+                            println!("   • [ERROR] {}", err);
+                        }
+                    }
+                    for warn in &report.warnings {
+                        println!("   • [WARN]  {}", warn);
+                    }
+                }
+                Err(e) => eprintln!("❌ Validation failed: {:?}", e),
+            }
+        }
+        "pack" => {
+            let mod_path = args.get(3).cloned().unwrap_or_else(|| "mods/custom_hazard_arm".to_string());
+            let out_file = args.get(4).cloned().unwrap_or_else(|| format!("{}.axmod", mod_path));
+            println!("📦 Packaging standalone .axmod container...");
+            println!("   Source:      {}", mod_path);
+            println!("   Destination: {}", out_file);
+            let src = std::path::Path::new(&mod_path);
+            let dest = std::path::Path::new(&out_file);
+            match WorkshopPublisher::pack_axmod(src, dest) {
+                Ok(info) => {
+                    println!("✅ Packaging Complete!");
+                    println!("   Mod ID:            {}", info.mod_id);
+                    println!("   Files Bundled:     {}", info.file_count);
+                    println!("   Uncompressed Size: {} bytes", info.uncompressed_size);
+                    println!("   Container Size:    {} bytes", info.package_size);
+                    println!("   Checksum:          0x{:016X}", info.checksum);
+                }
+                Err(e) => eprintln!("❌ Packaging failed: {:?}", e),
+            }
+        }
+        "publish" => {
+            let mod_path = args.get(3).cloned().unwrap_or_else(|| "mods/custom_hazard_arm".to_string());
+            println!("🚀 Steam Workshop UGC Publishing Pipeline");
+            println!("   Target Directory: {}", mod_path);
+
+            let mut config = SteamUgcConfig::default();
+            // Optional --appid
+            if let Some(pos) = args.iter().position(|a| a == "--appid") {
+                if let Some(val) = args.get(pos + 1) {
+                    if let Ok(id) = val.parse::<u32>() {
+                        config.app_id = id;
+                    }
+                }
+            }
+            // Optional --changelog
+            if let Some(pos) = args.iter().position(|a| a == "--changelog") {
+                if let Some(val) = args.get(pos + 1) {
+                    config.changelog = val.clone();
+                }
+            }
+
+            let p = std::path::Path::new(&mod_path);
+            match WorkshopPublisher::publish_dry_run(p, &config) {
+                Ok(res) => {
+                    println!("✅ Steam Workshop Publication Preparation Successful!");
+                    println!("   Mod ID:          {}", res.mod_id);
+                    println!("   Steam AppId:     {}", res.app_id);
+                    println!("   Generated VDF:   {:?}", res.vdf_path);
+                    if let Some(ax) = res.axmod_path {
+                        println!("   Packed Container: {:?}", ax);
+                    }
+                    println!("   Summary:         {}", res.summary);
+                    println!("\n💡 To execute production cloud upload to Steam via SteamPipe:");
+                    println!("   steamcmd.exe +login <steam_username> +workshop_build_item {:?} +quit", res.vdf_path);
+                }
+                Err(e) => eprintln!("❌ Publishing dry-run failed: {:?}", e),
             }
         }
         "list" | _ => {
