@@ -532,8 +532,9 @@
       </div>
 
       <div style="display: flex; gap: 8px;">
-        <button class="action-btn" onclick="advanceTournamentStep()" style="flex: 2; color: #4ade80; border-color: #166534; font-weight: bold;">▶ 다음 경기 자동 진행</button>
-        <button class="action-btn" onclick="resetTournamentBracket()" style="flex: 1; color: #f87171; border-color: #991b1b;">🔄 브래킷 리셋</button>
+        <button class="action-btn" id="btnTourneyBroadcast" onclick="toggleTournamentBroadcast()" style="flex: 2; color: #f43f5e; border-color: #be123c; font-weight: bold;">📡 LIVE 자동 중계 (Broadcast)</button>
+        <button class="action-btn" onclick="advanceTournamentStep()" style="flex: 1; color: #4ade80; border-color: #166534; font-weight: bold;">▶ 스텝</button>
+        <button class="action-btn" onclick="resetTournamentBracket()" style="flex: 1; color: #f87171; border-color: #991b1b;">🔄 리셋</button>
       </div>
       <div id="tournamentHashStatus" style="margin-top: 10px; font-size: 11px; color: #64748b; text-align: center; font-family: monospace;">STATE HASH: 0x0000000000000000</div>
     </div>
@@ -936,6 +937,23 @@
       const url = `${window.location.origin}${window.location.pathname}?mode=boxing&pvp=1&room=${room}`;
       navigator.clipboard.writeText(url);
       alert('대전 초대 링크가 복사되었습니다:\n' + url);
+    }
+
+    let isTournamentBroadcasting = false;
+
+    function toggleTournamentBroadcast() {
+      if (!wasmInstance || !wasmInstance.axiom_tournament_broadcast_init_4) return;
+      isTournamentBroadcasting = !isTournamentBroadcasting;
+      const btn = document.getElementById('btnTourneyBroadcast');
+      if (isTournamentBroadcasting) {
+        wasmInstance.axiom_tournament_broadcast_init_4(0, 1, 2, 3);
+        const randomSpecs = Math.floor(Math.random() * 60) + 25;
+        wasmInstance.axiom_tournament_broadcast_set_spectators(randomSpecs);
+        if (btn) btn.innerText = '⏹️ 중계 정지';
+        closeTournamentModal();
+      } else {
+        if (btn) btn.innerText = '📡 LIVE 자동 중계 (Broadcast)';
+      }
     }
 
     function openTournamentModal() {
@@ -1797,6 +1815,47 @@
             `<span class="red">Rollbacks: ${rollbacks}</span> | ` +
             `<span class="blue">Resim: ${resim}</span> | ` +
             `<span class="gray">Hash: 0x${hash.toString(16).toUpperCase()}</span>`;
+        } else if (isTournamentBroadcasting && wasmInstance.axiom_tournament_broadcast_step) {
+          const ev = wasmInstance.axiom_tournament_broadcast_step();
+          if (ev === 2) {
+            playBoxingSfx(7); // KO sub-bass boom
+          } else if (ev === 3) {
+            playBoxingSfx(10); // Champion fanfare
+          }
+
+          wasmInstance.axiom_boxing_render();
+          ptr = wasmInstance.axiom_boxing_get_framebuffer_ptr();
+          len = wasmInstance.axiom_boxing_get_framebuffer_len();
+          tick = wasmInstance.axiom_tournament_broadcast_get_active_frame();
+
+          const phase = wasmInstance.axiom_tournament_broadcast_get_phase();
+          const matchIdx = wasmInstance.axiom_tournament_broadcast_get_active_match();
+          const specs = wasmInstance.axiom_tournament_broadcast_get_spectators();
+          const hash = wasmInstance.axiom_tournament_get_hash();
+
+          const fighterNames = ['ELPIS', 'TINKER', 'CIPHER', 'THESEUS'];
+          const fA = wasmInstance.axiom_tournament_get_match_fighter_a(matchIdx);
+          const fB = wasmInstance.axiom_tournament_get_match_fighter_b(matchIdx);
+          const nameA = fighterNames[fA % 4] || 'A';
+          const nameB = fighterNames[fB % 4] || 'B';
+
+          let phaseBadge = '';
+          if (phase === 2) {
+            const winId = wasmInstance.axiom_tournament_broadcast_get_last_winner();
+            const winName = fighterNames[winId % 4] || 'VICTOR';
+            phaseBadge = ` | <span class="gold" style="font-weight:bold;">🥊 ROUND OVER: ${winName} ADVANCES!</span>`;
+          } else if (phase === 3) {
+            const champId = wasmInstance.axiom_tournament_get_champion();
+            const champName = fighterNames[champId % 4] || 'CHAMPION';
+            phaseBadge = ` | <span class="green" style="font-weight:bold;">👑 GRAND CHAMPION: ${champName}!</span>`;
+          }
+
+          document.getElementById('hudDetail').innerHTML =
+            `<span class="purple" style="font-weight:bold;">🏆 LIVE TOURNAMENT [MATCH ${matchIdx + 1}/3: ${nameA} vs ${nameB}]</span> | ` +
+            `<span class="gold">👁️ ${specs} SPECTATORS</span> | ` +
+            `<span class="blue">Frame: ${tick}</span> | ` +
+            `<span class="gray">Hash: 0x${hash.toString(16).toUpperCase()}</span>` +
+            phaseBadge;
         } else {
           const ev = wasmInstance.axiom_boxing_step(action);
           wasmInstance.axiom_boxing_render();

@@ -123,3 +123,37 @@ fn test_spectator_relay_session_synchronization_and_forwarding() {
     assert!(relayed_count > 0, "Spectator must have staged relay packets");
     assert_eq!(relay_buf[0].magic, NETBOX_WIRE_MAGIC);
 }
+
+#[test]
+fn test_tournament_director_automated_broadcast() {
+    use axiom_game::tournament::BroadcastPhase;
+    use axiom_game::tournament::TournamentDirector;
+
+    let f0 = TournamentFighter::new(0, 1, b"Elpis");
+    let f1 = TournamentFighter::new(1, 4, b"Tinker");
+    let f2 = TournamentFighter::new(2, 2, b"Cipher");
+    let f3 = TournamentFighter::new(3, 3, b"Theseus");
+
+    let mut director = TournamentDirector::new_4(f0, f1, f2, f3);
+    assert_eq!(director.phase, BroadcastPhase::MatchActive);
+
+    let initial_telemetry = director.telemetry();
+    assert_eq!(initial_telemetry.current_match_id, 0);
+    assert_eq!(initial_telemetry.round, 0);
+
+    // Simulate director ticks until champion is crowned
+    let mut champion_crowned = false;
+    for _ in 0..6000 {
+        let ev = director.step();
+        if ev == 3 || director.phase == BroadcastPhase::GrandChampionCrowned {
+            champion_crowned = true;
+            break;
+        }
+    }
+
+    assert!(champion_crowned, "Tournament must conclude with crowned champion");
+    assert!(director.tournament.champion.is_some());
+    let final_telemetry = director.telemetry();
+    assert_ne!(final_telemetry.champion_id, 0xFF);
+    assert!(final_telemetry.state_hash > 0);
+}

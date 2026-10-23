@@ -23,7 +23,8 @@ pub use boxing_netcode::{
 };
 pub use card::{CardKind, DeckState, TacticalCard};
 pub use tournament::{
-    MatchStatus, TournamentEngine, TournamentFighter, TournamentMatch, MAX_TOURNAMENT_MATCHES,
+    BroadcastPhase, MatchStatus, TournamentBroadcastTelemetry, TournamentDirector,
+    TournamentEngine, TournamentFighter, TournamentMatch, MAX_TOURNAMENT_MATCHES,
     NO_NEXT_MATCH,
 };
 

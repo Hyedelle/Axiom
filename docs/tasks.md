@@ -6,17 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-108: WebRTC 넷코드 4인 토너먼트 자동 중계 & 스펙테이터 룸 브로드캐스트 스트림** (`crates/axiom-game`, `web/`, `tools/guard.ps1` 통과)
+- [ ] **T-109: 메카 복싱 3D 리플레이 녹화 및 초저용량 바이트 스트림 직렬화 익스포터** (`crates/axiom-core`, `mimic-the-show`, `tools/guard.ps1` 통과)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-109: 메카 복싱 3D 리플레이 녹화 및 초저용량 바이트 스트림 직렬화 익스포터** (`crates/axiom-core`, `mimic-the-show`)
 - [ ] **T-110: 스팀 워크숍 클라우드 UGC 업로드 & 원클릭 모드 퍼블리셔 파이프라인** (`crates/axiom-cli`, `tools/`)
+- [ ] **T-111: Axiom Engine v1.8.0 스팀 워크숍 & 토너먼트 넷코드 공식 릴리즈** (`Cargo.toml`, `docs/`, 워크스페이스 판올림 및 Git 태그)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-108: WebRTC 넷코드 4인 토너먼트 자동 중계 & 스펙테이터 룸 브로드캐스트 스트림** (`crates/axiom-game/src/tournament.rs`, `crates/axiom-game/src/lib.rs`, `crates/axiom-wasm/src/lib.rs`, `web/index.html`, `web/axiom_wasm.wasm`, `crates/axiom-game/tests/test_tournament_and_spectator.rs`, 4인 단일리그 자율 진행 중계 디렉터 `TournamentDirector`, 64-Byte L1 캐시 정렬 텔레메트리 `TournamentBroadcastTelemetry`, 실시간 상태 머신 [MatchActive ➔ MatchConcluded ➔ GrandChampionCrowned], WASM C-ABI 8개 엔드포인트 연동, 웹 플레이어 `📡 LIVE 자동 중계` 뷰포트 및 관전자 카운트 HUD·KO/챔피언 대관식 사운드 동기화 완성, 3개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-107: 스팀 워크숍(Steam Workshop) 원클릭 모드 구독 및 게임 런타임 핫스왑 인제스터** (`crates/axiom-render/src/modding.rs`, `crates/axiom-render/src/lib.rs`, `crates/axiom-cli/src/main.rs`, `mimic-the-show/src/view.rs`, `crates/axiom-render/tests/test_modding_and_textures.rs`, 스팀 워크숍 및 로컬 모드 디렉터리(`mods/`) 자동 탐색 및 `WorkshopManager` 파이프라인 완성, `mod.json` 매니페스트/GLB/텍스처 무재부팅 런타임 핫스왑 `hot_swap_reload`, 데스크톱 게임 실시간 `F7` 핫키 및 HUD 골든 알림 배너 연동, `axiom mod list/new/hot-swap` CLI 워크숍 도구 지원, 7개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-106: 실시간 음향 잔향 및 3D 스테레오 패닝 WASM Web Audio AudioWorklet 노드 연동** (`crates/axiom-wasm/src/audio.rs`, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/tests/test_audio_engine.rs`, `web/axiom-audio-worklet.js`, `web/index.html`, `web/axiom_wasm.wasm`, 0-Float 순수 정수 산술 13종 멀티레이어 메카 사운드 신시사이저, 0..1000 permille 선형 보간 피치 시프트, 3-탭 금속성 지하실 공간 잔향기(Arena Reverb, 딜레이 [727, 1036, 1367]), 3D 상대 위치 거리 감쇠 및 좌우 스테레오 패닝 `compute_spatial_stereo`, 8-보이스 AudioWorklet 128프레임 블록 스트리밍 믹서 및 Web Audio AudioWorkletNode 직결 연동 완성, 6개 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-105: WebRTC P2P 다자간 관전 릴레이 및 토너먼트 브래킷 자동 진행 엔진** (`crates/axiom-game/src/tournament.rs`, `crates/axiom-game/src/boxing_netcode.rs`, `crates/axiom-wasm/src/lib.rs`, `web/axiom_wasm.wasm`, `web/index.html`, `crates/axiom-game/tests/test_tournament_and_spectator.rs`, 0-Rollback 100% 비트 상태 합의 무예측 관전 세션 `SpectatorRelaySession<64>`, 4프레임 중복 윈도우 인제스천 및 하위 피어 P2P 메시 패킷 재전송 큐 `drain_relay_packets`, 4강 싱글 엘리미네이션 결정론 토너먼트 브래킷 머신 `TournamentEngine<4>`, WASM C-ABI 11개 엔드포인트 및 브래킷 실시간 HUD/웹 모달 연동 완결, 단위/통합 테스트 통과, `tools/guard.ps1` 통과)

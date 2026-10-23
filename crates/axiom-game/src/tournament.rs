@@ -251,3 +251,203 @@ impl<const N: usize> TournamentEngine<N> {
         hash
     }
 }
+
+// ---------------------------------------------------------------------------
+// Automated Tournament Broadcast & Spectator Stream Director
+// ---------------------------------------------------------------------------
+
+use crate::boxing::{ActionKind, BoxingRingEngine};
+
+/// Broadcast phase of the automated tournament stream.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BroadcastPhase {
+    /// Idle / setup
+    Idle = 0,
+    /// Live match fighting
+    MatchActive = 1,
+    /// Match concluded (KO or decision), displaying victor banner
+    MatchConcluded = 2,
+    /// Grand champion crowned sequence
+    GrandChampionCrowned = 3,
+}
+
+/// 64-Byte L1 cache aligned real-time telemetry frame for tournament spectators.
+#[repr(C, align(64))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TournamentBroadcastTelemetry {
+    pub current_match_id: u8,
+    pub round: u8,
+    pub broadcast_phase: u8,
+    pub fighter_a_id: u8,
+    pub fighter_b_id: u8,
+    pub fighter_a_hp: u8,
+    pub fighter_b_hp: u8,
+    pub fighter_a_heat: u8,
+    pub fighter_b_heat: u8,
+    pub winner_id: u8,
+    pub champion_id: u8,
+    pub spectator_count: u32,
+    pub match_frame: u32,
+    pub state_hash: u64,
+}
+
+impl Default for TournamentBroadcastTelemetry {
+    fn default() -> Self {
+        Self {
+            current_match_id: 0,
+            round: 0,
+            broadcast_phase: 0,
+            fighter_a_id: 0,
+            fighter_b_id: 1,
+            fighter_a_hp: 100,
+            fighter_b_hp: 100,
+            fighter_a_heat: 0,
+            fighter_b_heat: 0,
+            winner_id: 0xFF,
+            champion_id: 0xFF,
+            spectator_count: 1,
+            match_frame: 0,
+            state_hash: 0,
+        }
+    }
+}
+
+/// Autonomous tournament match runner and spectator broadcast director.
+#[derive(Debug, Clone)]
+pub struct TournamentDirector {
+    pub tournament: TournamentEngine<4>,
+    pub ring: BoxingRingEngine,
+    pub phase: BroadcastPhase,
+    pub phase_timer: u32,
+    pub spectator_count: u32,
+    pub match_frame: u32,
+    pub last_winner_id: u8,
+}
+
+impl TournamentDirector {
+    /// Creates a new autonomous tournament broadcast session for 4 fighters.
+    pub fn new_4(
+        f0: TournamentFighter,
+        f1: TournamentFighter,
+        f2: TournamentFighter,
+        f3: TournamentFighter,
+    ) -> Self {
+        let tournament = TournamentEngine::new_4_bracket(f0, f1, f2, f3);
+        let ring = BoxingRingEngine::new(0xABCD_EF01);
+
+        Self {
+            tournament,
+            ring,
+            phase: BroadcastPhase::MatchActive,
+            phase_timer: 0,
+            spectator_count: 12, // Default audience
+            match_frame: 0,
+            last_winner_id: 0xFF,
+        }
+    }
+
+    /// Advances the tournament broadcast simulation by 1 tick.
+    /// Returns an event code:
+    /// - 0: normal step
+    /// - 1: match starting / active
+    /// - 2: match finished (winner decided)
+    /// - 3: grand champion crowned
+    pub fn step(&mut self) -> u8 {
+        match self.phase {
+            BroadcastPhase::Idle => 0,
+            BroadcastPhase::MatchActive => {
+                self.match_frame += 1;
+
+                // Autonomous bot combat simulation
+                let p0_action = match (self.match_frame * 7) % 60 {
+                    10 => ActionKind::Jab,
+                    25 => ActionKind::Cross,
+                    40 => ActionKind::Hook,
+                    55 => ActionKind::SlipLeft,
+                    _ => ActionKind::Idle,
+                };
+                let p1_action = match (self.match_frame * 13) % 60 {
+                    12 => ActionKind::Jab,
+                    28 => ActionKind::Cross,
+                    44 => ActionKind::Guard,
+                    _ => ActionKind::Idle,
+                };
+
+                self.ring.step_pvp(p0_action, p1_action);
+
+                let p0_hp = self.ring.player.hp;
+                let p1_hp = self.ring.opponent.hp;
+
+                // Match conclusion check (KO or 1200 frame limit)
+                let match_over = p0_hp <= 0 || p1_hp <= 0 || self.match_frame >= 1200;
+
+                if match_over {
+                    let cur_idx = self.tournament.current_match_idx;
+                    let score_a = p0_hp.clamp(0, 100) as u8;
+                    let score_b = p1_hp.clamp(0, 100) as u8;
+                    let winner = self
+                        .tournament
+                        .record_match_result(cur_idx as u8, score_a, score_b)
+                        .unwrap_or(TournamentFighter::new(0, 0, b"UNKNOWN"));
+
+                    self.last_winner_id = winner.id;
+
+                    if self.tournament.champion.is_some() {
+                        self.phase = BroadcastPhase::GrandChampionCrowned;
+                        self.phase_timer = 300; // 5 seconds display
+                        3
+                    } else {
+                        self.phase = BroadcastPhase::MatchConcluded;
+                        self.phase_timer = 180; // 3 seconds transition
+                        2
+                    }
+                } else {
+                    0
+                }
+            }
+            BroadcastPhase::MatchConcluded => {
+                if self.phase_timer > 0 {
+                    self.phase_timer -= 1;
+                    0
+                } else {
+                    // Start next ready match
+                    self.ring = BoxingRingEngine::new(0xABCD_EF01 ^ (self.match_frame as u64));
+                    self.match_frame = 0;
+                    self.phase = BroadcastPhase::MatchActive;
+                    1
+                }
+            }
+            BroadcastPhase::GrandChampionCrowned => {
+                if self.phase_timer > 0 {
+                    self.phase_timer -= 1;
+                }
+                0
+            }
+        }
+    }
+
+    /// Obtains current broadcast telemetry for downstream spectator relay.
+    pub fn telemetry(&self) -> TournamentBroadcastTelemetry {
+        let cur_m = &self.tournament.matches[self.tournament.current_match_idx];
+        let fa_id = cur_m.fighter_a.map(|f| f.id).unwrap_or(0);
+        let fb_id = cur_m.fighter_b.map(|f| f.id).unwrap_or(1);
+
+        TournamentBroadcastTelemetry {
+            current_match_id: cur_m.match_id,
+            round: cur_m.round,
+            broadcast_phase: self.phase as u8,
+            fighter_a_id: fa_id,
+            fighter_b_id: fb_id,
+            fighter_a_hp: self.ring.player.hp.clamp(0, 100) as u8,
+            fighter_b_hp: self.ring.opponent.hp.clamp(0, 100) as u8,
+            fighter_a_heat: self.ring.player.heat.min(100) as u8,
+            fighter_b_heat: self.ring.opponent.heat.min(100) as u8,
+            winner_id: self.last_winner_id,
+            champion_id: self.tournament.champion.map(|c| c.id).unwrap_or(0xFF),
+            spectator_count: self.spectator_count,
+            match_frame: self.match_frame,
+            state_hash: self.tournament.compute_hash(),
+        }
+    }
+}

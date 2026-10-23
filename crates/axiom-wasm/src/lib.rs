@@ -26,7 +26,9 @@ pub use axiom_core::tile_entity::grid_action_kind;
 use axiom_core::tile_entity::{tile_flags, GridAction, TileCell, TileGrid};
 use axiom_game::boxing::{ActionKind, AiPhase, BoxingEvent, BoxingRingEngine, FightPhase};
 use axiom_game::boxing_netcode::{BoxingRollbackSession, NetboxWirePacket, SpectatorRelaySession};
-use axiom_game::tournament::{TournamentEngine, TournamentFighter};
+use axiom_game::tournament::{
+    TournamentBroadcastTelemetry, TournamentDirector, TournamentEngine, TournamentFighter,
+};
 use axiom_render::cutin::{render_cutin_overlay, CutinKind};
 use axiom_render::math3d::{Mat4Fixed, Vec3Fixed};
 use axiom_render::mesh3d::{parse_glb, MechaModel3D};
@@ -2822,6 +2824,8 @@ struct NetboxWasmEngine {
     session: BoxingRollbackSession<64>,
     spectator: Option<SpectatorRelaySession<64>>,
     tournament: Option<TournamentEngine<4>>,
+    director: Option<TournamentDirector>,
+    telemetry: TournamentBroadcastTelemetry,
     framebuffer: FrameBuffer,
     wire_buffer: [u8; 64],
 }
@@ -2843,6 +2847,8 @@ pub extern "C" fn axiom_netbox_init(local_player_id: u32, seed: u64, width: u32,
             session,
             spectator: None,
             tournament: None,
+            director: None,
+            telemetry: TournamentBroadcastTelemetry::default(),
             framebuffer,
             wire_buffer: [0u8; 64],
         }));
@@ -3107,6 +3113,91 @@ pub extern "C" fn axiom_tournament_get_hash() -> u64 {
         .and_then(|e| e.tournament.as_ref())
         .map(|t| t.compute_hash())
         .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_init_4(p0_id: u32, p1_id: u32, p2_id: u32, p3_id: u32) {
+    if let Some(engine) = netbox_engine() {
+        let f0 = TournamentFighter::new(p0_id as u8, 1, b"ELPIS");
+        let f1 = TournamentFighter::new(p1_id as u8, 4, b"TINKER");
+        let f2 = TournamentFighter::new(p2_id as u8, 2, b"CIPHER");
+        let f3 = TournamentFighter::new(p3_id as u8, 3, b"THESEUS");
+
+        let director = TournamentDirector::new_4(f0, f1, f2, f3);
+        engine.telemetry = director.telemetry();
+        engine.director = Some(director);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_step() -> u32 {
+    if let Some(engine) = netbox_engine() {
+        if let Some(d) = &mut engine.director {
+            let ev = d.step();
+            engine.telemetry = d.telemetry();
+            return ev as u32;
+        }
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_get_telemetry_ptr() -> *const TournamentBroadcastTelemetry {
+    if let Some(engine) = netbox_engine() {
+        &engine.telemetry as *const _
+    } else {
+        core::ptr::null()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_get_phase() -> u32 {
+    netbox_engine()
+        .and_then(|e| e.director.as_ref())
+        .map(|d| d.phase as u32)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_get_spectators() -> u32 {
+    netbox_engine()
+        .and_then(|e| e.director.as_ref())
+        .map(|d| d.spectator_count)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_set_spectators(count: u32) {
+    if let Some(engine) = netbox_engine() {
+        if let Some(d) = &mut engine.director {
+            d.spectator_count = count;
+            engine.telemetry.spectator_count = count;
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_get_active_match() -> u32 {
+    netbox_engine()
+        .and_then(|e| e.director.as_ref())
+        .map(|d| d.tournament.current_match_idx as u32)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_get_active_frame() -> u32 {
+    netbox_engine()
+        .and_then(|e| e.director.as_ref())
+        .map(|d| d.match_frame)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn axiom_tournament_broadcast_get_last_winner() -> u32 {
+    netbox_engine()
+        .and_then(|e| e.director.as_ref())
+        .map(|d| d.last_winner_id as u32)
+        .unwrap_or(0xFF)
 }
 
 #[no_mangle]
