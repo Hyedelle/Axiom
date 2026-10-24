@@ -6,16 +6,18 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-222: Mimic The Show 챔피언십 링 실시간 파괴 파티클 비산 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-223: Axiom 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 공식 릴리즈 v4.1.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-224: Axiom 280대 절차적 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 연구** (`docs/audit-report.md`, `axiom-dust-storm-and-volumetric-shockwave-research.md`)
+- [ ] **T-225: Axiom 280대 64B L1 정렬 충격파 슬랩 및 볼류메트릭 파티클 감쇠기 구현** (`crates/axiom-core/src/shockwave.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_shockwave.rs`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-222: Mimic The Show 챔피언십 링 실시간 파괴 파티클 비산 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `DebrisParticlePool<128>` [128개 64B L1 캐시 슬랩] 및 `step_debris_pipeline` 결합 [싱글플레이 파이터 넉다운/KO 시 75 kJ 충격 기반 32개 파괴 파티클 원뿔 방사 비산 및 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Debris: {} Particles | Bounces: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙하단 장미색(#FB7185) 인디케이터 점등, 하단 컨트롤 바 `[DEB: {}P]` 상시 모니터링 연동, 29개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-221: Axiom 270대 파괴 파티클 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_debris_bench_burst` [4~128 파티클 슬랩 생성 및 64B L1 캐시 정렬 상주, 85 kJ 운동 에너지 비산, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_DEBRIS_BURST (0x0270)` 이벤트 버스 연계, 10-틱 반암시적 오일러 탄도 적분 및 바닥/경계 충돌 반발/마찰 감쇠 계측, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 💥 **270 Debris Particles (64B Slabs)** 대화형 모달 연동, 1.36 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-220: Axiom 270대 파괴 파티클 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/debris_particle.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_debris_particle_jobs.rs`, `crates/axiom-game/tests/test_debris_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_debris_with_jobs` [파티클 N-배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_debris_burst_to_event_bus` [`EVENT_DEBRIS_BURST = 0x0270` 및 `channel::PHYSICS | channel::VFX` 채널, 40B 인라인 페이로드(origin_xyz, particle_count, speed_min/max, spread_bams, emitter_id, impulse_energy_j, material, flags, avg_size, lifetime, reserved)], `DebrisBurstReport::decode` 무손실 라운드트립 디코더 및 GGPO 롤백 `rollback_to` 지원, `NetworkMatchDirector::step_debris_burst` 및 `step_debris_burst_with_jobs` [16-인 배틀로얄 경기장 물리-파티클 실시간 비산 파이프라인 결합], 4개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-219: Axiom 270대 64B L1 정렬 파괴 파티클 슬랩 및 충돌 임펄스 적분기 구현** (`crates/axiom-core/src/debris_particle.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_debris_particle.rs`, 0-Float 64B L1 캐시 정렬 파괴 파티클 슬랩 `DebrisParticleSlab64` [#[repr(C, align(64))], exact 64B slab, 12B pos mm, 12B vel mm/s, 6B yaw/pitch/roll BAMS, 6B ang_vel, 4B mass g, 2B restitution Q16, 2B friction Q16, 1B material, 1B flags, 2B size mm, 2B lifetime ticks, 2B emitter_id, 1B bounce_count, 15B pad], 0-Float 64B L1 정렬 충돌 임펄스 서술자 `ParticleContactSlab64` [#[repr(C, align(64))], exact 64B slab, 12B contact mm, 12B normal Q16.16, 4B impulse energy J, 2B particle_id, 2B emitter_id, 1B surface_mat, 1B flags, 1B bounce_num, 29B pad], $g = -9810\text{ mm/s}^2$ (-163 mm/s/tick) 반암시적 오일러 탄도 적분기 및 공기 저항 감쇠, 바닥(z=0) 반발 탄성 및 마찰 감쇠 충돌 해석, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 기록, 0-힙 고정 용량 플랫 풀 `DebrisParticlePool<MAX_PARTICLES>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 5개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 통과)

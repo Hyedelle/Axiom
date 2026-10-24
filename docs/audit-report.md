@@ -8,22 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:06 KST
-- **감사 대상:** Axiom Engine 270대 파괴 파티클 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-221, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_debris_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `DebrisParticleSlab64` 128 슬랩 메모리 상주 검증, $g = -9810\text{ mm/s}^2$ 반암시적 오일러 10-틱 탄도 적분 및 바닥/경계 충돌 반발 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_DEBRIS_BURST (0x0270)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 💥 **270 Debris Particles (64B Slabs)** 대화형 모달 연동, 1.36 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 11:13 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 파괴 파티클 비산 및 F3 HUD 결합 (T-222, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `DebrisParticlePool<128>` (128개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_debris_pipeline` 실시간 물리-파티클 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 75 kJ 충격 기반 32개 파괴 파티클 원뿔 방사 비산 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Debris: {} Particles | Bounces: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙하단 장미색(#FB7185) 인디케이터 점등, 하단 컨트롤 바 `[DEB: {}P]` 상시 모니터링 연동, 29개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **C-ABI 엔드포인트 설계**:
-     - `axiom_debris_bench_burst(particle_count, material_id, impulse_energy_j, out_stats) -> u32`.
-     - 8개 32-bit 원격 텔레메트리 배열 반환 (용량, 생성수, 활성수, 64비트 해시 lo/hi, 잡배치, 접촉수, 바운스수).
-  2. **WASM 바이너리 및 프론트엔드 연동**:
-     - `target/wasm32-unknown-unknown/release/axiom_wasm.wasm` (1,356,001 Bytes, ~1.36 MB).
-     - `web/index.html` 및 `crates/axiom-wasm/index.html` 대화형 버튼 💥 **270 Debris Particles (64B Slabs)** 및 `runDebrisParticleBenchmark()` 연동.
-  3. **WASM 회귀 테스트 무결성**:
-     - 테스트 14번 추가 및 전체 23개 단위 테스트, 7개 통합 테스트 100% 통과.
+  1. **실시간 파이프라인 결합**:
+     - `step_debris_pipeline`: 파이터 다운 시 75 kJ 32개 파편 생성, 반암시적 오일러 60Hz 적분, 바닥 및 원형 아레나 벽 반발 임펄스 누적.
+     - 40B 인라인 POD 이벤트 버스 발행 (`EVENT_DEBRIS_BURST = 0x0270`).
+  2. **F3 HUD 및 텔레메트리 렌더링**:
+     - HUD 카드 높이 232px 확장, 9번째 카드 라인 `Debris: {} Particles | Bounces: {} | 64B` (`0xFFFB7185`).
+     - 미니 레이더 중앙하단(`radar_cx - 4, radar_cy + 18`) 8x8 장미색 인디케이터.
+     - 하단 바 `[DEB: {}P]` 상시 모니터링.
+  3. **회귀 검증**:
+     - `test_view_debris_particles_knockdown_and_hud_telemetry` 통과 및 전체 29개 테스트 올패스.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T221] Axiom Engine 270대 파괴 파티클 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 11:06 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_debris_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `DebrisParticleSlab64` 128 슬랩 메모리 상주 검증, $g = -9810\text{ mm/s}^2$ 반암시적 오일러 10-틱 탄도 적분 및 바닥/경계 충돌 반발 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_DEBRIS_BURST (0x0270)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 💥 **270 Debris Particles (64B Slabs)** 대화형 모달 연동, 1.36 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T220] Axiom Engine 270대 파괴 파티클 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 11:00 KST
