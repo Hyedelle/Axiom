@@ -8,25 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:42 KST
-- **감사 대상:** Axiom Engine 280대 먼지 폭풍 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-227, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_shockwave_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 메모리 상주 검증, Sedov-Taylor 음속(340m/s) 파면 전파 및 거리 역제곱 감쇠 계측, Stokes' 침강(120mm/s) 및 Q16.16 Beer-Lambert 시야 투과율 필드 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_SHOCKWAVE (0x0280)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 대화형 모달 연동, 1.38 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 단위 테스트 및 7개 통합 테스트 100% 올패스 승인**
+- **일시:** 2026-10-24 11:55 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 먼지 폭풍 & 충격파 F3 HUD 결합 (T-228, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `VolumetricShockwaveEngine<16, 16>` (16개 충격파 + 16개 먼지 에미터 64B L1 캐시 슬랩) 상주 무결성 검증, `step_shockwave_pipeline` 실시간 물리-충격파-먼지 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 100 kJ 충격파 및 80% 밀도 지면 먼지 폭풍 자동 방출 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Shockwave: {} Waves | Dust: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터 점등, 하단 컨트롤 바 `[SHK: {}W]` 상시 모니터링 연동, 30개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **C-ABI WebAssembly 함수 규격 (`axiom_shockwave_bench_burst`)**:
-     - 0-힙 고정 용량 `VolumetricShockwaveEngine<32, 32>` 인스턴스화.
-     - 1~32개 구형/토로이달 충격파 파면 전파 및 1~32개 먼지 폭풍 에미터 침강 시뮬레이션.
-     - 40B 인라인 POD `ShockwaveReport` 이벤트 버스 발행.
-     - 8-워드 텔레메트리 출력 버퍼 일치성 검증 완료.
-  2. **Beer-Lambert 광학 투과율 계측**:
-     - 0-Float 정수 고정소수점 $Q16.16$ 투과율 $T \in [0, 65536]$.
-     - 다중 먼지 에미터 중첩 영역 소광 계수 누적 및 포화(0%) 클램핑 검증.
-  3. **WASM 바이너리 빌드 및 쇼케이스 동기화**:
-     - 1,377,456 바이트 (~1.38 MB) 릴리즈 바이너리 컴파일 및 `crates/axiom-wasm/`, `web/` 완벽 동기화.
-     - 웹 UI 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 버튼 및 `runShockwaveBenchmark()` 모달 배포.
+  1. **64B L1 캐시 슬랩 상주 (`VolumetricShockwaveEngine<16, 16>`)**:
+     - 프레임 루프 내 0-Heap 동적 할당 원칙 사수.
+     - KO/다운 시 100 kJ 구형 충격파 및 4000mm 반경 먼지 폭풍 생성.
+  2. **Beer-Lambert 광학 투과율 HUD 연동**:
+     - 링 중심점 `(0, 500, 0)` 광학 투과율 계측 및 퍼센트 `Dust: {}%` 실시간 출력.
+  3. **UI/HUD 레이아웃 통합**:
+     - F3 분산 넷코드 카드 높이 확장 ($224 \times 246$) 및 호박색 (`0xFFF59E0B`) 텍스트 라인 렌더링.
+     - 미니 레이더 중앙 조준점 충격파 점등 인디케이터 (`0xFFF59E0B`) 추가.
+     - 하단 컨트롤 바 `[SHK: {}W]` 상시 텔레메트리 연동.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T227] Axiom Engine 280대 먼지 폭풍 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 11:42 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_shockwave_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 메모리 상주 검증, Sedov-Taylor 음속(340m/s) 파면 전파 및 거리 역제곱 감쇠 계측, Stokes' 침강(120mm/s) 및 Q16.16 Beer-Lambert 시야 투과율 필드 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_SHOCKWAVE (0x0280)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 대화형 모달 연동, 1.38 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 단위 테스트 및 7개 통합 테스트 100% 올패스 승인.
 
 ### [AUDIT-20261024-T226] Axiom Engine 280대 충격파 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 11:34 KST
