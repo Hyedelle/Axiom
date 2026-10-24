@@ -8,28 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 15:37 KST
-- **감사 대상:** Axiom 330대 난류 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-257, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_turbulence_bench_burst` 생성, 4~16 난류 셀 & 1~4 충격파 경계층 슬랩 64B L1 정렬, Kolmogorov K41 $k$-$\epsilon$ TKE 감쇠, Steinhoff & Fedkiw 와도 감금력, 마하 1.50 초음속 SBLI 박리 판정, 4-워커 잡 디스패치 및 이벤트 버스 연계, 웹 3D 복셀 스튜디오 🌪️ 330 Atmospheric Turbulence & Shock (64B Slabs) 모달 연동, 1.45 MB 최적화 WASM 바이너리 빌드 및 배포, 23개 WASM 테스트 및 전체 워크스페이스 올패스 검증 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-258 - Mimic The Show 챔피언십 링 실시간 메카 대기 난류 와류 이펙트 및 F3 HUD 결합)**:
-  1. `mimic-the-show/src/view.rs`:
-     - `DesktopGameView` 구조체에 `turb_engine: Box<MechaTurbulenceEngine<16, 4>>` 임베딩 (8개 난류 셀 + 2개 초음속 충격파 경계층 슬랩)
-     - `step_turb_pipeline(&mut self) -> (usize, usize)` 구현:
-       * 싱글플레이 파이터 넉다운/KO 또는 초고속 대쉬/강타 시 510 m/s 초음속 충격파 및 와도 감금력 갱신
-       * Rankine-Hugoniot SBLI 박리 판정 시 40B 인라인 POD `TurbulenceEventReport` 방출 (`EVENT_SHOCK_BOUNDARY = 0x0331`, `EVENT_TURBULENCE_VORTEX = 0x0330`)
-     - F3 HUD 오버레이 카드 갱신:
-       * 높이 확장: `224x328` (24px 증설)
-       * 청백색(#60A5FA) 텍스트 렌더링: `Turb: {} Cells | {} SBLI | 64B`
-     - 56x56 미니 레이더 인디케이터:
-       * 레이더 좌측하단(내측) 청백색(`0xFF60A5FA`) 난류/충격파 점등
-     - 하단 컨트롤 바 텔레메트리 연동:
-       * `[TURB: {}C/{}S]` 상시 모니터링 출력
-  2. `mimic-the-show/tests/test_mimic_game.rs`:
-     - `test_view_turbulence_telemetry_and_hud` 통합 테스트 작성 및 `cargo test` 검증.
+- **일시:** 2026-10-24 15:45 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 메카 대기 난류 와류 이펙트 및 F3 HUD 결합 (T-258, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `step_turb_pipeline` [KO/넉다운 시 510 m/s 초음속 충격파 및 Rankine-Hugoniot SBLI 박리 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Turb: {} Cells | {} SBLI | 64B` 텔레메트리 청백색(#60A5FA) 출력 및 56x56 미니 레이더 좌측하단(내측) 청백색 인디케이터 점등, 하단 `[TURB: {}C/{}S]` 상시 모니터링 연동, 35개 게임 단위/통합 테스트 및 전체 워크스페이스 올패스 검증 완료**
+- **시공팀(Claude Code) 구현 처방전 (T-259 - Axiom 330대 메카 대기 난류 & 충격파 경계층 시뮬레이션 공식 릴리즈 v4.7.0)**:
+  1. `Cargo.toml` 및 `tools/package.ps1` 버전 번호 `4.7.0`으로 공식 판올림.
+  2. `docs/architecture.md` 50장 (메카 대기 난류 와도 보존 & 압축성 SBLI 충격파 물리 엔진) 추가.
+  3. `docs/decisions.md` ADR [D-169]~[D-172] (난류 및 충격파 경계층 아키텍처 결정 기록) 추가.
+  4. `tools/package.ps1 -Version "4.7.0"` 패키징 파이프라인 가동:
+     - `dist/axiom-v4.7.0-unified-milestone.zip` 생성 및 SHA-256 해시 계측
+     - 바탕화면 바로가기 최신 릴리즈 바이너리 연동 검증
+  5. `tools/guard.ps1` 전체 워크스페이스 100% 무결성 검증 후 Git 태그 `v4.7.0` 발행 및 클린 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T258] Mimic The Show 챔피언십 링 실시간 메카 대기 난류 와류 이펙트 및 F3 HUD 결합
+- **일시:** 2026-10-24 15:45 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** `DesktopGameView` 내 `MechaTurbulenceEngine<16, 4>` [8개 난류 와도 셀 + 2개 초음속 충격파 경계층 슬랩] 및 `step_turb_pipeline` 결합 [파이터 KO 시 510 m/s 초음속 충격파 및 Rankine-Hugoniot SBLI 박리 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Turb: {} Cells | {} SBLI | 64B` 텔레메트리 청백색(#60A5FA) 출력 및 56x56 미니 레이더 좌측하단(내측) 청백색 인디케이터 점등, 하단 `[TURB: {}C/{}S]` 상시 모니터링 연동, 35개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 올패스 승인.
 
 ### [AUDIT-20261024-T257] Axiom 330대 난류 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 15:37 KST
