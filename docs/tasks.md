@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-264: Mimic The Show 챔피언십 링 실시간 메카 입자선 복사 피폭 및 F3 HUD 결합 & 완전한 3D 오버더숄더 백뷰 전환** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-265: Axiom 340대 메카 광자 복사 수송 & 고에너지 입자선 시뮬레이션 공식 릴리즈 v4.8.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-266: Axiom 350대 플라즈마 자기유체역학(MHD) & 전자기 유도 필드 물리 연구** (`docs/audit-report.md`, `axiom-plasma-mhd-and-electromagnetic-induction-research.md`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-264: Mimic The Show 챔피언십 링 실시간 메카 입자선 복사 피폭 및 F3 HUD 결합 & 완전한 3D 오버더숄더 백뷰 전환** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `MechaRadiationEngine<16, 4>` [8개 복사 셀 + 2개 입자선 슬랩 64B L1 캐시 슬랩] 및 `step_rad_pipeline` 결합 [싱글플레이 파이터 넉다운/KO 시 2.5 kJ 고에너지 입자선 펄스 및 아머 용융 절제(Ablation) 깊이 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Rad: {} Cells | {} Beams | 64B` 텔레메트리 오렌지색(#FB923C) 출력 및 56x56 미니 레이더 우측하단(내측) 오렌지색 인디케이터 점등, 하단 `[RAD: {}C/{}B]` 상시 모니터링 연동, 완전한 3D 오버더숄더 백뷰 시점 [카메라 `orbit_pitch = 4`, `distance = 2.4m`, 플레이어 `[0.0, -0.68, 0.35]` 전방 응시, 상대 `[0.0, -0.62, -0.55]` 180도 대면, 타격 프레임 퍼밀 비례 동적 포즈 보간 및 2D 로프 컬링], 37개 게임 단위/통합 테스트 100% 통과)
 - [x] **T-263: Axiom 340대 복사 수송 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_radiation_bench_burst` [4~16 복사 셀 슬랩 및 1~4 입자선 슬랩 생성 및 64B L1 캐시 정렬 상주, Stefan-Boltzmann 흑체 복사 정수 방출 $E = (T/100)^4 \times 567 / 100$ W/m², 유리식 Padé 근사 Beer-Lambert 광학 투과율 $T = 65536^2 / (65536 + \tau + \tau^2/131072)$, 1 kJ 펄스 고에너지 빔 아머 절제 관통 $d = E_{\text{eff}} / (A \cdot Q_{\text{vol}})$ 및 20mm 돌파 해석, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_RADIATION_BURST (0x0340)` / `EVENT_BEAM_PENETRATION (0x0341)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 ☢️ **340 Radiative Transfer & Beams (64B Slabs)** 대화형 모달 연동, 1.46 MB 최적화 WASM 바이너리 동기화, 24개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-262: Axiom 340대 복사 수송 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/radiation.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_radiation_jobs.rs`, `crates/axiom-game/tests/test_radiation_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_radiation_with_jobs` [복사 셀 슬랩 청크 배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_radiation_to_event_bus` [`EVENT_RADIATION_BURST = 0x0340` 및 `EVENT_BEAM_PENETRATION = 0x0341`, `channel::PHYSICS | channel::VFX | channel::AUDIO` 채널, 40B 인라인 POD 페이로드 `RadiationEventReport`(pos_xyz, dir_xyz, flux_or_energy_mj, optical_depth_or_temp, penetration_depth_mm, wavelength_or_cell_id, emitter_id, target_id, flags, event_kind)], `RadiationEventReport::decode` 무손실 라운드트립 디코더 및 GGPO 롤백 지원, `NetworkMatchDirector::step_radiation` 및 `step_radiation_with_jobs` [16-인 경기장 광자 복사 방출 및 고에너지 빔 아머 절제 관통 수치 적분 결합], 5개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-261: Axiom 340대 64B L1 정렬 복사 수송 슬랩 및 Monte Carlo 광자 패킷 해석기 구현** (`crates/axiom-core/src/radiation.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_radiation.rs`, 0-Float 64B L1 캐시 정렬 복사 수송 셀 슬랩 `RadiationCellSlab64` [#[repr(C, align(64))], exact 64B slab, 12B center mm, 4B flux Q16, 4B abs Q16, 4B sca Q16, 4B optical_depth Q16, 4B temp K, 4B emission W, 1B cell_id, 1B flags, 26B reserved], 64B L1 정렬 입자선 슬랩 `ParticleBeamSlab64` [#[repr(C, align(64))], exact 64B slab, 12B origin mm, 12B dir Q1.15, 4B energy mJ, 2B wavelength nm, 2B divergence mrad, 2B penetration mm, 1B target_id, 1B emitter_id, 1B flags, 27B reserved], 40-Byte 인라인 POD 이벤트 서술자 `RadiationEventReport` 무손실 라운드트립 직렬화, Stefan-Boltzmann 흑체 복사 방출 정수 수식 $E = (T/100)^4 \times 567 / 100$ W/m², 유리식 Padé 근사 Beer-Lambert 광학적 깊이 투과율 $T = 65536^2 / (65536 + \tau + \tau^2/131072)$, 고에너지 빔 스팟 분산 각도 $r(s) = r_0 + s \cdot \theta / 1000$ 및 티타늄 아머 절제 관통 해석 $d = E_{\text{eff}} / (A \cdot Q_{\text{vol}})$, 0-힙 고정 크기 시뮬레이터 `MechaRadiationEngine<MAX_CELLS, MAX_BEAMS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 6개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 통과)

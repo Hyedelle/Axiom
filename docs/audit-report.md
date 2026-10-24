@@ -8,28 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 16:22 KST
-- **감사 대상:** Axiom 340대 복사 수송 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-263, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI `axiom_radiation_bench_burst` 노출, 4~16 복사 셀 & 1~4 입자선 슬랩 64B L1 캐시 정렬 상주, Stefan-Boltzmann 흑체 복사 및 Padé Beer-Lambert 광학 투과율, 고에너지 빔 아머 절제 관통 해석, 4-워커 잡 디스패치 및 이벤트 버스 연계, 웹 3D 복셀 스튜디오 ☢️ 340 Radiative Transfer & Beams (64B Slabs) 모달 연동, 1.46 MB 최적화 WASM 바이너리 동기화, 24개 WASM 테스트 100% 통과, `tools/guard.ps1` 100% 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-264 - Mimic The Show 챔피언십 링 실시간 메카 입자선 복사 피폭 및 F3 HUD 결합 & 완전한 3D 오버더숄더 백뷰 전환)**:
-  1. `mimic-the-show/src/view.rs`:
-     - `MechaRadiationEngine<16, 4>` [8개 복사 셀 + 2개 입자선 슬랩] 결합
-     - `step_rad_pipeline` 구현: 파이터 넉다운/KO 또는 피니셔 시 1 kJ 고에너지 빔 방출 및 아머 절제 해석, 40B POD 이벤트 버스 방출 (`EVENT_RADIATION_BURST = 0x0340`, `EVENT_BEAM_PENETRATION = 0x0341`)
-     - **완전 3D 복싱 오버더숄더 백뷰 전환 (디렉터 Hyedelle 지시 반영)**:
-       * 플레이어(ELPIS) 위치: `[0.0, -0.65, -0.35]` (화면 하단 정면 지향 백뷰 `rot_y = 0`)
-       * 상대 위치: `[0.0, -0.62, +0.65]` (화면 중앙 상단 정면 대치 `rot_y = 128 BAM (180 deg)`)
-       * 카메라 타겟 및 틸트: 후방 오버더숄더 하향 틸트 (`orbit_pitch = 6~8 BAM`, 타겟 `[0.0, -0.20, 0.15]`)
-       * 동적 애니메이션 보간: 고정 500 permille을 `action.frame * 1000 / action.max_frame`으로 교체
-       * `ActionKind::Hook`에 `MechaPose3D::hook(permille)` 직결
-     - F3 HUD: `Rad: {} Cells | {} Beams | 64B` 주황색(#FB923C) 출력
-     - 56x56 미니 레이더: 우측하단(내측) 주황색 인디케이터 점등
-     - 하단 컨트롤 바: `[RAD: {}C/{}B]` 상시 모니터링 연동
-  2. `mimic-the-show/tests/test_mimic_game.rs`에 3D 뷰포트 및 텔레메트리 통합 테스트 추가.
-  3. `tools/guard.ps1` 검증 및 커밋.
+- **일시:** 2026-10-24 16:36 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 메카 입자선 복사 피폭 및 F3 HUD 결합 & 완전한 3D 오버더숄더 백뷰 전환 (T-264, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `MechaRadiationEngine<16, 4>` 임베딩, 2.5 kJ 고에너지 입자선 펄스 및 아머 절제 관통 계측, 40B 인라인 POD 이벤트 버스 발행 (`EVENT_RADIATION_BURST = 0x0340`, `EVENT_BEAM_PENETRATION = 0x0341`), F3 HUD `Rad: {} Cells | {} Beams | 64B` 오렌지(#FB923C) 출력, 미니 레이더 및 하단 바 결합, 완전한 3D 오버더숄더 백뷰 시점 [카메라 `orbit_pitch = 4`, `distance = 2.4m`, 플레이어 `[0.0, -0.68, 0.35]` 전방 응시, 상대 `[0.0, -0.62, -0.55]` 180도 대면, 타격 프레임 퍼밀 비례 동적 포즈 보간 및 2D 로프 컬링], 37개 게임 테스트 100% 통과, `tools/guard.ps1` 100% 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-265 - Axiom 340대 메카 광자 복사 수송 & 고에너지 입자선 시뮬레이션 공식 릴리즈 v4.8.0)**:
+  1. `Cargo.toml`: 루트 및 워크스페이스 버전 4.7.0 -> 4.8.0 업데이트.
+  2. `tools/package.ps1`: `-Version "4.8.0"` 패키징 파이프라인 무결성 점검.
+  3. `docs/architecture.md`: Section 51 Axiom 340대 광자 복사 수송 & 고에너지 입자선 물리 아키텍처 상세 기재.
+  4. `docs/decisions.md`: ADR [D-173]~[D-176] 기록.
+  5. 바탕화면 바로가기 최신화 검증 (`C:\Users\willy\Desktop\Mimic The Show.lnk`).
+  6. `tools/package.ps1 -Version "4.8.0"` 구동 및 `dist/axiom-v4.8.0-unified-milestone.zip` 무결성 검증.
+  7. `tools/guard.ps1` 가동 후 공식 Git 태그 `v4.8.0` 발행 및 클린 리셋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T264] Mimic The Show 챔피언십 링 실시간 메카 입자선 복사 피폭 및 F3 HUD 결합 & 완전한 3D 오버더숄더 백뷰 전환
+- **일시:** 2026-10-24 16:36 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** `MechaRadiationEngine<16, 4>` 임베딩, 2.5 kJ 입자선 펄스 및 아머 절제 관통, 40B POD 이벤트 버스 연계, F3 HUD/미니레이더/하단바 결합, 완전한 3D 오버더숄더 백뷰 시점 및 프레임 퍼밀 비례 동적 포즈 보간, 37개 게임 테스트 통과, `tools/guard.ps1` 올패스 승인.
 
 ### [AUDIT-20261024-T263] Axiom 340대 복사 수송 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 16:22 KST
