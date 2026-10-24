@@ -8,19 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 15:09 KST
-- **감사 대상:** Axiom 320대 메카 대기 공기역학 & 풍동 시뮬레이션 공식 릴리즈 마일스톤 v4.6.0 (T-253, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 전체 워크스페이스 v4.6.0 공식 판올림, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64` 슬랩 메모리 무결성, 40B POD `AeroEventReport`, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 0-힙 고정 크기 `MechaAerodynamicsEngine<16, 4>`, `DesktopGameView` step_aero_pipeline 결합, F3 HUD(`Aero: {} Bodies | {} N | 64B`), 56x56 미니 레이더 좌측상단(내측) 하늘색(#38BDF8) 인디케이터, 하단 `[AERO: {}B/{}C]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.6.0-unified-milestone.zip` (2.32 MB, SHA-256: `E57462119F6F543C0B53357423ACDBB57F6295F9A3295A18658D30BF2B68C1EA` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,125,888 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-254 - Axiom 330대 입자 기반 대기 난류(Turbulence) & 압축성 충격파 경계층(Shock Boundary Layer) 물리 연구)**:
-  1. 선행 연구 subagent 소환:
-     - 0-Float 헌법 하에서 Kolmogorov 난류 에너지 캐스케이드 모델, Navier-Stokes 와도(Vorticity) 이산 격자 표현.
-     - 초음속 충격파(Mach > 1) 경계층 박리(Shock Boundary Layer Separation) 및 천음속 천이(Transonic Transition) 정수 수식화.
-     - 64B L1 캐시 정렬 난류 슬랩 및 40B POD 이벤트 버스 규격 수립.
-     - `docs/audit-report.md` 및 `axiom-turbulence-and-shock-boundary-layer-research.md` 작성.
+- **일시:** 2026-10-24 15:15 KST
+- **감사 대상:** Axiom 330대 입자 기반 대기 난류(Turbulence) & 압축성 충격파 경계층(Shock Boundary Layer) 물리 연구 (T-254, `axiom-turbulence-and-shock-boundary-layer-research.md`, `docs/audit-report.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, Kolmogorov K41 $k$-$\epsilon$ 난류 에너지 캐스케이드 모델, 3D 이산 와도 보존 감금력 $\mathbf{F}_{vc} = \epsilon_{vc}(\mathbf{N} \times \mathbf{\omega})$, Rankine-Hugoniot 초음속 충격파 압력 점프비 $\frac{P_2}{P_1} = 1 + \frac{7}{6}(M^2 - 1)$ 및 $P_2/P_1 \ge 1.20$ 충격파 경계층 박리(SBLI) 버페팅 모델 수립, 64B L1 정렬 `TurbulenceCellSlab64` & `ShockBoundarySlab64`, 40B POD `TurbulenceEventReport` 설계 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-255 - Axiom 330대 64B L1 정렬 난류 슬랩 및 Navier-Stokes 와도 격자 해석기 구현)**:
+  1. `crates/axiom-core/src/turbulence.rs` 신규 생성:
+     - 64B L1 캐시 정렬 `TurbulenceCellSlab64` (`#[repr(C, align(64))]`, exact 64B)
+     - 64B L1 캐시 정렬 `ShockBoundarySlab64` (`#[repr(C, align(64))]`, exact 64B)
+     - 40B 인라인 POD `TurbulenceEventReport` (라운드트립 `encode`/`decode` 검증)
+     - `compute_turbulence_forces(cell: &mut TurbulenceCellSlab64, confinement_eps_q16: u16) -> [i32; 3]` 구현
+     - `compute_shock_boundary_interaction(shock: &mut ShockBoundarySlab64, flow_speed_mms: u32) -> (u32, i32)` 구현
+     - 0-Heap 고정 크기 시뮬레이터 `MechaTurbulenceEngine<const MAX_CELLS: usize, const MAX_SHOCKS: usize>` 구현
+     - 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash(&self) -> u64` 구현
+  2. `crates/axiom-core/src/lib.rs`에 `pub mod turbulence;` 등록.
+  3. `crates/axiom-core/tests/test_turbulence.rs` 단위 테스트 7종 작성 및 `tools/guard.ps1` 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T254] Axiom 330대 입자 기반 대기 난류 & 압축성 충격파 경계층 물리 연구
+- **일시:** 2026-10-24 15:15 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 하에서 Kolmogorov K41 $k$-$\epsilon$ 난류 모델, 3D 와도 보존 감금력, Rankine-Hugoniot 충격파 점프 및 SBLI 버페팅 수식화, 64B L1 정렬 `TurbulenceCellSlab64` & `ShockBoundarySlab64`, 40B POD `TurbulenceEventReport` 설계 승인.
 
 ### [AUDIT-20261024-v4.6.0] Axiom Engine v4.6.0 320대 메카 대기 공기역학 & 풍동 시뮬레이션 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 15:09 KST
