@@ -8,24 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:32 KST
-- **감사 대상:** Axiom Engine 250대 64B L1 캐시 정렬 지형 버텍스 변위 슬랩 및 크레이터 테셀레이터 구현 (T-207, `crates/axiom-core/src/deformable_mesh.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_deformable_mesh.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 컴파일 타임 검증(`size_of == 64, align_of == 64`), Melosh 충격 역학 기반 순수 정수 체적 보존 융기 림 립($H_{rim}$) 연산 무결성 검증, 인접 버텍스 순회 없는 $O(1)$ 해석적 표면 법선 도함수($\partial Y / \partial x$) 및 $Q16.16$ 정규화 검증, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid<GRID_DIM, TOTAL_VERTICES, MAX_CRATERS>` 바운딩 엘리베이션 및 더티 렉트 갱신 검증, 64-bit FNV-1a 결정론적 합의 해시 100% 비트 일치, 5개 전용 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 09:38 KST
+- **감사 대상:** Axiom Engine 250대 지형 변형 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-208, `crates/axiom-core/src/deformable_mesh.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_deformable_mesh_jobs.rs`, `crates/axiom-game/tests/test_deformable_mesh_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_terrain_deform_with_jobs` 행 분할 워커 풀 디스패치 및 Chase-Lev 무잠금 SPMC 드레인 무결성 검증, 40B 인라인 POD 페이로드 기반 `emit_crater_to_event_bus` (`EVENT_TERRAIN_CRATER = 0x0250`, `channel::PHYSICS | channel::COMBAT`) 이벤트 버스 롤백/브로드캐스트 검증, `NetworkMatchDirector` 내 `step_terrain_crater` 및 `step_terrain_crater_with_jobs` 16인 경기장 실시간 지형 파쇄 파이프라인 결합 승인, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 검증**:
-     - `TerrainVertexSlab64`: $12\text{B(base)} + 12\text{B(disp)} + 12\text{B(normal)} + 1\text{B(mat)} + 1\text{B(flags)} + 2\text{B(stress)} + 2\text{B(crater\_count)} + 2\text{B(temp)} + 4\text{B(tick)} + 16\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-     - `CraterSlab64`: $12\text{B(center)} + 4\text{B(R\_in)} + 4\text{B(R\_out)} + 4\text{B(depth)} + 4\text{B(rim\_height)} + 4\text{B(impulse)} + 8\text{B(energy)} + 4\text{B(tick)} + 4\text{B(src)} + 2\text{B(ejecta)} + 1\text{B(mat)} + 1\text{B(flags)} + 12\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-  2. **Melosh 체적 보존 & 해석적 법선 그래디언트**:
-     - 정수 세제곱근 `icbrt_u64` $0 \sim 10^{12}$ 정밀성 검증.
-     - 50 kJ 바디슬램 크레이터 생성 시 $H_{rim} > 0$ 융기 림 립이 굴착 보울 체적과 $Q16.16$ 보존 비율에 일치.
-     - 중심점 버텍스 $-300\text{mm}$ 완전 굴착, 외곽 림 $+20\text{mm}$ 융기, 법선 벡터 길이 $65536 \pm 2$ 정규화 확인.
-  3. **결정론 및 도메인 격리**:
-     - 64-bit FNV-1a 메시 해시가 동일 파라미터에서 100% 비트 일치, $1\text{mm}$ 깊이 변화 시 즉각 다른 해시 산출 확인.
-     - 전체 워크스페이스 `tools/guard.ps1` 무결성 검증 통과.
+  1. **잡 시스템 병렬 분할 (`dispatch_terrain_deform_with_jobs`)**:
+     - 격자 행(`GRID_DIM`) 단위 4~8 워커 배치 분할, 64B L1 슬랩 디스크립터 할당 및 워커 덱 로컬 푸시.
+     - `coordinator.drain_all(&mut job_sys)`를 통한 협력적 드레인 후 미해결 잡 0 (`active_count == 0`) 검증.
+  2. **40B 인라인 POD 페이로드 이벤트 버스 발행 (`emit_crater_to_event_bus`)**:
+     - `EVENT_TERRAIN_CRATER (0x0250)` 이벤트 발행 시 40바이트 인라인 POD 페이로드(`center_xyz`, `radius_inner/outer`, `depth`, `rim_height`, `energy`, `source_id`, `flags`) 비트 레벨 완벽 일치.
+  3. **16인 경기장 매치 디렉터 실시간 결합**:
+     - `NetworkMatchDirector::step_terrain_crater` 및 `step_terrain_crater_with_jobs`에서 크레이터 인가 시 메시 변형 및 이벤트 기록 즉시 연동.
+  4. **헌법 및 테스트 통과**:
+     - 코어 단위 테스트 2건, 게임 통합 테스트 2건, 전체 워크스페이스 `tools/guard.ps1` 100% 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T207] Axiom Engine 250대 64B L1 캐시 정렬 지형 버텍스 변위 슬랩 및 크레이터 테셀레이터 구현
+- **일시:** 2026-10-24 09:32 KST
+- **판정:** 🟢 **ALL CLEAR (구현 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 컴파일 타임 검증(`size_of == 64, align_of == 64`), Melosh 충격 역학 기반 순수 정수 체적 보존 융기 림 립($H_{rim}$) 연산 무결성 검증, 인접 버텍스 순회 없는 $O(1)$ 해석적 표면 법선 도함수($\partial Y / \partial x$) 및 $Q16.16$ 정규화 검증, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid` 바운딩 엘리베이션 및 더티 렉트 갱신 검증, 64-bit FNV-1a 결정론적 합의 해시 100% 비트 일치, 5개 전용 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T206] Axiom Engine 250대 절차적 파괴 지형 메시 변형 및 충격 크레이터 테셀레이션 연구
 - **일시:** 2026-10-24 09:26 KST

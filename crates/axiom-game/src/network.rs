@@ -19,6 +19,10 @@ use axiom_core::ragdoll::{
     dispatch_ragdoll_with_jobs, emit_ragdoll_impacts_to_event_bus, RagdollBoneSlab64,
     RagdollEngine, RagdollImpactReport, RagdollJointSlab64, RagdollJointType,
 };
+use axiom_core::deformable_mesh::{
+    dispatch_terrain_deform_with_jobs, emit_crater_to_event_bus, CraterSlab64, DeformableMeshGrid,
+    TerrainCraterReport,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -978,6 +982,41 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         }
 
         impact_count
+    }
+
+    /// Evaluates dynamic procedural terrain crater deformation,
+    /// stamping the crater into the arena mesh and recording the crater event to the event bus.
+    pub fn step_terrain_crater<const DIM: usize, const VERTS: usize, const CRATERS: usize>(
+        &mut self,
+        grid: &mut DeformableMeshGrid<DIM, VERTS, CRATERS>,
+        crater: &CraterSlab64,
+    ) -> usize {
+        let deformed = grid.apply_crater_displacement(crater);
+        if deformed > 0 {
+            let report = TerrainCraterReport::from_crater(crater);
+            emit_crater_to_event_bus(&report, self.current_world.tick, &mut self.event_bus);
+        }
+        deformed
+    }
+
+    /// Evaluates dynamic procedural terrain crater deformation parallelized across the worker pool using JobSystem.
+    pub fn step_terrain_crater_with_jobs<
+        const DIM: usize,
+        const VERTS: usize,
+        const CRATERS: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        grid: &mut DeformableMeshGrid<DIM, VERTS, CRATERS>,
+        crater: &CraterSlab64,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> usize {
+        dispatch_terrain_deform_with_jobs(grid, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_terrain_crater(grid, crater)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.

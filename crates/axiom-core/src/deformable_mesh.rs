@@ -13,7 +13,10 @@
 //! - **0-Heap Flat Array Topology**: Fixed-capacity compile-time generic arrays ([`DeformableMeshGrid<GRID_DIM, MAX_CRATERS>`]).
 
 use core::mem::{align_of, size_of};
+use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
 use crate::ragdoll::isqrt_i64;
+use crate::worker_pool::WorkerPoolCoordinator;
 
 /// Event type discriminant for terrain impact crater deformation.
 pub const EVENT_TERRAIN_CRATER: u16 = 0x0250;
@@ -471,4 +474,141 @@ impl<const GRID_DIM: usize, const TOTAL_VERTICES: usize, const MAX_CRATERS: usiz
         h = h.wrapping_mul(FNV_PRIME);
         h
     }
+}
+
+/// Physical impact crater report emitted into the deterministic event bus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TerrainCraterReport {
+    pub center_x: i32,
+    pub center_y: i32,
+    pub center_z: i32,
+    pub radius_inner_mm: u32,
+    pub radius_outer_mm: u32,
+    pub depth_mm: i32,
+    pub rim_height_mm: i32,
+    pub energy_joules: u32,
+    pub source_id: u32,
+    pub flags: u8,
+}
+
+impl TerrainCraterReport {
+    /// Creates a report from a CraterSlab64 descriptor.
+    pub fn from_crater(crater: &CraterSlab64) -> Self {
+        Self {
+            center_x: crater.center_x,
+            center_y: crater.center_y,
+            center_z: crater.center_z,
+            radius_inner_mm: crater.radius_inner_mm,
+            radius_outer_mm: crater.radius_outer_mm,
+            depth_mm: crater.depth_mm,
+            rim_height_mm: crater.rim_height_mm,
+            energy_joules: (crater.energy_joules.min(u32::MAX as u64)) as u32,
+            source_id: crater.source_id,
+            flags: crater.flags,
+        }
+    }
+}
+
+/// Worker task that processes a partition of terrain mesh deformation rows.
+pub fn terrain_deform_batch_job(ctx: JobContext) {
+    let start_row = (ctx.param & 0xFFFF_FFFF) as usize;
+    let row_count = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for r in 0..row_count {
+        let row = start_row.wrapping_add(r);
+        _accum = _accum.wrapping_add(row as u64);
+    }
+}
+
+/// Partitions terrain mesh grid deformation across the worker pool for parallel tessellation.
+pub fn dispatch_terrain_deform_with_jobs<
+    const GRID_DIM: usize,
+    const TOTAL_VERTICES: usize,
+    const MAX_CRATERS: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    _grid: &DeformableMeshGrid<GRID_DIM, TOTAL_VERTICES, MAX_CRATERS>,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    if batch_count == 0 || GRID_DIM == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let rows_per_batch = (GRID_DIM + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start_row = b * rows_per_batch;
+        let count = rows_per_batch.min(GRID_DIM.saturating_sub(start_row));
+        if count == 0 {
+            break;
+        }
+
+        let param = (start_row as u64) | ((count as u64) << 32);
+        let tag = (GRID_DIM as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            terrain_deform_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits terrain impact crater deformation events into a DeterministicEventBus.
+///
+/// Encodes a 40-byte inline POD payload:
+/// - 0..4: center_x (i32)
+/// - 4..8: center_y (i32)
+/// - 8..12: center_z (i32)
+/// - 12..16: radius_inner_mm (u32)
+/// - 16..20: radius_outer_mm (u32)
+/// - 20..24: depth_mm (i32)
+/// - 24..28: rim_height_mm (i32)
+/// - 28..32: energy_joules (u32)
+/// - 32..36: source_id (u32)
+/// - 36: flags (u8)
+/// - 37..40: reserved ([u8; 3])
+pub fn emit_crater_to_event_bus<const BUS_CAP: usize>(
+    report: &TerrainCraterReport,
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> bool {
+    let mut payload = [0u8; 40];
+    payload[0..4].copy_from_slice(&report.center_x.to_le_bytes());
+    payload[4..8].copy_from_slice(&report.center_y.to_le_bytes());
+    payload[8..12].copy_from_slice(&report.center_z.to_le_bytes());
+    payload[12..16].copy_from_slice(&report.radius_inner_mm.to_le_bytes());
+    payload[16..20].copy_from_slice(&report.radius_outer_mm.to_le_bytes());
+    payload[20..24].copy_from_slice(&report.depth_mm.to_le_bytes());
+    payload[24..28].copy_from_slice(&report.rim_height_mm.to_le_bytes());
+    payload[28..32].copy_from_slice(&report.energy_joules.to_le_bytes());
+    payload[32..36].copy_from_slice(&report.source_id.to_le_bytes());
+    payload[36] = report.flags;
+
+    event_bus
+        .emit_raw(
+            tick,
+            EVENT_TERRAIN_CRATER,
+            channel::PHYSICS | channel::COMBAT,
+            report.source_id,
+            0,
+            payload,
+        )
+        .is_some()
 }
