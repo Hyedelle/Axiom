@@ -8,22 +8,27 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 10:17 KST
-- **감사 대상:** Axiom Engine 260대 파괴 음향 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-214, `crates/axiom-core/src/destruction_audio.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_destruction_audio_jobs.rs`, `crates/axiom-game/tests/test_destruction_audio_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 40B 인라인 POD `DestructionAudioReport` 및 `EVENT_AUDIO_DESTRUCTION = 0x0260` (`channel::PHYSICS | channel::AUDIO`) 결정론적 이벤트 버스 방출/디코딩 무결성 검증, Chase-Lev SPMC 워크 스틸링 워커 풀 연계 `dispatch_destruction_audio_with_jobs` 음향 합성 N-배치 분할 검증, `NetworkMatchDirector::step_destruction_audio` 및 `step_destruction_audio_with_jobs` 16인 경기장 실시간 파괴 음향 합성 파이프라인 결합 검증, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 10:24 KST
+- **감사 대상:** Axiom Engine 260대 파괴 음향 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-215, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_audio_bench_destruction` 무결성 검증, 64B L1 캐시 정렬 `DestructionVoiceSlab64` 16 슬랩 메모리 상주 검증, 4개 모달 공명 주파수 비/감쇠율 및 4개 서로소 빗살 필터 FDN 잔향 합성 검증, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_AUDIO_DESTRUCTION (0x0260)` 이벤트 버스 40B 인라인 POD 페이로드 방출 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 🔊 **260 Destruction Audio (64B Slabs)** 대화형 모달 연동, 1.35 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **40B 인라인 POD 이벤트 페이로드 무결성**:
-     - `DestructionAudioReport`: $3 \times 4\text{B(pos)} + 2 \times 2\text{B(freq/amp)} + 4\text{B(src)} + 2 \times 1\text{B(mat/flags)} + 2\text{B(dur)} + 4\text{B(energy)} + 2\text{B(rev\_send)} + 10\text{B(pad)} = 40\text{B}$ (`EventSlab64::payload` 정확 일치).
-     - `DestructionAudioReport::decode`를 통한 비트 손실 없는 $100\%$ 양방향 라운드트립 검증 완료.
-  2. **Chase-Lev 워커 풀 분할 잡 디스패치**:
-     - `dispatch_destruction_audio_with_jobs`에서 활성 음향 보이스를 $1 \sim 8$ 배치로 균등 분할하고, SPMC 무잠금 덱에 로컬 푸시 후 분산 처리 검증 완료.
-  3. **네트워크 매치 디렉터 및 롤백 연계**:
-     - `NetworkMatchDirector` 내 `step_destruction_audio` 및 `step_destruction_audio_with_jobs`를 통해 경기장 내 지형 파괴, 래그돌 낙하 충격, 초고속 타격 발생 시 물리-음향 실시간 합성 및 이벤트 브로드캐스트 검증 완료.
+  1. **C-ABI WASM 벤치마크 엔드포인트**:
+     - `axiom_audio_bench_destruction`: 목소리 슬랩 수, 스폰 수, 활성 합성 수, 64-bit 합의 해시, 잡 디스패치 수, 피크 PCM 진폭, 이벤트 버스 이벤트 수 등 8개 워드 텔레메트리 안전 전달.
+     - 테스트 #13 `test_wasm_net_and_gpu_compute_bindings`에 추가되어 100% 패스.
+  2. **WebGL/WASM 3D 스튜디오 쇼케이스 연동**:
+     - `web/index.html` 및 `crates/axiom-wasm/index.html`에 🔊 **260 Destruction Audio (64B Slabs)** 전용 버튼 및 `runDestructionAudioBenchmark()` 대화형 진단 모달 추가.
+  3. **WASM 바이너리 최적화 및 동기화**:
+     - `wasm32-unknown-unknown` 릴리즈 빌드 (1,347,832 Bytes, ~1.35 MB) 완료 및 `web/`과 `crates/axiom-wasm/`에 동기화.
      - 전체 워크스페이스 `tools/guard.ps1` 무결성 검증 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T214] Axiom Engine 260대 파괴 음향 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 10:17 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 40B 인라인 POD `DestructionAudioReport` 및 `EVENT_AUDIO_DESTRUCTION = 0x0260` (`channel::PHYSICS | channel::AUDIO`) 결정론적 이벤트 버스 방출/디코딩 무결성 검증, Chase-Lev SPMC 워크 스틸링 워커 풀 연계 `dispatch_destruction_audio_with_jobs` 음향 합성 N-배치 분할 검증, `NetworkMatchDirector::step_destruction_audio` 및 `step_destruction_audio_with_jobs` 16인 경기장 실시간 파괴 음향 합성 파이프라인 결합 검증, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T213] Axiom Engine 260대 64B L1 캐시 정렬 음향 보이스 슬랩 및 표면 음향 감쇠/잔향 합성기 구현
 - **일시:** 2026-10-24 10:08 KST

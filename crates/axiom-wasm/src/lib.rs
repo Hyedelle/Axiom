@@ -5974,6 +5974,92 @@ pub extern "C" fn axiom_terrain_bench_crater(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_audio_bench_destruction(
+    voice_count: u32,
+    material_id: u32,
+    impact_energy_j: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::destruction_audio::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let voices_to_spawn = (voice_count as usize).clamp(1, 16);
+    let mat = match material_id {
+        0 => AUDIO_MAT_DIRT,
+        1 => AUDIO_MAT_STONE,
+        2 => AUDIO_MAT_METAL,
+        3 => AUDIO_MAT_MOLTEN,
+        _ => AUDIO_MAT_SAND,
+    };
+    let energy = if impact_energy_j > 0 { impact_energy_j } else { 50_000 };
+
+    let mut engine = Box::new(DestructionAudioEngine::<16, 4>::default());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for i in 0..voices_to_spawn {
+        let px = ((i as i32) % 3 - 1) * 2000;
+        let pz = ((i as i32) / 3 - 1) * 2000;
+
+        let voice = DestructionVoiceSlab64::from_impact(
+            px, 0, pz,
+            energy + (i as u32) * 5_000,
+            mat,
+            (i + 1) as u32,
+            100 + (i as u32),
+        );
+
+        engine.spawn_destruction_voice(voice);
+
+        let report = DestructionAudioReport::from_voice(&voice);
+        emit_destruction_audio_to_event_bus(&report, 100 + (i as u32), &mut bus);
+    }
+
+    // Multi-threaded job system partition dispatch
+    let dispatched_jobs = dispatch_destruction_audio_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Synthesize 1 simulation tick frame (800 stereo samples ~ 16.6ms @ 48kHz)
+    let mut stereo_frame = [(0i16, 0i16); 800];
+    let active_synthesized = engine.step_synthesis(&mut stereo_frame);
+
+    // Compute peak amplitude and energy across synthesized stereo buffer
+    let mut peak_amplitude: u32 = 0;
+    for (l, r) in &stereo_frame {
+        let abs_l = l.unsigned_abs() as u32;
+        let abs_r = r.unsigned_abs() as u32;
+        peak_amplitude = peak_amplitude.max(abs_l).max(abs_r);
+    }
+
+    let audio_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = audio_hash ^ (bus_hash.rotate_left(17));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = engine.voices.len() as u32;              // Total voice slabs (16)
+            *out_stats.add(1) = engine.total_voices_spawned as u32;       // Spawned voices
+            *out_stats.add(2) = active_synthesized as u32;                // Active synthesized voices
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = peak_amplitude;                          // Peak PCM amplitude (0..32767)
+            *out_stats.add(7) = bus.count as u32;                        // Event bus audio events
+        }
+    }
+
+    peak_amplitude
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7027,5 +7113,17 @@ mod tests {
         assert_eq!(terrain_stats[5], 4, "4 parallel dispatch jobs");
         assert!(terrain_stats[6] > 0, "Excavation bowl depth > 0");
         assert_eq!(terrain_stats[7], 3, "Event bus must contain 3 crater events");
+
+        // 13. Procedural Destruction Audio & Surface Reverb Benchmark (4 voices, Metal material, 75kJ energy)
+        let mut audio_stats = [0u32; 8];
+        let peak_amplitude = axiom_audio_bench_destruction(4, 2, 75_000, audio_stats.as_mut_ptr());
+        assert!(peak_amplitude > 0, "Peak PCM amplitude must be non-zero");
+        assert_eq!(audio_stats[0], 16, "16 voice slabs capacity");
+        assert_eq!(audio_stats[1], 4, "4 voices spawned");
+        assert_eq!(audio_stats[2], 4, "4 voices actively synthesized");
+        assert!(audio_stats[3] != 0 || audio_stats[4] != 0, "Audio consensus hash non-zero");
+        assert_eq!(audio_stats[5], 4, "4 parallel dispatch jobs");
+        assert_eq!(audio_stats[6], peak_amplitude);
+        assert_eq!(audio_stats[7], 4, "Event bus must contain 4 audio destruction events");
     }
 }
