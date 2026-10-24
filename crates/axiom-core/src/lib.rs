@@ -64,6 +64,7 @@ pub mod aerodynamics;
 pub mod turbulence;
 pub mod radiation;
 pub mod plasma;
+pub mod superconductor;
 
 pub use voxel_fluid::{FluidStepResult, VoxelFluidField16, FLUID_MAX_LEVEL};
 pub use voxel_fluid_simd::{SimdFluidEngine, SimdFluidStepResult};
