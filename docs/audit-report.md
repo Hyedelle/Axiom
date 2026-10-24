@@ -8,21 +8,34 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 13:40 KST
-- **감사 대상:** Axiom 310대 절차적 모듈러 메카 공압/유압 액추에이터 및 근육 시뮬레이터 연구 (T-242, `axiom-actuator-and-muscle-physics-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, $1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$ 정확한 정수 단위계 일치 검증, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 설계 승인, 40B POD `ActuatorEventReport`, 벌크 탄성 계수($K_{bulk}$) 비선형 압력 전달 및 오리피스 정수 제곱근(`isqrt_i64`) 유량 제어 수식화, 매키번 PAM 인공근육 인장력 및 과압 릴리프/배관 파열 역학 정립, 240/290대 래그돌 관절 서보 토크 전달 모델 수립, 0-힙 고정 용량 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 200대 JobSystem / 210대 EventBus [`EVENT_ACTUATOR_BURST = 0x0310`, `EVENT_ACTUATOR_PRESSURE = 0x0311`] 연계 명세 수립 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-243 - 64B L1 정렬 액추에이터/공압 슬랩 및 비선형 압력 다이나믹스 구현)**:
-  1. `crates/axiom-core/src/actuator.rs` 신규 생성.
-  2. `ActuatorSlab64`: exact 64B slab (`#[repr(C, align(64))]`), 12B anchor_a, 12B anchor_b, 4B pressure_kpa, 4B max_force_n, 4B burst_pressure_kpa, 4B relief_pressure_kpa, 2B stroke_max, 2B current_len, 2B target_len, 2B rest_len, 2B piston_area, 2B damping_q16, 1B bone_a, 1B bone_b, 1B actuator_type, 1B flags, 1B chamber_idx, 1B entity_id, 6B pad.
-  3. `HydraulicChamberSlab64`: exact 64B slab (`#[repr(C, align(64))]`), 8B fluid_vol_mm3, 8B max_vol_mm3, 4B pressure_kpa, 4B accumulator_kpa, 4B bulk_modulus_kpa, 4B pump_flow_rate_mm3, 4B relief_threshold_kpa, 2B valve_opening_q16, 2B reservoir_level_q16, 2B orifice_area_q8, 1B flags, 1B chamber_id, 1B entity_id, 1B fluid_type, 18B pad.
-  4. 40-Byte `ActuatorEventReport` 및 `encode`/`decode` 무손실 라운드트립 직렬화.
-  5. `step_actuator_simulation`: 피스톤 추력($F_{mN} = P \cdot A - \dots$), 유압 벌크 탄성 계수 압력 갱신, 오리피스 유량 적분, 매키번 PAM 수축력, 과압 릴리프 및 배관 파열 파단 해석.
-  6. 0-힙 고정 용량 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 64-bit FNV-1a `compute_consensus_hash`.
-  7. `crates/axiom-core/src/lib.rs` 모듈 등록 및 `crates/axiom-core/tests/test_actuator.rs` 전용 6개 단위 테스트 작성 및 통과.
+- **일시:** 2026-10-24 13:46 KST
+- **감사 대상:** Axiom 310대 64B L1 정렬 액추에이터/공압 슬랩 및 비선형 압력 다이나믹스 구현 (T-243, `crates/axiom-core/src/actuator.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 메모리 컴파일 타임 검증, 40-Byte 인라인 POD `ActuatorEventReport` 무손실 라운드트립 직렬화, $1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$ 피스톤 추력 계산 `compute_actuator_thrust`, 벌크 탄성 계수 비선형 압력 전달 및 오리피스 정수 제곱근(`isqrt_i64`) 유량 제어 `step_chamber_pressure`, 매키번 PAM 인공근육 인장 수축력 및 과압 릴리프/배관 파열 파단 해석 `solve_actuator_step`, 0-힙 고정 크기 시뮬레이터 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 7개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-244 - 액추에이터 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
+  1. `crates/axiom-core/src/actuator.rs`:
+     - `dispatch_actuators_with_jobs`: 액추에이터 엔진 슬랩을 N개 청크(배치 크기 8~16)로 분할하여 200대 Chase-Lev 워커 풀(`WorkerPoolCoordinator`)에 잡 스케줄링.
+     - `emit_actuator_to_event_bus`: `DeterministicEventBus`에 `EVENT_ACTUATOR_BURST (0x0310)` 및 `EVENT_ACTUATOR_PRESSURE (0x0311)` 40B POD 페이로드 발행 (`channel::PHYSICS | channel::COMBAT | channel::VFX`).
+     - GGPO 롤백 지원: `ActuatorEventReport::decode` 및 엔진 스냅샷 복원.
+  2. `crates/axiom-game/src/network.rs`:
+     - `NetworkMatchDirector`에 `MechaActuatorEngine<16, 4>` 필드 추가 및 `step_actuator_pipeline` 연계 (16-인 배틀로얄 경기장 넉다운/피니셔 충격 시 액추에이터 압력 갱신 및 과압/파열 이벤트 방출).
+  3. 테스트 및 검증:
+     - `crates/axiom-core/tests/test_actuator_jobs.rs` 신규 작성.
+     - `crates/axiom-game/tests/test_actuator_game_pipeline.rs` 신규 작성.
+     - `tools/guard.ps1` 100% 통과 확인.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T243] Axiom 310대 64B L1 정렬 액추에이터/공압 슬랩 및 비선형 압력 다이나믹스 구현
+- **일시:** 2026-10-24 13:46 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 메모리 컴파일 타임 검증, 40-Byte 인라인 POD `ActuatorEventReport` 무손실 라운드트립 직렬화, $1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$ 피스톤 추력 계산 `compute_actuator_thrust`, 벌크 탄성 계수 비선형 압력 전달 및 오리피스 정수 제곱근(`isqrt_i64`) 유량 제어 `step_chamber_pressure`, 매키번 PAM 인공근육 인장 수축력 및 과압 릴리프/배관 파열 파단 해석 `solve_actuator_step`, 0-힙 고정 크기 시뮬레이터 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 7개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
+
+### [AUDIT-20261024-T242] Axiom 310대 절차적 모듈러 메카 공압/유압 액추에이터 및 근육 시뮬레이터 연구
+- **일시:** 2026-10-24 13:40 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, $1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$ 정확한 정수 단위계 일치 검증, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 설계 승인, 40B POD `ActuatorEventReport`, 벌크 탄성 계수 비선형 압력 전달 및 오리피스 정수 제곱근(`isqrt_i64`) 유량 제어 수식화, 매키번 PAM 인공근육 인장력 및 과압 릴리프/배관 파열 역학 정립, 240/290대 래그돌 관절 서보 토크 전달 모델 수립, 0-힙 고정 용량 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 200대 JobSystem / 210대 EventBus 연계 명세 수립 완료.
 
 ### [AUDIT-20261024-v4.4.0] Axiom Engine v4.4.0 300대 셰이프 매칭 연성체 & 가역 체적 보존 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 13:34 KST
