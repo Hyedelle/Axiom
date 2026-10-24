@@ -57,6 +57,7 @@ pub mod voxel_fluid_simd;
 pub mod voxel_shard;
 pub mod worker_pool;
 pub mod world_time_machine;
+pub mod xpbd_ragdoll;
 
 pub use voxel_fluid::{FluidStepResult, VoxelFluidField16, FLUID_MAX_LEVEL};
 pub use voxel_fluid_simd::{SimdFluidEngine, SimdFluidStepResult};
@@ -130,6 +131,13 @@ pub use shockwave::{
     DUST_FLAG_SETTLING, EVENT_SHOCKWAVE, SHOCKWAVE_FLAG_ACTIVE, SHOCKWAVE_FLAG_GROUND_BURST,
     SHOCKWAVE_FLAG_REFLECTED, SHOCKWAVE_TYPE_CONICAL, SHOCKWAVE_TYPE_SPHERICAL,
     SHOCKWAVE_TYPE_TOROIDAL, SPEED_OF_SOUND_MMS,
+};
+pub use xpbd_ragdoll::{
+    isqrt_i64 as xpbd_isqrt_i64, solve_xpbd_distance, XpbdBoneSlab64, XpbdConstraintSlab64,
+    XpbdConstraintType, XpbdEventReport, XpbdRagdollEngine, EVENT_XPBD_STRAIN, EVENT_XPBD_TEAR,
+    Q16_ONE as XPBD_Q16_ONE, XPBD_BONE_FLAG_ACTIVE, XPBD_BONE_FLAG_FROZEN,
+    XPBD_BONE_FLAG_GROUNDED, XPBD_BONE_FLAG_SEVERED, XPBD_CONSTRAINT_FLAG_ACTIVE,
+    XPBD_CONSTRAINT_FLAG_FATIGUED, XPBD_CONSTRAINT_FLAG_PLASTIC, XPBD_CONSTRAINT_FLAG_SEVERED,
 };
 
 pub use audio::{

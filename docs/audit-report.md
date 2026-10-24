@@ -8,19 +8,23 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 12:15 KST
-- **감사 대상:** Axiom 290대 고정소수점 3D 래그돌 관절 XPBD 솔버 및 탄성 변형 한계 연구 (T-230, `docs/audit-report.md`, `axiom-xpbd-ragdoll-and-elastic-strain-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 설계 승인, Müller & Macklin XPBD 순수 정수 mm 및 Q16.16 고정소수점 컴플라이언스($\tilde{\alpha} = \alpha / \Delta t^2$) 해석 모델 수립, 라그랑주 승수($\Delta \lambda$) 누적 및 반력/인장력(Tension) 계측 모델 확립, 항복 변형률($\epsilon_{yield}$) 소성 변형(Plastic Set) 및 인장 파괴 한계($\epsilon_{break}$) 관절 파단(`sever_joint`) 분리 다이나믹스 규격화, 0-Heap 플랫 시뮬레이터 `XpbdRagdollEngine<16, 16>` 아키텍처 승인, 280대 충격파 / 270대 파괴 파티클 / 260대 파괴 음향 / 200대 JobSystem(`dispatch_xpbd_with_jobs`) / 210대 EventBus [`EVENT_XPBD_STRAIN = 0x0290`, `EVENT_XPBD_TEAR = 0x0291`, 40B 인라인 POD 페이로드] 연계 명세 수립 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-231)**:
-  1. `crates/axiom-core/src/xpbd_ragdoll.rs` 신규 모듈 생성 및 `crates/axiom-core/src/lib.rs` export.
-  2. `XpbdBoneSlab64` (`#[repr(C, align(64))]`, exact 64B), `XpbdConstraintSlab64` (`#[repr(C, align(64))]`, exact 64B) 구현 및 컴파일 타임 크기/정렬 단언 (`size_of == 64`, `align_of == 64`).
-  3. `solve_xpbd_distance` 순수 정수 거리 제약 완화기 및 소성 변형 / 파단 분기 로직 구현.
-  4. 0-Heap `XpbdRagdollEngine<MAX_BONES, MAX_CONSTRAINTS>` 및 FNV-1a `compute_consensus_hash` 구현.
-  5. `crates/axiom-core/tests/test_xpbd_ragdoll.rs` 작성 및 `tools/guard.ps1` 검증.
+- **일시:** 2026-10-24 12:25 KST
+- **감사 대상:** Axiom 290대 64B L1 정렬 XPBD 제약 슬랩 및 순수 정수 컴플라이언스 해석기 구현 (T-231, `crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 컴파일 타임 검증, 40-Byte 인라인 POD `XpbdEventReport` 무손실 직렬화 검증, Extended Position-Based Dynamics (XPBD) 순수 정수 거리 제약 완화기 `solve_xpbd_distance` (컴플라이언스 $\tilde{\alpha}$, $\epsilon \le \epsilon_{yield}$ 완전 탄성 복원, $\epsilon_{yield} < \epsilon < \epsilon_{break}$ 영구 소성 변형, $\epsilon \ge \epsilon_{break}$ 관절 파단) 무결성 실증, 0-Heap 플랫 시뮬레이터 `XpbdRagdollEngine<16, 16>`, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 6개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-232)**:
+  1. `crates/axiom-core/src/xpbd_ragdoll.rs` 내 멀티스레드 배치 잡 함수 `xpbd_batch_job` 및 `dispatch_xpbd_with_jobs` 구현 (Chase-Lev 워커 풀 분산 스케줄링).
+  2. 0-Heap 이벤트 버스 발행 함수 `emit_xpbd_to_event_bus` 구현 (`EVENT_XPBD_STRAIN = 0x0290`, `EVENT_XPBD_TEAR = 0x0291` 및 `channel::PHYSICS | channel::COMBAT`, 40B 인라인 POD `XpbdEventReport`).
+  3. `crates/axiom-game/src/network.rs` `NetworkMatchDirector`에 `XpbdRagdollEngine<16, 16>` 탑재 및 `step_xpbd`, `step_xpbd_with_jobs` 파이프라인 결합.
+  4. `test_xpbd_ragdoll_jobs.rs` 및 `test_xpbd_game_pipeline.rs` 작성 및 `tools/guard.ps1` 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T230] Axiom 290대 고정소수점 3D 래그돌 관절 XPBD 솔버 및 탄성 변형 한계 연구
+- **일시:** 2026-10-24 12:15 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 설계 승인, Müller & Macklin XPBD 순수 정수 mm 및 Q16.16 고정소수점 컴플라이언스($\tilde{\alpha} = \alpha / \Delta t^2$) 해석 모델 수립, 라그랑주 승수($\Delta \lambda$) 누적 및 반력/인장력(Tension) 계측 모델 확립, 항복 변형률($\epsilon_{yield}$) 소성 변형(Plastic Set) 및 인장 파괴 한계($\epsilon_{break}$) 관절 파단(`sever_joint`) 분리 다이나믹스 규격화, 0-Heap 플랫 시뮬레이터 `XpbdRagdollEngine<16, 16>` 아키텍처 승인, 280대 충격파 / 270대 파괴 파티클 / 260대 파괴 음향 / 200대 JobSystem(`dispatch_xpbd_with_jobs`) / 210대 EventBus [`EVENT_XPBD_STRAIN = 0x0290`, `EVENT_XPBD_TEAR = 0x0291`, 40B 인라인 POD 페이로드] 연계 명세 수립 완료.
 
 ### [AUDIT-20261024-v4.2.0] Axiom Engine v4.2.0 280대 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 12:10 KST
