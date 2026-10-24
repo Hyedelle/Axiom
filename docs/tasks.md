@@ -6,16 +6,21 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-229: Axiom 280대 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 공식 릴리즈 v4.2.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-230: Axiom 290대 고정소수점 3D 래그돌 관절 XPBD 솔버 및 탄성 변형 한계 연구** (`docs/audit-report.md`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-231: Axiom 290대 64B L1 정렬 XPBD 제약 슬랩 및 순수 정수 컴플라이언스 해석기 구현** (`crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll.rs`)
+- [ ] **T-232: Axiom 290대 XPBD 메카 래그돌 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_xpbd_game_pipeline.rs`)
+- [ ] **T-233: Axiom 290대 XPBD 래그돌 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`)
+- [ ] **T-234: Mimic The Show 챔피언십 링 실시간 XPBD 메카 파단/소성 변형 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- [ ] **T-235: Axiom 290대 XPBD 메카 래그돌 제약 & 탄성 변형 한계 공식 릴리즈 v4.3.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-229: Axiom 280대 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 공식 릴리즈 v4.2.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-149]~[D-152], `docs/audit-report.md` [AUDIT-20261024-v4.2.0], `tools/package.ps1`, 0-Float 64B L1 캐시 정렬 충격파 슬랩 `ShockwaveSlab64` [#[repr(C, align(64))], exact 64B slab, 12B center mm, 4B radius_curr, 4B radius_max, 4B speed mm/s, 4B thickness mm, 4B peak_impulse J, 4B current_impulse J, 4B emitter_id, 4B tick_born, 2B max_ticks, 2B remaining_ticks, 1B shock_type, 1B flags, 1B material, 1B damping Q8, 12B pad], 0-Float 64B L1 정렬 먼지 필드 방출체 슬랩 `DustEmitterSlab64` [#[repr(C, align(64))], exact 64B slab, 12B origin mm, 4B radius mm, 4B max_radius, 4B expansion_rate mm/s, 4B emitter_id, 4B tick_born, 2B density Q8, 2B settling_speed mm/s, 2B settling_rate Q16, 2B lifetime ticks, 2B max_lifetime, 2B fog_extinction Q16, 3B rgb, 1B material, 1B flags, 15B pad], Sedov-Taylor 점폭발 파면 반경 $R(t)$ 및 음속 하한선(340m/s) 감쇠, 거리 역제곱 $P(R) = P_0 (R_0/R)^2$ 피크 임펄스 감쇠, 270대 `DebrisParticlePool` 방사형 척력 임펄스 $\vec{J} = \frac{P(d)}{d} \vec{r}$ 및 $+y$ 상향 도약력 가산, 토로이달 지면 충격파 모드, Stokes' Settling 중력 침강(120 mm/s) 및 Q16.16 Beer-Lambert 시야 투과율 검증, 0-힙 고정 용량 `VolumetricShockwaveEngine<16, 16>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, `dispatch_shockwave_with_jobs` 워커 풀 분할 병렬 디스패치 및 `emit_shockwave_to_event_bus` 40B 인라인 POD 이벤트 버스 발행 [`EVENT_SHOCKWAVE = 0x0280` 및 `channel::PHYSICS | channel::VFX` 채널], WebGL/WASM 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 대화형 모달 및 1.38 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` 내 `step_shockwave_pipeline` [싱글플레이 파이터 넉다운/KO 시 100 kJ 충격파 및 80% 밀도 지면 먼지 폭풍 자동 방출, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Shockwave: {} Waves | Dust: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터 점등, 하단 `[SHK: {}W]` 상시 모니터링 연동, 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v4.2.0-unified-milestone.zip` [2.27 MB, SHA-256: `2F0C6AFC56687E9A09ACD4498B477E87DECCF63D117D324AD33BFF2A9F897243` 검증], 전체 워크스페이스 v4.2.0 공식 판올림 및 Git 태그 `v4.2.0` 발행, `tools/guard.ps1` 통과)
 - [x] **T-228: Mimic The Show 챔피언십 링 실시간 먼지 폭풍 & 충격파 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `VolumetricShockwaveEngine<16, 16>` [16개 충격파 + 16개 먼지 에미터 64B L1 캐시 슬랩] 및 `step_shockwave_pipeline` 결합 [싱글플레이 파이터 넉다운/KO 시 100 kJ 충격파 및 80% 밀도 지면 먼지 폭풍 자동 방출, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Shockwave: {} Waves | Dust: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터 점등, 하단 컨트롤 바 `[SHK: {}W]` 상시 모니터링 연동, 30개 게임 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-227: Axiom 280대 먼지 폭풍 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_shockwave_bench_burst` [1~32 충격파 슬랩 생성, 구형/토로이달 지면 폭발 파면 전파, Sedov-Taylor 음속 340m/s 및 거리 역제곱 P(R) = P0*(R0/R)^2 감쇠, Stokes' Settling 120mm/s 중력 침강 및 Q16.16 Beer-Lambert 시야 투과율 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_SHOCKWAVE (0x0280)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 대화형 모달 연동, 1.38 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-226: Axiom 280대 충격파 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/shockwave.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_shockwave_jobs.rs`, `crates/axiom-game/tests/test_shockwave_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_shockwave_with_jobs` [충격파 슬랩 청크 배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_shockwave_to_event_bus` [`EVENT_SHOCKWAVE = 0x0280` 및 `channel::PHYSICS | channel::VFX` 채널, 40B 인라인 POD 페이로드 `ShockwaveReport`(origin_xyz, radius_mm, impulse_energy_j, pressure_kpa, shock_type, emitter_id, affected_count, flags)], `ShockwaveReport::decode` 무손실 라운드트립 디코더 및 GGPO 롤백 `rollback_to` 지원, `NetworkMatchDirector::step_shockwave` 및 `step_shockwave_with_jobs` [16-인 배틀로얄 경기장 넉다운/KO 시 100 kJ 구형 충격파 및 80% 밀도 지면 먼지 폭풍 실시간 방출 결합], 4개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)

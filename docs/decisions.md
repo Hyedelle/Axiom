@@ -1776,6 +1776,39 @@
   2. 전체 워크스페이스 버전을 v4.0.0에서 **v4.1.0**으로 공식 판올림하고 `dist/axiom-v4.1.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.1.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+### [D-149] Sedov-Taylor 점폭발 파면 R(t) 및 음속(340m/s) 하한선 이산 정수 적분 규격 (T-224, T-225)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 폭발 충격파 파면 반경을 60Hz 틱당 $R(t) = R_0 + v_{wave} \cdot \Delta t$로 진전시키며, 파면 속도가 국소 음속 하한선($340,000\text{ mm/s}$) 아래로 떨어지지 않도록 보정.
+  2. 점폭발 상사해(Similarity Solution)의 복잡한 부동소수점 미분방정식을 완전 제거하고 100% 순수 정수 연산만으로 16-플레이어 롤백 넷코드 상태 합의 무결성 확보.
+- **영향:** `crates/axiom-core/src/shockwave.rs`.
+
+### [D-150] 거리 역제곱 피크 임펄스 감쇠 P(R) = P0*(R0/R)^2 및 270대 파편 방사형 척력 결합 (T-224, T-225)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 파면 전파에 따른 피크 압력 임펄스를 64비트 정수 역제곱 법칙 $P(R) = P_0 \cdot (R_0 / R)^2$로 정밀 감쇠.
+  2. 충격파 셸 두께 $\Delta R$ 내의 270대 잔해 파티클 및 240대 래그돌 본에 대해 방사형 척력 임펄스 $\vec{J} = \frac{P(d)}{d} \vec{r}$ 및 $+y$ 수직 상향 도약 바이어스를 가산하여 폭발 파편의 폭발적 비산 연출.
+- **영향:** `crates/axiom-core/src/shockwave.rs`, `crates/axiom-core/src/debris_particle.rs`.
+
+### [D-151] Stokes' Settling 중력 침강(120 mm/s) 및 Q16.16 Beer-Lambert 광학 소광 투과율 모델 (T-224, T-227)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 지형 파쇄 시 생성되는 미세 분진 먼지 구름의 중력 침강 속도를 $120\text{ mm/s}$ (틱당 $-2\text{ mm}$)로 규격화하고, 수평 방향으로는 대기 항력 확산 모델 적용.
+  2. 다중 먼지 구름의 소광 계수를 정수 누적하여 0-Float Beer-Lambert 광학 투과율 $T \in [0, 65536]$ ($Q16.16$)를 계산하여 렌더러와 게임플레이 시야 감쇠에 반영.
+- **영향:** `crates/axiom-core/src/shockwave.rs`, `crates/axiom-wasm/src/lib.rs`.
+
+### [D-152] 64B L1 캐시 정렬 ShockwaveSlab64/DustEmitterSlab64, 40B POD ShockwaveReport 및 v4.2.0 공식 릴리즈 (T-226, T-228, T-229)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `ShockwaveSlab64` 및 `DustEmitterSlab64`를 `#[repr(C, align(64))]` 64바이트 L1 캐시 슬랩으로 고정하고, 40B 인라인 POD `ShockwaveReport`를 통해 `EVENT_SHOCKWAVE = 0x0280` 이벤트 버스 연계.
+  2. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `VolumetricShockwaveEngine<16, 16>` 및 `step_shockwave_pipeline` 탑재, 싱글플레이 KO 시 100 kJ 충격파 및 지면 먼지 폭풍 자동 방출, F3 HUD 카드(`Shockwave: {} Waves | Dust: {}% | 64B`), 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터, 하단 `[SHK: {}W]` 연동.
+  3. 전체 워크스페이스 버전을 v4.1.0에서 **v4.2.0**으로 공식 판올림하고 `dist/axiom-v4.2.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.2.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 
