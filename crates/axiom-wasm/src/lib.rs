@@ -7029,6 +7029,123 @@ pub extern "C" fn axiom_plasma_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_superconductor_bench_burst(
+    cell_count: u32,
+    pin_count: u32,
+    b_field_mt: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::superconductor::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let cells_to_spawn = (cell_count as usize).clamp(1, 16);
+    let pins_to_spawn = (pin_count as usize).clamp(1, 4);
+    let ambient_b = if b_field_mt > 0 { b_field_mt } else { 1200 };
+
+    let mut engine = Box::new(MechaSuperconductorEngine::<16, 4>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for c in 0..cells_to_spawn {
+        let cell = SuperconductorSlab64::new(
+            c as u8,
+            [c as i32 * 300, 0, 100],
+            77,
+            93,
+            30_000,
+            SC_TYPE_II,
+        );
+        engine.register_cell(cell);
+    }
+
+    let mut total_spawned_pins = 0;
+    for p in 0..pins_to_spawn {
+        let pin = FluxPinningSlab64::new(
+            (p + 10) as u8,
+            p as u8,
+            [p as i32 * 300, 0, 150],
+            100 + (p as u32 * 50),
+            65536 * 80,
+            65536 * 8,
+            25_000,
+            50,
+        );
+        if engine.register_pin(pin).is_some() {
+            total_spawned_pins += 1;
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_superconductor_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for 10 ticks
+    for _ in 0..10 {
+        engine.step_simulation(ambient_b);
+    }
+
+    // Emit representative superconductor event
+    if engine.active_cells_count > 0 {
+        let report = SuperconductorEventReport {
+            pos_xyz: engine.cells[0].center_xyz,
+            force_xyz: [0, 0, engine.cells[0].pinning_force_n * 1000],
+            flux_or_voltage: 150,
+            temp_k: engine.cells[0].temp_k,
+            pin_displacement_mm: 50,
+            crit_ratio_q8: 128,
+            emitter_id: engine.cells[0].entity_id,
+            target_id: 0,
+            flags: engine.cells[0].flags,
+            event_kind: SC_EVENT_KIND_PINNING,
+        };
+        emit_superconductor_to_event_bus(&report, 100, &mut bus);
+    }
+
+    if engine.quench_count_accum > 0 {
+        let report = SuperconductorEventReport {
+            pos_xyz: [0, 0, 100],
+            force_xyz: [0, 0, 0],
+            flux_or_voltage: 50_000,
+            temp_k: 100,
+            pin_displacement_mm: 0,
+            crit_ratio_q8: 255,
+            emitter_id: 1,
+            target_id: 0,
+            flags: SC_FLAG_ACTIVE | SC_FLAG_QUENCHED,
+            event_kind: SC_EVENT_KIND_QUENCH,
+        };
+        emit_superconductor_to_event_bus(&report, 101, &mut bus);
+    }
+
+    let sc_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = sc_hash ^ (bus_hash.rotate_left(31));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                      // Capacity cells (16)
+            *out_stats.add(1) = engine.active_cells_count as u32;        // Active cells count
+            *out_stats.add(2) = engine.active_pins_count as u32;         // Active pins count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = engine.cells[0].pinning_force_n as u32;  // Pinning force in N
+            *out_stats.add(7) = engine.total_pinning_force_accum_n as u32; // Total pinning force accum
+        }
+    }
+
+    total_spawned_pins as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -8190,5 +8307,16 @@ mod tests {
         assert!(plasma_stats[3] != 0 || plasma_stats[4] != 0, "Plasma consensus hash non-zero");
         assert_eq!(plasma_stats[5], 4, "4 parallel dispatch jobs");
         assert!(plasma_stats[6] > 0, "Magnetic pressure must be positive");
+
+        // 23. Superconductivity & Quantum Levitation Benchmark (8 cells, 2 pins, 1200 mT)
+        let mut sc_stats = [0u32; 8];
+        let spawned_pins = axiom_superconductor_bench_burst(8, 2, 1200, sc_stats.as_mut_ptr());
+        assert_eq!(spawned_pins, 2, "Superconductor benchmark must spawn 2 pins");
+        assert_eq!(sc_stats[0], 16, "16 superconductor cell slabs capacity");
+        assert_eq!(sc_stats[1], 8, "8 superconductor cells active");
+        assert_eq!(sc_stats[2], 2, "2 pinning anchors active");
+        assert!(sc_stats[3] != 0 || sc_stats[4] != 0, "Superconductor consensus hash non-zero");
+        assert_eq!(sc_stats[5], 4, "4 parallel dispatch jobs");
+        assert!(sc_stats[6] > 0, "Pinning force must be positive");
     }
 }
