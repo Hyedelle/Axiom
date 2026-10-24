@@ -8,24 +8,24 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 14:43 KST
-- **감사 대상:** Axiom 320대 공기역학 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-251, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_aero_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64` 슬랩 메모리 상주 검증, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_AERO_DRAG (0x0320)` / `EVENT_AERO_VORTEX (0x0321)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 💨 320 Aerodynamics & VIV (64B Slabs) 대화형 모달 연동, 1.43 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-252 - Mimic The Show 챔피언십 링 실시간 메카 대기 항력/풍압 이펙트 및 F3 HUD 결합)**:
-  1. `mimic-the-show/src/view.rs`:
-     - `DesktopGameView` 구조체에 `pub aero_engine: Box<MechaAerodynamicsEngine<16, 4>>` 필드 추가.
-     - `new()` 생성자에서 초기화: 8개 메카 바디 슬랩(팔다리, 토르소) 및 1개 링 대기 셀(환경풍) 생성.
-     - `step_aero_pipeline(&mut self) -> (usize, usize)` 구현:
-       - 고속 펀치/대쉬/넉다운 시 30 m/s 상대 풍속에 따른 대기 항력 및 Lock-in 와류 진동 해석.
-       - 40B 인라인 POD `AeroEventReport` 이벤트 방출.
-     - `render_hud_into` 내 F3 HUD 카드에 `Aero: {} Bodies | {} N Drag | 64B` 하늘색(#38BDF8) 라인 추가 및 HUD 높이 조정.
-     - 56x56 미니 레이더에 대기 풍속/항력 인디케이터 도트 점등.
-     - 하단 컨트롤 바 프롬프트에 `[AERO: {}B/{}C]` 상시 모니터링 연동.
-  2. `mimic-the-show/tests/test_mimic_game.rs`에 통합 테스트 `test_view_aerodynamics_telemetry_and_hud` 작성 및 `cargo test` 검증.
+- **일시:** 2026-10-24 14:59 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 메카 대기 항력/풍압 이펙트 및 F3 HUD 결합 (T-252, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `MechaAerodynamicsEngine<16, 4>` (8개 바디 + 1개 대기 그리드 셀 64B L1 캐시 슬랩) 상주 무결성 검증, `step_aero_pipeline` 실시간 물리-공기역학 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 30 m/s 고속 풍압 충격파 및 Lock-in 와류 진동 해석, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출 (`EVENT_AERO_DRAG = 0x0320`, `EVENT_AERO_VORTEX = 0x0321`), F3 HUD 카드 `Aero: {} Bodies | {} N | 64B` 텔레메트리 하늘색(#38BDF8) 출력 및 56x56 미니 레이더 좌측상단(내측) 하늘색 인디케이터 점등, 하단 컨트롤 바 `[AERO: {}B/{}C]` 상시 모니터링 연동, 34개 게임 단위/통합 테스트 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-253 - Axiom 320대 메카 대기 공기역학 & 풍동 시뮬레이션 공식 릴리즈 v4.6.0)**:
+  1. `Cargo.toml` 워크스페이스 버전 `4.6.0` 판올림.
+  2. `docs/architecture.md` (Section 48: Procedural Atmospheric Aerodynamics & Vortex-Induced Vibration) 및 `docs/decisions.md` (ADRs [D-165]~[D-168]) 최신화.
+  3. `tools/package.ps1 -Version "4.6.0"` 실행 및 SHA-256 검증, 릴리즈 아카이브 생성.
+  4. 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 및 릴리즈 바이너리 무결성 검증.
+  5. `tools/guard.ps1` 검증 및 Git 태그 `v4.6.0` 발행.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T252] Mimic The Show 챔피언십 링 실시간 메카 대기 항력/풍압 이펙트 및 F3 HUD 결합
+- **일시:** 2026-10-24 14:59 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `MechaAerodynamicsEngine<16, 4>` (8개 바디 + 1개 대기 그리드 셀 64B L1 캐시 슬랩) 상주 무결성 검증, `step_aero_pipeline` 실시간 물리-공기역학 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 30 m/s 고속 풍압 충격파 및 Lock-in 와류 진동 해석, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출 (`EVENT_AERO_DRAG = 0x0320`, `EVENT_AERO_VORTEX = 0x0321`), F3 HUD 카드 `Aero: {} Bodies | {} N | 64B` 텔레메트리 하늘색(#38BDF8) 출력 및 56x56 미니 레이더 좌측상단(내측) 하늘색 인디케이터 점등, 하단 컨트롤 바 `[AERO: {}B/{}C]` 상시 모니터링 연동, 34개 게임 단위/통합 테스트 100% 올패스 승인.
 
 ### [AUDIT-20261024-T251] Axiom 320대 공기역학 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 14:43 KST

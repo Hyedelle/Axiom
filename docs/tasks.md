@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-252: Mimic The Show 챔피언십 링 실시간 메카 대기 항력/풍압 이펙트 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-253: Axiom 320대 메카 대기 공기역학 & 풍동 시뮬레이션 공식 릴리즈 v4.6.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-254: Axiom 330대 입자 기반 대기 난류(Turbulence) & 압축성 충격파 경계층(Shock Boundary Layer) 물리 연구** (`docs/audit-report.md`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-252: Mimic The Show 챔피언십 링 실시간 메카 대기 항력/풍압 이펙트 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `MechaAerodynamicsEngine<16, 4>` [8개 바디 + 1개 풍동 셀 64B L1 캐시 슬랩] 및 `step_aero_pipeline` 결합 [싱글플레이 파이터 넉다운/KO 시 30 m/s 고속 풍압 충격파 및 Lock-in 폰 카르만 와류 진동 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Aero: {} Bodies | {} N | 64B` 텔레메트리 하늘색(#38BDF8) 출력 및 56x56 미니 레이더 좌측상단(내측) 하늘색 인디케이터 점등, 하단 컨트롤 바 `[AERO: {}B/{}C]` 상시 모니터링 연동, 34개 게임 단위/통합 테스트 100% 통과)
 - [x] **T-251: Axiom 320대 공기역학 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_aero_bench_burst` [4~16 바디 슬랩 및 1~4 풍동 셀 슬랩 생성 및 64B L1 캐시 정렬 상주, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_AERO_DRAG (0x0320)` / `EVENT_AERO_VORTEX (0x0321)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 💨 **320 Aerodynamics & VIV (64B Slabs)** 대화형 모달 연동, 1.43 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-250: Axiom 320대 공기역학 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/aerodynamics.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_aerodynamics_jobs.rs`, `crates/axiom-game/tests/test_aerodynamics_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_aerodynamics_with_jobs` [바디 슬랩 청크 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_aero_to_event_bus` [`EVENT_AERO_DRAG = 0x0320` 및 `EVENT_AERO_VORTEX = 0x0321`, `channel::PHYSICS | channel::VFX | channel::AUDIO`, 40B 인라인 POD 페이로드 `AeroEventReport`(pos_xyz, rel_vel_xyz, drag_force_n, viv_force_n, shedding_freq_q8, entity_id, body_id, flags, body_type, reserved)], `AeroEventReport::decode` 무손실 라운드트립 디코더 및 GGPO 롤백 지원, `NetworkMatchDirector::step_aerodynamics` 및 `step_aerodynamics_with_jobs` [16-인 경기장 공기역학 수치 적분 및 이벤트 실시간 방출 결합], 5개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-249: Axiom 320대 64B L1 정렬 공기역학/항력 슬랩 및 3D 풍동 해석기 구현** (`crates/axiom-core/src/aerodynamics.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_aerodynamics.rs`, 0-Float 64B L1 캐시 정렬 공기역학 바디 슬랩 `AeroBodySlab64` [#[repr(C, align(64))], exact 64B slab, 12B pos mm, 12B vel mm/s, 4B ref_area, 4B mass, 4B drag_force N, 4B viv_force N, 2B drag_cd Q16, 2B lift_cl Q16, 2B viv_st Q16, 2B char_diam, 2B viv_phase, 2B shedding_freq Q8, 1B entity_id, 1B body_type, 1B flags, 1B cell_idx, 8B pad], 64B L1 정렬 대기 바람 슬랩 `AirflowGridSlab64` [#[repr(C, align(64))], exact 64B slab, 12B wind_vel mm/s, 4B air_density g/m3, 4B pressure kPa, 2B turbulence Q16, 2B temp C, 1B cell_id, 1B flags, 38B pad], 40-Byte 인라인 POD 이벤트 서술자 `AeroEventReport` 무손실 라운드트립 직렬화, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산 `compute_aerodynamic_forces`, 스트라울 수 $St \approx 0.20$ 기반 폰 카르만 와류 방출 및 25~45 Hz Lock-in 공진 $2.5\times$ 기진력 증폭, 0-힙 고정 크기 시뮬레이터 `MechaAerodynamicsEngine<MAX_BODIES, MAX_CELLS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 7개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 통과)
