@@ -8,23 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:55 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 먼지 폭풍 & 충격파 F3 HUD 결합 (T-228, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `VolumetricShockwaveEngine<16, 16>` (16개 충격파 + 16개 먼지 에미터 64B L1 캐시 슬랩) 상주 무결성 검증, `step_shockwave_pipeline` 실시간 물리-충격파-먼지 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 100 kJ 충격파 및 80% 밀도 지면 먼지 폭풍 자동 방출 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Shockwave: {} Waves | Dust: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터 점등, 하단 컨트롤 바 `[SHK: {}W]` 상시 모니터링 연동, 30개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **주요 검증 항목:**
-  1. **64B L1 캐시 슬랩 상주 (`VolumetricShockwaveEngine<16, 16>`)**:
-     - 프레임 루프 내 0-Heap 동적 할당 원칙 사수.
-     - KO/다운 시 100 kJ 구형 충격파 및 4000mm 반경 먼지 폭풍 생성.
-  2. **Beer-Lambert 광학 투과율 HUD 연동**:
-     - 링 중심점 `(0, 500, 0)` 광학 투과율 계측 및 퍼센트 `Dust: {}%` 실시간 출력.
-  3. **UI/HUD 레이아웃 통합**:
-     - F3 분산 넷코드 카드 높이 확장 ($224 \times 246$) 및 호박색 (`0xFFF59E0B`) 텍스트 라인 렌더링.
-     - 미니 레이더 중앙 조준점 충격파 점등 인디케이터 (`0xFFF59E0B`) 추가.
-     - 하단 컨트롤 바 `[SHK: {}W]` 상시 텔레메트리 연동.
+- **일시:** 2026-10-24 12:15 KST
+- **감사 대상:** Axiom 290대 고정소수점 3D 래그돌 관절 XPBD 솔버 및 탄성 변형 한계 연구 (T-230, `docs/audit-report.md`, `axiom-xpbd-ragdoll-and-elastic-strain-research.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 설계 승인, Müller & Macklin XPBD 순수 정수 mm 및 Q16.16 고정소수점 컴플라이언스($\tilde{\alpha} = \alpha / \Delta t^2$) 해석 모델 수립, 라그랑주 승수($\Delta \lambda$) 누적 및 반력/인장력(Tension) 계측 모델 확립, 항복 변형률($\epsilon_{yield}$) 소성 변형(Plastic Set) 및 인장 파괴 한계($\epsilon_{break}$) 관절 파단(`sever_joint`) 분리 다이나믹스 규격화, 0-Heap 플랫 시뮬레이터 `XpbdRagdollEngine<16, 16>` 아키텍처 승인, 280대 충격파 / 270대 파괴 파티클 / 260대 파괴 음향 / 200대 JobSystem(`dispatch_xpbd_with_jobs`) / 210대 EventBus [`EVENT_XPBD_STRAIN = 0x0290`, `EVENT_XPBD_TEAR = 0x0291`, 40B 인라인 POD 페이로드] 연계 명세 수립 완료**
+- **시공팀(Claude Code) 구현 처방전 (T-231)**:
+  1. `crates/axiom-core/src/xpbd_ragdoll.rs` 신규 모듈 생성 및 `crates/axiom-core/src/lib.rs` export.
+  2. `XpbdBoneSlab64` (`#[repr(C, align(64))]`, exact 64B), `XpbdConstraintSlab64` (`#[repr(C, align(64))]`, exact 64B) 구현 및 컴파일 타임 크기/정렬 단언 (`size_of == 64`, `align_of == 64`).
+  3. `solve_xpbd_distance` 순수 정수 거리 제약 완화기 및 소성 변형 / 파단 분기 로직 구현.
+  4. 0-Heap `XpbdRagdollEngine<MAX_BONES, MAX_CONSTRAINTS>` 및 FNV-1a `compute_consensus_hash` 구현.
+  5. `crates/axiom-core/tests/test_xpbd_ragdoll.rs` 작성 및 `tools/guard.ps1` 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v4.2.0] Axiom Engine v4.2.0 280대 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 12:10 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64`, 40B 인라인 POD `ShockwaveReport`, Sedov-Taylor 음속(340m/s) 파면 전파 및 거리 역제곱 P(R) = P0*(R0/R)^2 감쇠 계측, Stokes' Settling 120mm/s 중력 침강 및 Q16.16 Beer-Lambert 시야 투과율 검증, `VolumetricShockwaveEngine<16, 16>`, `NetworkMatchDirector` 실시간 충격파 파이프라인 결합, WebGL/WASM 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 대화형 모달 및 1.38 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` 내 `step_shockwave_pipeline` (파이터 KO/넉다운 시 100 kJ 충격파 및 80% 지면 먼지 폭풍 자동 방출), F3 HUD 카드 `Shockwave: {} Waves | Dust: {}% | 64B`, 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터 점등, 하단 `[SHK: {}W]` 연동, 단일 상용 크로스 플랫폼 배포 아카이브 `dist/axiom-v4.2.0-unified-milestone.zip` (2.27 MB, SHA-256: `2F0C6AFC56687E9A09ACD4498B477E87DECCF63D117D324AD33BFF2A9F897243` 검증), 전체 워크스페이스 v4.2.0 공식 판올림 및 Git 태그 `v4.2.0` 발행, `tools/guard.ps1` 100% 올패스 승인.
+
+### [AUDIT-20261024-T228] Mimic The Show 챔피언십 링 실시간 먼지 폭풍 & 충격파 F3 HUD 결합
+- **일시:** 2026-10-24 11:55 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `VolumetricShockwaveEngine<16, 16>` (16개 충격파 + 16개 먼지 에미터 64B L1 캐시 슬랩) 상주 무결성 검증, `step_shockwave_pipeline` 실시간 물리-충격파-먼지 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 100 kJ 충격파 및 80% 밀도 지면 먼지 폭풍 자동 방출 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Shockwave: {} Waves | Dust: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터 점등, 하단 컨트롤 바 `[SHK: {}W]` 상시 모니터링 연동, 30개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T227] Axiom Engine 280대 먼지 폭풍 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 11:42 KST
