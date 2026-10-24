@@ -54,6 +54,10 @@ use axiom_core::turbulence::{
     dispatch_turbulence_with_jobs, emit_turbulence_to_event_bus, MechaTurbulenceEngine,
     TurbulenceEventReport,
 };
+use axiom_core::radiation::{
+    dispatch_radiation_with_jobs, emit_radiation_to_event_bus, MechaRadiationEngine,
+    RadiationEventReport,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1354,6 +1358,42 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_turbulence_with_jobs(engine, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_turbulence(engine, confinement_eps_q16, report)
+    }
+
+    /// Advances physical simulation of mecha radiation (Radiative Transfer / Particle Beam) and optionally emits an event.
+    pub fn step_radiation<const CELLS: usize, const BEAMS: usize>(
+        &mut self,
+        engine: &mut MechaRadiationEngine<CELLS, BEAMS>,
+        ambient_extinction_q16: u32,
+        report: Option<&RadiationEventReport>,
+    ) -> bool {
+        engine.step_simulation(ambient_extinction_q16);
+
+        if let Some(rep) = report {
+            emit_radiation_to_event_bus(rep, self.current_world.tick, &mut self.event_bus);
+        }
+
+        true
+    }
+
+    /// Advances physical simulation of mecha radiation using worker pool parallel dispatch.
+    pub fn step_radiation_with_jobs<
+        const CELLS: usize,
+        const BEAMS: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut MechaRadiationEngine<CELLS, BEAMS>,
+        ambient_extinction_q16: u32,
+        report: Option<&RadiationEventReport>,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_radiation_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_radiation(engine, ambient_extinction_q16, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.
