@@ -6801,6 +6801,121 @@ pub extern "C" fn axiom_turbulence_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_radiation_bench_burst(
+    cell_count: u32,
+    beam_count: u32,
+    beam_energy_mj: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::radiation::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let cells_to_spawn = (cell_count as usize).clamp(1, 16);
+    let beams_to_spawn = (beam_count as usize).clamp(1, 4);
+    let energy = if beam_energy_mj > 0 { beam_energy_mj } else { 1_000_000 }; // 1 kJ default
+
+    let mut engine = Box::new(MechaRadiationEngine::<16, 4>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for c in 0..cells_to_spawn {
+        let cell = RadiationCellSlab64::new(
+            c as u8,
+            [c as i32 * 500, 0, 0],
+            1000 + (c as u32 * 250),
+        );
+        engine.register_cell(cell);
+    }
+
+    let mut total_spawned_beams = 0;
+    for b in 0..beams_to_spawn {
+        let beam = ParticleBeamSlab64::new(
+            1,
+            (b + 2) as u8,
+            [0, 0, 0],
+            [0, 0, 32768],
+            energy + (b as u32 * 500_000),
+            1064,
+            2,
+        );
+        if engine.register_beam(beam).is_some() {
+            total_spawned_beams += 1;
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_radiation_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for 10 ticks
+    let mut total_penetrations = 0;
+    for _ in 0..10 {
+        let (_eval, penetrating) = engine.step_simulation(0);
+        total_penetrations += penetrating;
+    }
+
+    // Emit representative radiation event
+    if engine.active_cells_count > 0 {
+        let report = RadiationEventReport {
+            pos_xyz: engine.cells[0].center_xyz,
+            dir_xyz: [0, 0, 32768],
+            flux_or_energy_mj: engine.cells[0].emission_power_w,
+            optical_depth_or_temp: engine.cells[0].temperature_k,
+            penetration_depth_mm: 0,
+            wavelength_or_cell_id: engine.cells[0].cell_id as u16,
+            emitter_id: engine.cells[0].cell_id,
+            target_id: 0,
+            flags: engine.cells[0].flags,
+            event_kind: RAD_EVENT_KIND_BURST,
+        };
+        emit_radiation_to_event_bus(&report, 100, &mut bus);
+    }
+
+    if engine.active_beams_count > 0 {
+        let report = RadiationEventReport {
+            pos_xyz: engine.beams[0].origin_xyz,
+            dir_xyz: engine.beams[0].dir_xyz,
+            flux_or_energy_mj: engine.beams[0].beam_energy_mj,
+            optical_depth_or_temp: 65536,
+            penetration_depth_mm: engine.beams[0].penetration_depth_mm,
+            wavelength_or_cell_id: engine.beams[0].wavelength_nm,
+            emitter_id: engine.beams[0].emitter_id,
+            target_id: engine.beams[0].target_id,
+            flags: engine.beams[0].flags,
+            event_kind: RAD_EVENT_KIND_BEAM,
+        };
+        emit_radiation_to_event_bus(&report, 101, &mut bus);
+    }
+
+    let rad_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = rad_hash ^ (bus_hash.rotate_left(31));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                      // Capacity cells (16)
+            *out_stats.add(1) = engine.active_cells_count as u32;        // Active cells count
+            *out_stats.add(2) = engine.active_beams_count as u32;        // Active beams count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = engine.beams[0].penetration_depth_mm as u32; // Penetration depth in mm
+            *out_stats.add(7) = total_penetrations as u32;               // Total breakthrough penetrations
+        }
+    }
+
+    total_spawned_beams as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7940,5 +8055,16 @@ mod tests {
         assert!(turb_stats[3] != 0 || turb_stats[4] != 0, "Turbulence consensus hash non-zero");
         assert_eq!(turb_stats[5], 4, "4 parallel dispatch jobs");
         assert!(turb_stats[6] >= 78643, "P2/P1 ratio must exceed SBLI detachment threshold (1.20 in Q16)");
+
+        // 21. Radiative Transfer & Relativistic Particle Beam Benchmark (8 cells, 2 beams, 1 kJ pulse)
+        let mut rad_stats = [0u32; 8];
+        let spawned_beams = axiom_radiation_bench_burst(8, 2, 1_000_000, rad_stats.as_mut_ptr());
+        assert_eq!(spawned_beams, 2, "Radiation benchmark must spawn 2 beams");
+        assert_eq!(rad_stats[0], 16, "16 radiation cell slabs capacity");
+        assert_eq!(rad_stats[1], 8, "8 radiation cells active");
+        assert_eq!(rad_stats[2], 2, "2 particle beams active");
+        assert!(rad_stats[3] != 0 || rad_stats[4] != 0, "Radiation consensus hash non-zero");
+        assert_eq!(rad_stats[5], 4, "4 parallel dispatch jobs");
+        assert!(rad_stats[6] > 0, "Penetration depth must be positive");
     }
 }

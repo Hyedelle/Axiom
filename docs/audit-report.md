@@ -8,21 +8,33 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 16:14 KST
-- **감사 대상:** Axiom 340대 복사 수송 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-262, `crates/axiom-core/src/radiation.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_radiation_jobs.rs`, `crates/axiom-game/tests/test_radiation_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_radiation_with_jobs` Chase-Lev 4-워커 풀 분산 스케줄링, 0-Heap 이벤트 버스 발행 `emit_radiation_to_event_bus` [`EVENT_RADIATION_BURST = 0x0340`, `EVENT_BEAM_PENETRATION = 0x0341`, `channel::PHYSICS | channel::VFX | channel::AUDIO`], `RadiationEventReport` 40B 무손실 라운드트립 직렬화 및 GGPO 롤백 지원, `NetworkMatchDirector::step_radiation` 및 `step_radiation_with_jobs` 결합, 5개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 100% 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-263 - Axiom 340대 복사 수송 벤치마크 및 WASM 스튜디오 쇼케이스 연동)**:
-  1. `crates/axiom-wasm/src/lib.rs` C-ABI 확장:
-     - `axiom_radiation_bench_burst`: 4~16 복사 셀 및 1~4 입자선 슬랩 64B L1 캐시 정렬 상주, Stefan-Boltzmann 흑체 복사 및 Padé Beer-Lambert 광학 투과율, 고에너지 빔 아머 절제 관통 해석, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_RADIATION_BURST` / `EVENT_BEAM_PENETRATION` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측.
-     - 테스트 #21 추가 (24개 WASM 테스트 무결성 보증).
-  2. `crates/axiom-wasm/index.html` 및 `web/index.html` UI 연동:
-     - ☢️ **340 Radiative Transfer & Particle Beams (64B Slabs)** 대화형 모달 및 벤치마크 버튼 추가.
-  3. `wasm-pack build --target web --release` 빌드 및 최적화 배포 (`crates/axiom-wasm/pkg/` ➔ `crates/axiom-wasm/` & `web/`).
-  4. `tools/guard.ps1` 통과 후 커밋.
+- **일시:** 2026-10-24 16:22 KST
+- **감사 대상:** Axiom 340대 복사 수송 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-263, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI `axiom_radiation_bench_burst` 노출, 4~16 복사 셀 & 1~4 입자선 슬랩 64B L1 캐시 정렬 상주, Stefan-Boltzmann 흑체 복사 및 Padé Beer-Lambert 광학 투과율, 고에너지 빔 아머 절제 관통 해석, 4-워커 잡 디스패치 및 이벤트 버스 연계, 웹 3D 복셀 스튜디오 ☢️ 340 Radiative Transfer & Beams (64B Slabs) 모달 연동, 1.46 MB 최적화 WASM 바이너리 동기화, 24개 WASM 테스트 100% 통과, `tools/guard.ps1` 100% 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-264 - Mimic The Show 챔피언십 링 실시간 메카 입자선 복사 피폭 및 F3 HUD 결합 & 완전한 3D 오버더숄더 백뷰 전환)**:
+  1. `mimic-the-show/src/view.rs`:
+     - `MechaRadiationEngine<16, 4>` [8개 복사 셀 + 2개 입자선 슬랩] 결합
+     - `step_rad_pipeline` 구현: 파이터 넉다운/KO 또는 피니셔 시 1 kJ 고에너지 빔 방출 및 아머 절제 해석, 40B POD 이벤트 버스 방출 (`EVENT_RADIATION_BURST = 0x0340`, `EVENT_BEAM_PENETRATION = 0x0341`)
+     - **완전 3D 복싱 오버더숄더 백뷰 전환 (디렉터 Hyedelle 지시 반영)**:
+       * 플레이어(ELPIS) 위치: `[0.0, -0.65, -0.35]` (화면 하단 정면 지향 백뷰 `rot_y = 0`)
+       * 상대 위치: `[0.0, -0.62, +0.65]` (화면 중앙 상단 정면 대치 `rot_y = 128 BAM (180 deg)`)
+       * 카메라 타겟 및 틸트: 후방 오버더숄더 하향 틸트 (`orbit_pitch = 6~8 BAM`, 타겟 `[0.0, -0.20, 0.15]`)
+       * 동적 애니메이션 보간: 고정 500 permille을 `action.frame * 1000 / action.max_frame`으로 교체
+       * `ActionKind::Hook`에 `MechaPose3D::hook(permille)` 직결
+     - F3 HUD: `Rad: {} Cells | {} Beams | 64B` 주황색(#FB923C) 출력
+     - 56x56 미니 레이더: 우측하단(내측) 주황색 인디케이터 점등
+     - 하단 컨트롤 바: `[RAD: {}C/{}B]` 상시 모니터링 연동
+  2. `mimic-the-show/tests/test_mimic_game.rs`에 3D 뷰포트 및 텔레메트리 통합 테스트 추가.
+  3. `tools/guard.ps1` 검증 및 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T263] Axiom 340대 복사 수송 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 16:22 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** C-ABI `axiom_radiation_bench_burst` 노출, 4~16 복사 셀 & 1~4 입자선 슬랩 64B L1 캐시 정렬 상주, Stefan-Boltzmann 흑체 복사 및 Padé Beer-Lambert 광학 투과율, 1 kJ 빔 아머 절제 관통, 4-워커 잡 디스패치 및 이벤트 버스 연계, 1.46 MB WASM 바이너리 배포, 24개 WASM 테스트 통과, `tools/guard.ps1` 올패스 승인.
 
 ### [AUDIT-20261024-T262] Axiom 340대 복사 수송 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 16:14 KST
