@@ -8,28 +8,36 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 13:54 KST
-- **감사 대상:** Axiom 310대 액추에이터 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-244, `crates/axiom-core/src/actuator.rs`, `crates/axiom-game/src/network.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_actuators_with_jobs` (액추에이터 슬랩 청크 배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_actuator_to_event_bus` (`EVENT_ACTUATOR_PRESSURE = 0x0311`, `EVENT_ACTUATOR_BURST = 0x0310`, `channel::PHYSICS | channel::VFX | channel::AUDIO`, 40B 인라인 POD 페이로드 `ActuatorEventReport`) 무결성 실증, `NetworkMatchDirector::step_actuator` 및 `step_actuator_with_jobs` (16-인 배틀로얄 경기장 액추에이터 수치 적분 및 이벤트 실시간 방출 결합), 5개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-245 - 액추에이터 벤치마크 및 WASM 스튜디오 쇼케이스 연동)**:
-  1. `crates/axiom-wasm/src/lib.rs`:
-     - C-ABI 엔드포인트 `axiom_actuator_bench_burst(actuator_count: u32, iterations: u32) -> u64` 추가.
-     - 4~16개 `ActuatorSlab64` (유압 피스톤 + 매키번 PAM) 및 1~4개 `HydraulicChamberSlab64` 생성.
-     - 4-워커 Chase-Lev 워커 풀 분산 스케줄링 (`dispatch_actuators_with_jobs`) 및 `DeterministicEventBus` 이벤트 발행.
-     - 64-bit FNV-1a 상태 합의 체크섬 반환.
-     - `test_wasm_net_and_gpu_compute_bindings`에 벤치마크 테스트 항목 추가 (모든 WASM 테스트 올패스 검증).
-  2. `crates/axiom-wasm/index.html` 및 `web/index.html`:
-     - 상단 헤더에 `⚡ 310 Mecha Actuators (64B Slabs)` 버튼 추가.
-     - 대화형 모달 및 `runActuatorBenchmark()` JS 핸들러 구현 (액추에이터 개수, 반복 횟수, 처리 속도, 파열/릴리프 상태 실시간 렌더링).
-  3. WASM 빌드 및 배포:
-     - `cargo build -p axiom-wasm --target wasm32-unknown-unknown --release` 빌드.
-     - 바이너리를 `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`으로 동기화 복사.
-  4. 검증:
-     - `tools/guard.ps1` 올패스 확인.
+- **일시:** 2026-10-24 14:01 KST
+- **감사 대상:** Axiom 310대 액추에이터 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-245, `crates/axiom-wasm/src/lib.rs`, `web/index.html`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_actuator_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 메모리 상주 검증, 1 kPa * 1 mm^2 = 1 mN 고정소수점 기계적 추력 및 1.5 GPa 벌크 탄성 계수 비선형 오일 압력 전달/배관 파열 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_ACTUATOR_PRESSURE (0x0311)` / `EVENT_ACTUATOR_BURST (0x0310)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 ⚡ 310 Mecha Actuators (64B Slabs) 대화형 모달 연동, 1.42 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-246 - Mimic The Show 챔피언십 링 실시간 메카 유압/공압 구동계 및 F3 HUD 결합)**:
+  1. `mimic-the-show/src/view.rs`:
+     - `DesktopGameView` 구조체에 `actuator_engine: Box<MechaActuatorEngine<16, 4>>` 필드 추가 (8개 액추에이터 + 2개 유압 챔버 64B L1 캐시 슬랩 상주).
+     - `step_actuator_pipeline(&mut self) -> (usize, usize)` 추가:
+       * 싱글플레이 파이터 넉다운/피니셔 타격 시 85 kN 충격 기반 액추에이터 압력 갱신 및 과압 릴리프/배관 파열 해석.
+       * 국소 이벤트 버스에 40B 인라인 POD `ActuatorEventReport` 방출 (`EVENT_ACTUATOR_PRESSURE = 0x0311`, `EVENT_ACTUATOR_BURST = 0x0310`).
+     - F3 디버그 HUD 카드 텔레메트리 연동:
+       * `Actuator: {} Acts | {} kN | 64B` 청록색(`0xFF06B6D4`) 라인 출력.
+       * HUD 박스 세로 크기 274에서 298로 확장.
+     - 56x56 미니 레이더:
+       * 우측 상단 `(radar_cx + 18, radar_cy - 12)`에 청록색(`0xFF06B6D4`) 액추에이터 구동계 활성 인디케이터 점등.
+     - 하단 컨트롤 프롬프트 바:
+       * `[ACT: {}A/{}C]` 텔레메트리 상시 출력 추가.
+  2. `mimic-the-show/tests/test_mimic_game.rs`:
+     - `test_view_actuator_telemetry_and_hud` 통합 테스트 작성.
+  3. 검증:
+     - `cargo test` in `mimic-the-show` 통과 확인.
+     - `tools/guard.ps1` in `Axiom` 통과 확인.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T245] Axiom 310대 액추에이터 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 14:01 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_actuator_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 메모리 상주 검증, 1 kPa * 1 mm^2 = 1 mN 고정소수점 기계적 추력 및 1.5 GPa 벌크 탄성 계수 비선형 오일 압력 전달/배관 파열 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_ACTUATOR_PRESSURE (0x0311)` / `EVENT_ACTUATOR_BURST (0x0310)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 ⚡ 310 Mecha Actuators (64B Slabs) 대화형 모달 연동, 1.42 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T244] Axiom 310대 액추에이터 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 13:54 KST

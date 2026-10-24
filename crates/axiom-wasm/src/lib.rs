@@ -6469,6 +6469,121 @@ pub extern "C" fn axiom_soft_body_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_actuator_bench_burst(
+    actuator_count: u32,
+    chamber_count: u32,
+    target_pressure_kpa: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::actuator::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let acts_to_spawn = (actuator_count as usize).clamp(1, 16);
+    let chambers_to_spawn = (chamber_count as usize).clamp(1, 4);
+    let pressure = if target_pressure_kpa > 0 { target_pressure_kpa } else { 15_000 };
+
+    let mut engine = Box::new(MechaActuatorEngine::<16, 4>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for ch in 0..chambers_to_spawn {
+        let chamber = HydraulicChamberSlab64::new(
+            ch as u8,
+            1,
+            200_000,
+            pressure as i32,
+            1_500_000,
+        );
+        engine.add_chamber(chamber);
+    }
+
+    let mut total_spawned_actuators = 0;
+    for i in 0..acts_to_spawn {
+        let ch_idx = (i % chambers_to_spawn) as u8;
+        let mut act = if i % 2 == 0 {
+            ActuatorSlab64::new_hydraulic(
+                1,
+                2,
+                (0, 0, 0),
+                (0, 500 + (i as i32 * 30), 0),
+                100,
+                200,
+                40_000,
+            )
+        } else {
+            ActuatorSlab64::new_mckibben_pam(
+                2,
+                3,
+                (0, 0, 0),
+                (0, 500 + (i as i32 * 30), 0),
+                100,
+                1500,
+            )
+        };
+        act.chamber_idx = ch_idx;
+        act.entity_id = 1;
+        if engine.add_actuator(act).is_some() {
+            total_spawned_actuators += 1;
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_actuators_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for 10 ticks
+    for _ in 0..10 {
+        engine.step_simulation();
+    }
+
+    // Emit representative actuator event
+    let report = ActuatorEventReport {
+        entity_id: 1,
+        actuator_id: 0,
+        chamber_id: 0,
+        flags: if engine.total_bursts > 0 { ACTUATOR_FLAG_BURST } else { 0 },
+        actuator_type: ACTUATOR_TYPE_HYDRAULIC,
+        pressure_kpa: engine.actuators[0].pressure_kpa,
+        thrust_n: ((engine.actuators[0].pressure_kpa as i64 * engine.actuators[0].piston_area_mm2 as i64) / 1000) as i32,
+        current_len_mm: engine.actuators[0].current_len_mm,
+        target_len_mm: engine.actuators[0].target_len_mm,
+        pos_x: engine.actuators[0].anchor_b_x,
+        pos_y: engine.actuators[0].anchor_b_y,
+        pos_z: engine.actuators[0].anchor_b_z,
+        impulse_m_ns: 2000,
+        _reserved: [0; 4],
+    };
+    emit_actuator_to_event_bus(&report, 100, &mut bus);
+
+    let act_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = act_hash ^ (bus_hash.rotate_left(31));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                      // Capacity actuators (16)
+            *out_stats.add(1) = engine.active_actuators_count as u32;    // Active actuators count
+            *out_stats.add(2) = engine.active_chambers_count as u32;     // Active chambers count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = engine.peak_thrust_n;                    // Peak mechanical thrust N
+            *out_stats.add(7) = engine.total_bursts;                     // Total bursts
+        }
+    }
+
+    total_spawned_actuators as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7577,5 +7692,15 @@ mod tests {
         assert_eq!(sb_stats[2], 16, "16 particles active");
         assert!(sb_stats[3] != 0 || sb_stats[4] != 0, "Soft body consensus hash non-zero");
         assert_eq!(sb_stats[5], 4, "4 parallel dispatch jobs");
+
+        // 18. Procedural Mecha Actuator & Artificial Muscle Benchmark (8 actuators, 2 chambers, 15MPa)
+        let mut act_stats = [0u32; 8];
+        let spawned_acts = axiom_actuator_bench_burst(8, 2, 15_000, act_stats.as_mut_ptr());
+        assert_eq!(spawned_acts, 8, "Actuator benchmark must spawn 8 actuators");
+        assert_eq!(act_stats[0], 16, "16 actuator slabs capacity");
+        assert_eq!(act_stats[1], 8, "8 actuators active");
+        assert_eq!(act_stats[2], 2, "2 chambers active");
+        assert!(act_stats[3] != 0 || act_stats[4] != 0, "Actuator consensus hash non-zero");
+        assert_eq!(act_stats[5], 4, "4 parallel dispatch jobs");
     }
 }
