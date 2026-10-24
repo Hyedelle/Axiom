@@ -6,16 +6,16 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-246: Mimic The Show 챔피언십 링 실시간 메카 유압/공압 구동계 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-247: Axiom 310대 메카 유압/공압 액추에이터 & 인공근육 공식 릴리즈 v4.5.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-246: Mimic The Show 챔피언십 링 실시간 메카 유압/공압 구동계 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `MechaActuatorEngine<16, 4>` [8개 액추에이터 + 2개 유압 챔버 64B L1 캐시 슬랩] 및 `step_actuator_pipeline` 결합 [싱글플레이 파이터 넉다운/KO 시 85 kN 충격 기반 액추에이터 압력 갱신 및 과압 릴리프/배관 파열 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Actuator: {} Acts | {} kN | 64B` 텔레메트리 청록색(#06B6D4) 출력 및 56x56 미니 레이더 우측상단(내측) 청록색 인디케이터 점등, 하단 컨트롤 바 `[ACT: {}A/{}C]` 상시 모니터링 연동, 33개 게임 단위/통합 테스트 100% 통과)
 - [x] **T-245: Axiom 310대 액추에이터 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_actuator_bench_burst` [4~16 액추에이터 슬랩 및 1~4 유압 챔버 슬랩 생성 및 64B L1 캐시 정렬 상주, 1 kPa * 1 mm^2 = 1 mN 고정소수점 기계적 추력 계산, 1.5 GPa 벌크 탄성 계수 비선형 오일 압력 전달 및 배관 파열/릴리프 역학, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_ACTUATOR_PRESSURE (0x0311)` / `EVENT_ACTUATOR_BURST (0x0310)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 ⚡ **310 Mecha Actuators (64B Slabs)** 대화형 모달 연동, 1.42 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-244: Axiom 310대 액추에이터 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/actuator.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_actuator_jobs.rs`, `crates/axiom-game/tests/test_actuator_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_actuators_with_jobs` [액추에이터 슬랩 청크 배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_actuator_to_event_bus` [`EVENT_ACTUATOR_PRESSURE = 0x0311` (공압/유압 정상 압력) 및 `EVENT_ACTUATOR_BURST = 0x0310` (과압/배관 파열 파단), `channel::PHYSICS | channel::VFX | channel::AUDIO` 채널, 40B 인라인 POD 페이로드 `ActuatorEventReport`(entity_id, actuator_id, chamber_id, flags, actuator_type, pressure_kpa, thrust_n, current_len_mm, target_len_mm, pos_xyz, impulse_m_ns)], `ActuatorEventReport::decode` 무손실 라운드트립 디코더 및 GGPO 롤백 지원, `NetworkMatchDirector::step_actuator` 및 `step_actuator_with_jobs` [16-인 배틀로얄 경기장 넉다운/피니셔 충격 시 메카 유압/공압 액추에이터 수치 적분 및 이벤트 실시간 방출 결합], 5개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-243: Axiom 310대 64B L1 정렬 액추에이터/공압 슬랩 및 비선형 압력 다이나믹스 구현** (`crates/axiom-core/src/actuator.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_actuator.rs`, 0-Float 64B L1 캐시 정렬 액추에이터 슬랩 `ActuatorSlab64` [#[repr(C, align(64))], exact 64B slab, 12B anchor_a mm, 12B anchor_b mm, 4B pressure kPa, 4B max_force N, 4B burst_pressure kPa, 4B relief_pressure kPa, 2B stroke_max, 2B current_len, 2B target_len, 2B rest_len, 2B piston_area, 2B damping Q16, 1B bone_a, 1B bone_b, 1B type, 1B flags, 1B chamber_idx, 1B entity_id, 6B pad], 64B L1 정렬 유압/공압 챔버 슬랩 `HydraulicChamberSlab64` [#[repr(C, align(64))], exact 64B slab, 8B fluid_vol mm3, 8B max_vol, 4B pressure kPa, 4B accumulator kPa, 4B bulk_modulus kPa, 4B pump_flow, 4B relief_threshold, 2B valve_opening Q16, 2B reservoir Q16, 2B orifice_area Q8, 1B flags, 1B chamber_id, 1B entity_id, 1B fluid_type, 18B pad], 40-Byte 인라인 POD 이벤트 서술자 `ActuatorEventReport` 무손실 라운드트립 직렬화, $1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$ 정확한 정수 단위계 피스톤 추력 계산 `compute_actuator_thrust`, 벌크 탄성 계수($K_{bulk}$) 비선형 압력 전달 및 오리피스 정수 제곱근(`isqrt_i64`) 유량 제어 `step_chamber_pressure`, 매키번 PAM 인공근육 인장 수축력 및 과압 릴리프/배관 파열 파단 해석 `solve_actuator_step`, 0-힙 고정 크기 시뮬레이터 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 7개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 통과)

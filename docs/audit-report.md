@@ -8,31 +8,31 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 14:01 KST
-- **감사 대상:** Axiom 310대 액추에이터 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-245, `crates/axiom-wasm/src/lib.rs`, `web/index.html`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_actuator_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 메모리 상주 검증, 1 kPa * 1 mm^2 = 1 mN 고정소수점 기계적 추력 및 1.5 GPa 벌크 탄성 계수 비선형 오일 압력 전달/배관 파열 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_ACTUATOR_PRESSURE (0x0311)` / `EVENT_ACTUATOR_BURST (0x0310)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 ⚡ 310 Mecha Actuators (64B Slabs) 대화형 모달 연동, 1.42 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-246 - Mimic The Show 챔피언십 링 실시간 메카 유압/공압 구동계 및 F3 HUD 결합)**:
-  1. `mimic-the-show/src/view.rs`:
-     - `DesktopGameView` 구조체에 `actuator_engine: Box<MechaActuatorEngine<16, 4>>` 필드 추가 (8개 액추에이터 + 2개 유압 챔버 64B L1 캐시 슬랩 상주).
-     - `step_actuator_pipeline(&mut self) -> (usize, usize)` 추가:
-       * 싱글플레이 파이터 넉다운/피니셔 타격 시 85 kN 충격 기반 액추에이터 압력 갱신 및 과압 릴리프/배관 파열 해석.
-       * 국소 이벤트 버스에 40B 인라인 POD `ActuatorEventReport` 방출 (`EVENT_ACTUATOR_PRESSURE = 0x0311`, `EVENT_ACTUATOR_BURST = 0x0310`).
-     - F3 디버그 HUD 카드 텔레메트리 연동:
-       * `Actuator: {} Acts | {} kN | 64B` 청록색(`0xFF06B6D4`) 라인 출력.
-       * HUD 박스 세로 크기 274에서 298로 확장.
-     - 56x56 미니 레이더:
-       * 우측 상단 `(radar_cx + 18, radar_cy - 12)`에 청록색(`0xFF06B6D4`) 액추에이터 구동계 활성 인디케이터 점등.
-     - 하단 컨트롤 프롬프트 바:
-       * `[ACT: {}A/{}C]` 텔레메트리 상시 출력 추가.
-  2. `mimic-the-show/tests/test_mimic_game.rs`:
-     - `test_view_actuator_telemetry_and_hud` 통합 테스트 작성.
-  3. 검증:
-     - `cargo test` in `mimic-the-show` 통과 확인.
-     - `tools/guard.ps1` in `Axiom` 통과 확인.
+- **일시:** 2026-10-24 14:06 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 메카 유압/공압 구동계 및 F3 HUD 결합 (T-246, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `MechaActuatorEngine<16, 4>` (8개 액추에이터 + 2개 유압 챔버 64B L1 캐시 슬랩) 상주 무결성 검증, `step_actuator_pipeline` 실시간 물리-액추에이터 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 85 kN 외력 충격 기반 유압 챔버 서지 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출 (`EVENT_ACTUATOR_PRESSURE = 0x0311`, `EVENT_ACTUATOR_BURST = 0x0310`), F3 HUD 카드 `Actuator: {} Acts | {} kN | 64B` 텔레메트리 청록색(#06B6D4) 출력 및 56x56 미니 레이더 우측상단(내측) 청록색 인디케이터 점등, 하단 컨트롤 바 `[ACT: {}A/{}C]` 상시 모니터링 연동, 33개 게임 단위/통합 테스트 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-247 - Axiom 310대 메카 유압/공압 액추에이터 & 인공근육 공식 릴리즈 v4.5.0)**:
+  1. `Cargo.toml` 및 `tools/package.ps1`:
+     - 전체 워크스페이스 버전을 `4.4.0`에서 `4.5.0`으로 공식 판올림.
+  2. `docs/architecture.md`:
+     - Section 47 추가: 310-Series 절차적 모듈러 메카 공압/유압 액추에이터 및 인공근육 시뮬레이션 엔진 아키텍처 명세화.
+  3. `docs/decisions.md`:
+     - 아키텍처 결정 레코드 추가 ([D-161]~[D-164]).
+  4. 패키징 및 배포 검증:
+     - `powershell -ExecutionPolicy Bypass -File tools/package.ps1 -Version "4.5.0"` 실행.
+     - SHA-256 해시 검증 및 `dist/axiom-v4.5.0-unified-milestone.zip` 아카이브 생성.
+     - 바탕화면 바로가기 최신 릴리즈 바이너리 타겟팅 무결성 검증.
+     - `tools/guard.ps1` 통과 확인.
+     - Git 태그 `v4.5.0` 발행.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T246] Mimic The Show 챔피언십 링 실시간 메카 유압/공압 구동계 및 F3 HUD 결합
+- **일시:** 2026-10-24 14:06 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `MechaActuatorEngine<16, 4>` (8개 액추에이터 + 2개 유압 챔버 64B L1 캐시 슬랩) 상주 무결성 검증, `step_actuator_pipeline` 실시간 물리-액추에이터 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 85 kN 외력 충격 기반 유압 챔버 서지 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출 (`EVENT_ACTUATOR_PRESSURE = 0x0311`, `EVENT_ACTUATOR_BURST = 0x0310`), F3 HUD 카드 `Actuator: {} Acts | {} kN | 64B` 텔레메트리 청록색(#06B6D4) 출력 및 56x56 미니 레이더 우측상단(내측) 청록색 인디케이터 점등, 하단 컨트롤 바 `[ACT: {}A/{}C]` 상시 모니터링 연동, 33개 게임 단위/통합 테스트 100% 올패스 승인.
 
 ### [AUDIT-20261024-T245] Axiom 310대 액추에이터 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 14:01 KST
