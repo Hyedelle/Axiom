@@ -6687,6 +6687,120 @@ pub extern "C" fn axiom_aero_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_turbulence_bench_burst(
+    cell_count: u32,
+    shock_count: u32,
+    flow_speed_mm_s: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::turbulence::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let cells_to_spawn = (cell_count as usize).clamp(1, 16);
+    let shocks_to_spawn = (shock_count as usize).clamp(1, 4);
+    let speed = if flow_speed_mm_s > 0 { flow_speed_mm_s } else { 510_000 }; // 1.5 Mach default
+
+    let mut engine = Box::new(MechaTurbulenceEngine::<16, 4>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for c in 0..cells_to_spawn {
+        let cell = TurbulenceCellSlab64::new(
+            c as u8,
+            [c as i32 * 500, 0, 0],
+            [1200 + c as i32 * 300, 1800, 0],
+        );
+        engine.register_cell(cell);
+    }
+
+    let mut total_spawned_shocks = 0;
+    for s in 0..shocks_to_spawn {
+        let mut shock = ShockBoundarySlab64::new(
+            (s + 1) as u8,
+            [0, s as i32 * 1000, 1000],
+            [0, 65536, 0], // +Y normal in Q16
+            12 + (s as u16 * 2),
+            3500 + (s as u32 * 500),
+        );
+        shock.mach_q16 = ((speed as u64 * 65536) / SPEED_OF_SOUND_MMS as u64) as u32;
+        if engine.register_shock(shock).is_some() {
+            total_spawned_shocks += 1;
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_turbulence_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for 10 ticks
+    let mut total_separated = 0;
+    for _ in 0..10 {
+        let (_eval, separated) = engine.step_simulation(32768); // 0.5 confinement epsilon
+        total_separated += separated;
+    }
+
+    // Emit representative turbulence event
+    if engine.active_cells_count > 0 {
+        let report = TurbulenceEventReport {
+            pos_xyz: engine.cells[0].center_xyz,
+            vector_xyz: engine.cells[0].vorticity_xyz,
+            impulse_or_force_n: 250,
+            tke_or_pressure_ratio_q16: engine.cells[0].tke_q16,
+            mach_or_freq_q8: 3840,
+            bl_thickness_or_cell_id: engine.cells[0].cell_id as u16,
+            emitter_id: engine.cells[0].cell_id,
+            target_id: 0,
+            flags: engine.cells[0].flags,
+            event_kind: TURB_EVENT_KIND_VORTEX,
+        };
+        emit_turbulence_to_event_bus(&report, 100, &mut bus);
+    }
+
+    if engine.active_shocks_count > 0 {
+        let report = TurbulenceEventReport {
+            pos_xyz: engine.shocks[0].origin_xyz,
+            vector_xyz: engine.shocks[0].normal_xyz,
+            impulse_or_force_n: engine.shocks[0].peak_shock_impulse_n as i32,
+            tke_or_pressure_ratio_q16: engine.shocks[0].pressure_jump_ratio_q16,
+            mach_or_freq_q8: (engine.shocks[0].mach_q16 / 256) as u16,
+            bl_thickness_or_cell_id: engine.shocks[0].bl_thickness_mm,
+            emitter_id: engine.shocks[0].emitter_id,
+            target_id: 1,
+            flags: engine.shocks[0].flags,
+            event_kind: TURB_EVENT_KIND_SHOCK_BL,
+        };
+        emit_turbulence_to_event_bus(&report, 101, &mut bus);
+    }
+
+    let turb_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = turb_hash ^ (bus_hash.rotate_left(31));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                      // Capacity cells (16)
+            *out_stats.add(1) = engine.active_cells_count as u32;        // Active cells count
+            *out_stats.add(2) = engine.active_shocks_count as u32;       // Active shocks count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = engine.shocks[0].pressure_jump_ratio_q16;// P2/P1 Q16
+            *out_stats.add(7) = total_separated as u32;                  // Total SBLI separations
+        }
+    }
+
+    total_spawned_shocks as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7815,5 +7929,16 @@ mod tests {
         assert_eq!(aero_stats[2], 2, "2 airflow grid cells active");
         assert!(aero_stats[3] != 0 || aero_stats[4] != 0, "Aero consensus hash non-zero");
         assert_eq!(aero_stats[5], 4, "4 parallel dispatch jobs");
+
+        // 20. Atmospheric Turbulence & Shock Boundary Layer Separation (SBLI) Benchmark (8 cells, 2 shocks, 1.5 Mach)
+        let mut turb_stats = [0u32; 8];
+        let spawned_shocks = axiom_turbulence_bench_burst(8, 2, 510_000, turb_stats.as_mut_ptr());
+        assert_eq!(spawned_shocks, 2, "Turbulence benchmark must spawn 2 shocks");
+        assert_eq!(turb_stats[0], 16, "16 turbulence cell slabs capacity");
+        assert_eq!(turb_stats[1], 8, "8 turbulence cells active");
+        assert_eq!(turb_stats[2], 2, "2 shock boundaries active");
+        assert!(turb_stats[3] != 0 || turb_stats[4] != 0, "Turbulence consensus hash non-zero");
+        assert_eq!(turb_stats[5], 4, "4 parallel dispatch jobs");
+        assert!(turb_stats[6] >= 78643, "P2/P1 ratio must exceed SBLI detachment threshold (1.20 in Q16)");
     }
 }

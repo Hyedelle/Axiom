@@ -474,7 +474,7 @@ impl<const MAX_CELLS: usize, const MAX_SHOCKS: usize>
 
         for i in 0..self.active_shocks_count {
             if (self.shocks[i].flags & SHOCK_BL_ACTIVE) == 0 { continue; }
-            let local_speed = SPEED_OF_SOUND_MMS + (self.shocks[i].mach_q16.saturating_sub(65536) * 340 / 65536);
+            let local_speed = ((self.shocks[i].mach_q16 as u64 * SPEED_OF_SOUND_MMS as u64) / 65536) as u32;
             let (_p_ratio, buffet_n) = compute_shock_boundary_interaction(
                 &mut self.shocks[i],
                 local_speed,
