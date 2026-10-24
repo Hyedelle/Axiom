@@ -8,24 +8,32 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:14 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 메카 래그돌 다운/사체 분리 및 F3 HUD 결합 (T-204, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `step_ragdoll_pipeline` 래그돌 물리 파이프라인 결합, 싱글플레이 넉다운/KO 시 Position-Based Dynamics (PBD) 거리 제약 조건 완화 및 폐형식 Two-Bone IK 캔버스 도달 해석, 전신 완패(KO, hp == 0) 시 관절 파단 및 사체 분리(`sever_joint(2)`), 16-인 배틀로얄 `step_ragdoll_with_jobs` 워커 풀 분할 및 이벤트 버스 방출, F3 HUD 카드 `Ragdoll: {} Bones | {} Sev | 64B` 텔레메트리 출력 및 56x56 미니 레이더 사체 분리 오렌지 경고 인디케이터, 하단 `[RAG: {}B/{}S]` 상시 모니터링 연동, 26개 게임 단위/통합 테스트 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 09:21 KST
+- **감사 대상:** Axiom Engine v3.8.0 240대 절차적 모듈러 메카 래그돌 & IK 물리 공식 릴리즈 마일스톤 종합 감사 (T-205, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-133]~[D-136], `tools/package.ps1`)
+- **판정:** 🟢 **ALL CLEAR (v3.8.0 공식 승인) — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` 슬랩 설계 및 Position-Based Dynamics (PBD) 순수 정수 제약 조건 완화, 폐형식(Closed-form) $O(1)$ Two-Bone IK 해석적 해법기, 관절 파단 사체 분리(`sever_joint`), `dispatch_ragdoll_with_jobs` 워커 풀 분할 및 `emit_ragdoll_impacts_to_event_bus` (`EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241`), WASM 🦾 240 Mecha Ragdoll (64B Slabs) 대화형 모달 및 1.33 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_ragdoll_pipeline`, F3 HUD 카드 및 레이더 사체 분리 오렌지 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.8.0-unified-milestone.zip` (2.22 MB, SHA-256 검증 완료), 전체 워크스페이스 v3.8.0 판올림 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **챔피언십 링 래그돌 파이프라인 (`step_ragdoll_pipeline`)**:
-     - 싱글플레이 경기 중 파이터 다운/KO 시 `RagdollEngine<16, 16>` PBD -10mm/tick² 중력 및 링 지면 탄성 충돌 연산.
-     - Two-Bone IK를 통해 어깨-팔꿈치-손목 관절을 캔버스 바닥 방향으로 $O(1)$ 해석적 재배치.
-     - 풀 KO 시 관절 파단 및 사체 슬랩 절단(`sever_joint`) 분리 다이나믹스 수행.
-  2. **16-인 배틀로얄 멀티스레드 결합**:
-     - `is_16_peer_net_active` 모드에서 `net_director.step_ragdoll_with_jobs`를 호출하여 4-워커 무잠금 Chase-Lev 덱을 통해 16대 피어 넉다운 물리 병렬 연산 및 0 Desync 합의 달성.
-  3. **HUD 및 미니 레이더 텔레메트리 연동**:
-     - F3 진단 오버레이 카드 13행 `Ragdoll: {} Bones | {} Sev | 64B` 출력.
-     - 56x56 미니 레이더 우하단에 사체 분리 활성 시 주황색($0\text{xFFFB923C}$) 인디케이터 점등.
-     - 하단 컨트롤 바에 `[RAG: {}B/{}S]` 상시 표기.
+  1. **0-Float 64B L1 캐시 정렬 본/조인트 슬랩**:
+     - `RagdollBoneSlab64` (24B 좌표/선속도, 12B BAMS 방위각/각속도, 4B 역질량, 4B 반경/길이, 4B 식별자, 4B 마찰/반발 계수, 12B 패딩 = 정확히 64B 무패딩 슬랩)
+     - `RagdollJointSlab64` (4B 본/타입/절단, 10B 기준길이/각도한계/강성/감쇠/목표각, 4B 토크, 12B 주축, 4B 파단한계, 2B 플래그, 26B 패딩 = 정확히 64B 무패딩 슬랩)
+  2. **PBD 순수 정수 제약 완화 및 폐형식 Two-Bone IK**:
+     - 정수 mm 거리 편차 $C = d - L_0$ 역질량 가중치 변위 보정, $u16\text{::MAX}$ 강성 1.0 완전 강체 매핑.
+     - 코사인 법칙 및 Pole Vector 기하 투영을 통한 $O(1)$ 상수 시간 어깨-팔꿈치-손목 관절 위치 해석 및 사정거리 초과 시 최대 도달 거리($L_1 + L_2 - 2$) 클램핑.
+  3. **사체 분리 및 독립 비산**:
+     - 피니셔 및 관절 파단 시 `sever_joint`를 통해 관절을 즉시 절단하고 자식 본에 `RAGDOLL_BONE_FLAG_SEVERED` 설정 후 제약 루프에서 영구 분리 비산.
+  4. **잡 시스템 및 이벤트 버스 결합**:
+     - Chase-Lev 워커 풀 $N$-배치 분할 병렬 PBD 연산 및 `EVENT_RAGDOLL_IMPACT (0x0240)` / `EVENT_RAGDOLL_SEVER (0x0241)` 40B 인라인 POD 페이로드 방출.
+  5. **상용 배포 패키지 및 데스크톱 검증**:
+     - `dist/axiom-v3.8.0-unified-milestone.zip` (2.22 MB, SHA-256: `8D6E43AD0D3322CAB3F0F3E60EE92A940F2BCBD138694637646BCDB3B353B9CF`).
+     - 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 최신 릴리즈 바이너리(09:17:15) 타겟팅 검증 완료.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T204] Mimic The Show 챔피언십 링 메카 래그돌 다운/사체 분리 및 F3 HUD 결합
+- **일시:** 2026-10-24 09:14 KST
+- **판정:** 🟢 **ALL CLEAR (결합 승인)**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `step_ragdoll_pipeline` 래그돌 물리 파이프라인 결합, 싱글플레이 넉다운/KO 시 Position-Based Dynamics (PBD) 거리 제약 조건 완화 및 폐형식 Two-Bone IK 캔버스 도달 해석, 전신 완패(KO, hp == 0) 시 관절 파단 및 사체 분리(`sever_joint(2)`), 16-인 배틀로얄 `step_ragdoll_with_jobs` 워커 풀 분할 및 이벤트 버스 방출, F3 HUD 카드 `Ragdoll: {} Bones | {} Sev | 64B` 텔레메트리 출력 및 56x56 미니 레이더 사체 분리 오렌지 경고 인디케이터, 하단 `[RAG: {}B/{}S]` 상시 모니터링 연동, 26개 게임 단위/통합 테스트 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T203] Axiom Engine 240대 래그돌 & IK 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 09:05 KST

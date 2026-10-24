@@ -1392,6 +1392,66 @@ Axiom 230대 과제(T-194 ~ T-199)에서는 엔진의 핵심 헌법(0-Float in C
    - `web/index.html`에 **🥊 230 CCD Hitbox (64B Slabs)** 인터랙티브 모달을 탑재하여 1.31 MB 최적화 WASM 바이너리 상에서 실시간 벤치마크 및 비트 일치 결정론을 계측합니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_ccd_pipeline`을 탑재하여 싱글플레이 메카 복싱 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `CCD: {} Hits | TOI: {:.2} | 64B`, 56x56 미니 레이더 붉은색 타격 경고 인디케이터, 하단 `[CCD: {}H]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 40. Axiom 240대: 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 엔진 (v3.8.0)
+
+Axiom 240대 과제(T-200 ~ T-205)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 완벽히 수호하며, 파이터 다운/KO 시 유기적 메카 관절의 물리적 붕괴와 타격 목표를 향한 팔꿈치/손목의 해석적 도달을 보장하는 **절차적 모듈러 메카 관절 래그돌(Ragdoll)** 및 **폐형식(Closed-form) Two-Bone 역운동학(Inverse Kinematics, IK)** 피직스 엔진을 구축했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│       Axiom 240-Series Modular Mecha Ragdoll & Inverse Kinematics (IK)      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (RagdollBoneSlab64 & JointSlab64)]   │
+│    - RagdollBoneSlab64: Natural 64B Layout (24B coords/vel, 12B BAMS/ang)   │
+│    - RagdollJointSlab64: Natural 64B Layout (4B bones/type, 10B limits/stiff)│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Position-Based Dynamics (PBD) Pure Integer Constraint Solver]           │
+│    - C = d - L0 Distance Deviation with Inverse Mass Weighting (w1, w2)      │
+│    - Stiffness Factor Q16.16 (u16::MAX = 65536 Rigid 1.0 Guarantee)          │
+│    - Hinge Angle Limits & Ground Contact/Restitution Clamping               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [Closed-Form Two-Bone IK Analytical Solver ($O(1)$)]                     │
+│    - Law of Cosines Closed-Form Ray Segment Partitioning (a, h)             │
+│    - Pole Vector Orthogonal Projection: No Iterative CCD-IK/FABRIK Loops    │
+│    - Out-of-Bounds Clamping to Max Reach ($L1 + L2 - 2$)                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Structural Limb Severance & Rupture Dynamics]                           │
+│    - sever_joint: Instant Decapitation/Arm Rupture & Severed Subtree Drop    │
+│    - Seamless Detachment Preserving Linear/Angular Momentum                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [Job System Parallel Partitioning & Event Bus Impact Pipeline]           │
+│    - dispatch_ragdoll_with_jobs: N-Worker Parallel Bone Chunk Dispatch      │
+│    - emit_ragdoll_impacts_to_event_bus: EVENT_RAGDOLL_IMPACT / SEVER (0x240) │
+│    - 40-Byte Packed POD Payload: entity, bone, joint, severed, force, hit   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [Interactive WASM Studio & Native Desktop Game View Integration]         │
+│    - WASM Studio: 🦾 240 Mecha Ragdoll (64B Slabs) Interactive Modal (1.33MB)│
+│    - Mimic The Show: DesktopGameView step_ragdoll_pipeline (Single & 16-Net)│
+│    - F3 HUD Card: "Ragdoll: {} Bones | {} Sev | 64B" & Mini Radar Severance │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 40.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 본/조인트 슬랩 (`RagdollBoneSlab64`, `RagdollJointSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 L1 캐시 라인을 점유하며, 24바이트 정수 mm 좌표 및 속도 벡터, 12바이트 16-bit BAMS 방위각 및 각속도, 4바이트 고정소수점 역질량($Q16.16$), 4바이트 반경/길이, 4바이트 계층 식별자, 4바이트 마찰/반발 계수, 12바이트 예약 패딩으로 구성된 완전 무패딩 슬랩을 구현했습니다.
+   - `RagdollJointSlab64`는 부모/자식 본 인덱스, 관절 타입(`Hinge`, `BallSocket`), 기준 길이, 가동 범위 한계, 강성/감쇠 계수, 모터 목표 각도, 파단 한계 외력(`break_force_limit`)을 컴파일러 임의 패딩 없이 64바이트로 직렬화합니다.
+2. **Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 완화기 (`solve_distance_constraint`)**:
+   - 두 본 사이의 거리 편차 $C = d - L_0$를 역질량 가중치 $w_1 / (w_1 + w_2)$에 따라 순수 정수 mm 단위로 직접 보정합니다.
+   - 무한 질량(고정 앵커)이 존재하는 경우 앵커는 고정된 채 자유 본에만 100% 보정 변위를 전달하며, `u16::MAX` (65535) 강성을 1.0 ($65536$) 완전 강체로 매핑하여 $1\text{mm}$ 오차 없이 $L_0$를 즉시 복원합니다.
+3. **폐형식 Two-Bone IK 해석적 해법기 (`solve_two_bone_ik`)**:
+   - 코사인 법칙과 Pole Vector 기하 투영을 결합하여, 반복적 이분 탐색(FABRIK/CCD-IK) 없이 $O(1)$ 상수 시간에 어깨-팔꿈치-손목 3차원 위치를 해석적으로 도출합니다.
+   - 목표점이 사정거리를 초과할 경우 최대 도달 거리($L_1 + L_2 - 2$)로 안정적으로 클램핑하여 수치 발산을 원천 차단합니다.
+4. **사체 분리 및 파츠 절단 역학 (`sever_joint`)**:
+   - 피니셔 피격이나 파단 한계 외력 초과 시 `sever_joint`를 통해 관절을 즉시 절단하고 자식 본에 `RAGDOLL_BONE_FLAG_SEVERED` 플래그를 설정하여 제약 해석 루프에서 영구 제외함으로써, 절단된 팔이나 머리가 독립적인 자유 낙하 래그돌 서브트리로 비산합니다.
+5. **멀티스레드 잡 시스템 및 분산 이벤트 버스 결합**:
+   - `dispatch_ragdoll_with_jobs`를 통해 활성 본 슬랩을 4-워커 Chase-Lev 무잠금 덱에 N-배치 작업으로 분산하여 병렬 PBD 연산을 수행합니다.
+   - 관절 충격 및 절단 이벤트는 `EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241` 및 `channel::PHYSICS | channel::COMBAT` 채널로 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드로 방출됩니다.
+6. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **🦾 240 Mecha Ragdoll (64B Slabs)** 모달을 탑재하여 1.33 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_ragdoll_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Ragdoll: {} Bones | {} Sev | 64B`, 56x56 미니 레이더 사체 분리 오렌지 인디케이터, 하단 `[RAG: {}B/{}S]` 상시 모니터링을 완비했습니다.
+
+
 
 
 

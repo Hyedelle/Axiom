@@ -1602,6 +1602,50 @@
   3. 전체 워크스페이스 버전을 v3.6.0에서 **v3.7.0**으로 공식 판올림하고 `dist/axiom-v3.7.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.7.0` 발행.
 - **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-133] 0-Float 64B L1 캐시 정렬 절차적 메카 래그돌 본 및 조인트 슬랩 아키텍처 (T-200, T-201)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `RagdollBoneSlab64`: 정확히 64바이트 L1 캐시 라인 점유 (`size_of == 64, align_of == 64`). 24B 정수 mm 좌표/선속도, 12B 16-bit BAMS 방위각/각속도, 4B 역질량($Q16.16$), 4B 반경/길이, 4B 계층 식별자, 4B 마찰/반발 계수, 12B 예약 패딩으로 구성된 완전 무패딩 슬랩 설계 승인.
+  2. `RagdollJointSlab64`: 정확히 64바이트 L1 캐시 라인 점유 (`size_of == 64, align_of == 64`). 부모/자식 본 인덱스, 관절 타입(`Hinge`, `BallSocket`), 기준 길이, 가동 범위 한계, 강성/감쇠 계수, 모터 목표 각도, 파단 한계 외력(`break_force_limit`) 직렬화.
+  3. 부동소수점(`f32/f64`) 원천 배제, 순수 정수 mm 및 Q16.16 고정소수점 연산 보장.
+- **영향:** `crates/axiom-core/src/ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ragdoll.rs`.
+
+---
+
+### [D-134] Position-Based Dynamics (PBD) 순수 정수 제약 조건 해석기 및 폐형식 Two-Bone IK (T-201)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 완화기(`solve_distance_constraint`): 두 본 사이의 거리 편차 $C = d - L_0$를 역질량 가중치 $w_1 / (w_1 + w_2)$에 따라 순수 정수 mm 단위로 보정. 무한 질량 앵커 고정 보증 및 `u16::MAX` (65535) 강성을 1.0 ($65536$) 완전 강체로 매핑.
+  2. 폐형식(Closed-form) Two-Bone IK 해석적 해법기(`solve_two_bone_ik`): 코사인 법칙 및 Pole Vector 기하 투영을 통한 $O(1)$ 상수 시간 어깨-팔꿈치-손목 3차원 위치 해석. 사정거리 초과 시 최대 도달 거리($L_1 + L_2 - 2$) 클램핑.
+  3. 관절 파단 및 사체 분리(`sever_joint`): 관절 파단 시 `is_severed = 1` 및 `RAGDOLL_BONE_FLAG_SEVERED` 플래그 설정 후 제약 해석 루프에서 영구 제외, 독립 비산 서브트리 분리 다이나믹스 구현.
+- **영향:** `crates/axiom-core/src/ragdoll.rs`.
+
+---
+
+### [D-135] 잡 시스템 병렬 디스패치 및 40-바이트 인라인 POD 이벤트 버스 파이프라인 연계 (T-202)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `dispatch_ragdoll_with_jobs`: 활성 본 슬랩들을 N-배치 작업으로 분할하여 Chase-Lev 무잠금 SPMC 덱에 큐잉하고 워커 풀에서 병렬 PBD 적분 스케줄링.
+  2. `emit_ragdoll_impacts_to_event_bus`: 검출된 관절 충격 및 절단 이벤트를 `EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241` 및 `channel::PHYSICS | channel::COMBAT` 채널로 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드로 방출.
+  3. `NetworkMatchDirector` 내 `step_ragdoll` 및 `step_ragdoll_with_jobs`를 구축하여 16-인 배틀로얄 경기장 넉다운/KO 플레이어 절차적 래그돌 물리 및 파티클/사운드 이벤트 실시간 연계 일체화.
+- **영향:** `crates/axiom-core/src/ragdoll.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_ragdoll_game_pipeline.rs`.
+
+---
+
+### [D-136] WASM 래그돌 벤치마크, Mimic The Show 챔피언십 링 결합 및 공식 릴리즈 v3.8.0 (T-203, T-204, T-205)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_ragdoll_bench_pbd` 및 웹 3D 복셀 스튜디오 🦾 **240 Mecha Ragdoll (64B Slabs)** 대화형 모달 배포 (1.33 MB WASM).
+  2. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `step_ragdoll_pipeline` 탑재, 싱글플레이 파이터 넉다운 및 풀 KO 시 64B L1 본 슬랩 중력 낙하, Two-Bone IK 캔버스 도달 및 사체 분리 `sever_joint(2)`, 16-인 배틀로얄 `step_ragdoll_with_jobs` 워커 풀 분할 및 이벤트 버스 방출, F3 HUD 카드(`Ragdoll: {} Bones | {} Sev | 64B`), 56x56 미니 레이더 사체 분리 오렌지 인디케이터, 하단 `[RAG: {}B/{}S]` 연동.
+  3. 전체 워크스페이스 버전을 v3.7.0에서 **v3.8.0**으로 공식 판올림하고 `dist/axiom-v3.8.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.8.0` 발행.
+- **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
 
 
 
