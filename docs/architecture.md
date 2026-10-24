@@ -1827,6 +1827,74 @@ Axiom 300대 과제(T-236 ~ T-241)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - `web/index.html`에 **🧩 300 Soft Body (64B Slabs)** 모달을 탑재하여 1.41 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_soft_body_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `SoftBody: {} Clusters | {}% Def | 64B`, 56x56 미니 레이더 중앙-우측 보라색(#A855F7) 인디케이터, 하단 `[SFT: {}C/{}P]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 47. Axiom 310대: 절차적 모듈러 메카 공압/유압 액추에이터 및 인공근육 시뮬레이터 (v4.5.0)
+
+Axiom 310대 과제(T-242 ~ T-247)에서는 엔진의 핵심 헌법(0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열)을 엄격히 수호하며, 복싱 메카의 관절 구동력과 인공근육 섬유의 수축을 지배하는 **절차적 모듈러 메카 공압/유압 액추에이터(Pneumatic/Hydraulic Actuators) 및 인공근육(McKibben PAM) 동역학 엔진**을 구축했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 310-Series Mecha Pneumatic / Hydraulic Actuators & Muscles         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float SI Unit Equivalence: 1 kPa * 1 mm^2 = 1 mN Exact Math]          │
+│    - Pressure (kPa) * Piston Area (mm^2) = Force (mN)                       │
+│    - Mechanical Thrust Force in Newton: F(N) = F(mN) / 1000                 │
+│    - Pure Integer & Q16.16 Fixed-Point (0 Floats, 100% Deterministic)       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [0-Float 64B L1 Cache Aligned Slabs (ActuatorSlab64 & ChamberSlab64)]    │
+│    - ActuatorSlab64: 64B Slab (24B Anchors, 16B Pressures, 12B Lens/Areas)  │
+│    - HydraulicChamberSlab64: 64B Slab (16B Volumes, 20B Pressures/Modulus)  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [Non-linear Hydraulic Pressure Dynamics & Torricelli Orifice Flow]       │
+│    - Bulk Modulus Elastic Pressure Surge: dP = K_bulk * (-dV / V_0)         │
+│    - Non-linear Orifice Valve Flow: Q = Cd * Av * isqrt_i64(2*dP / rho)     │
+│    - Accumulator Pre-charge Cushioning & Overpressure Relief Valve Bleed    │
+│    - Extreme Catastrophic Burst Rupture Dynamics (P >= P_burst -> 0 kPa)    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [McKibben Pneumatic Artificial Muscle (PAM) Contraction Mechanics]       │
+│    - Biomimetic Unidirectional Tension (Contraction Only, Zero Compression) │
+│    - Slack Threshold (L > L_0 -> 0 Force, L <= L_0 -> Elastic Contraction)  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [0-Heap Fixed-Capacity Simulator & 64-Bit Consensus State Hash]          │
+│    - MechaActuatorEngine<MAX_ACT, MAX_CHAMBERS>: 0 Heap Alloc in Tick Loop  │
+│    - Bit-Exact 64-Bit FNV-1a Hash for 16-Peer Distributed Rollback Netcode  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_actuators_with_jobs: Chunked Batch via Chase-Lev Stealing     │
+│    - EVENT_ACTUATOR_PRESSURE (0x0311) & EVENT_ACTUATOR_BURST (0x0310)       │
+│    - 40-Byte Packed POD Payload: ActuatorEventReport                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 7. [WASM Studio Showcase & Mimic The Show Championship Ring Integration]    │
+│    - WebGL/WASM: ⚡ 310 Mecha Actuators (64B Slabs) Interactive Modal (1.42MB)│
+│    - Mimic The Show: step_actuator_pipeline with F3 HUD Card, Radar & Bar   │
+│    - F3 HUD Card: "Actuator: {} Acts | {} kN | 64B" (Cyan #06B6D4)          │
+│    - 56x56 Mini Radar: Top-Right Cyan Indicator & Bar [ACT: {}A/{}C]        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 47.1 핵심 구조 및 기술적 특성
+1. **0-Float SI 단위계 일치성 ($1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$)**:
+   - $1\text{ kPa} = 10^3\text{ N/m}^2 = 10^{-3}\text{ N/mm}^2 = 1\text{ mN/mm}^2$의 물리적 동치 관계를 확립하여, 압력(kPa)과 피스톤 단면적($\text{mm}^2$)의 정수 곱셈만으로 일체의 부동소수점 변환 오차 없이 정확한 밀리뉴턴(mN) 기계적 추력을 산출합니다.
+2. **0-Float 64-바이트 L1 캐시 라인 정렬 액추에이터 슬랩 (`ActuatorSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 캐시 라인을 점유하며, 24바이트 3D 앵커 좌표(A, B mm), 16바이트 압력 및 추력 서술자(작동 압력, 최대 추력, 파열 한계, 릴리프 한계), 12바이트 행정 및 피스톤 기하(최대 행정, 현재 길이, 목표 길이, 자연 길이, 단면적, 감쇠 계수), 6바이트 본 인덱스 및 타입/플래그, 6바이트 패딩으로 완벽한 메모리 정렬을 달성했습니다.
+3. **0-Float 64-바이트 L1 캐시 라인 정렬 유압 챔버 슬랩 (`HydraulicChamberSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트를 차지하며, 16바이트 작동 유체/가스 체적($\text{mm}^3$), 20바이트 압력 및 유체 물성(게이지 압력, 축압기 예압, 벌크 탄성 계수, 펌프 토출량, 릴리프 임계치), 6바이트 밸브/오리피스 제어 파라미터, 4바이트 식별자 및 플래그, 18바이트 패딩으로 직렬화됩니다.
+4. **비선형 유압 압력 다이나믹스 및 오리피스 유량 제어**:
+   - 비압축성 광물유의 1.5 GPa 벌크 탄성 계수($K_{bulk}$)에 기반한 체적 압축 압력 갱신 공식($\Delta P = K_{bulk} \cdot \frac{-\Delta V}{V_0}$)을 순수 정수 $Q16.16$ 연산으로 이산 적분합니다.
+   - 토리첼리-베르누이 오리피스 유량 방정식($Q = C_d A_v \sqrt{2 \Delta P / \rho}$)을 순수 정수 제곱근(`isqrt_i64`)으로 풀이하여 과압 릴리프 밸브 분출 및 축압기 완충 다이나믹스를 구현했습니다.
+5. **매키번 공압 인공근육(PAM) 단방향 인장 수축 역학**:
+   - 복동식 피스톤 실린더와 달리 매키번 PAM은 압축력을 지탱하지 못하고 오직 인장력만 발휘하는 생체 모사 단방향 수축 특성을 엄격히 모사합니다. 자연 길이 $L > L_0$ 상태에서는 힘이 0이며, $L \le L_0$ 영역에서 공압에 비례하는 수축력 곡선을 실시간 적분합니다.
+6. **0-Heap 고정 크기 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `MechaActuatorEngine<16, 4>`는 힙 할당을 일체 발생시키지 않으며, 모든 액추에이터 및 챔버 상태에 대해 64-bit FNV-1a 해시를 계산하여 16-인 P2P 롤백 넷코드 간 100% 무오차 결정론 상태 합의를 보증합니다.
+7. **멀티스레드 잡 시스템 및 분산 이벤트 버스 연계**:
+   - `dispatch_actuators_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기 풀에 액추에이터 청크를 병렬 분산합니다.
+   - 40-바이트 인라인 POD 이벤트 서술자 `ActuatorEventReport`를 통해 `EVENT_ACTUATOR_PRESSURE = 0x0311` 및 `EVENT_ACTUATOR_BURST = 0x0310` 이벤트를 `DeterministicEventBus`에 발행하여 GGPO 롤백 지원과 VFX/SFX 실시간 방출을 완비했습니다.
+8. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **⚡ 310 Mecha Actuators (64B Slabs)** 모달을 탑재하여 1.42 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_actuator_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Actuator: {} Acts | {} kN | 64B`, 56x56 미니 레이더 우측상단(내측) 청록색(#06B6D4) 인디케이터, 하단 `[ACT: {}A/{}C]` 상시 모니터링을 완비했습니다.
+
+
 
 
 

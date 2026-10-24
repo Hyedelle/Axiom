@@ -1893,6 +1893,49 @@
   3. 전체 워크스페이스 버전을 v4.3.0에서 **v4.4.0**으로 공식 판올림하고 `dist/axiom-v4.4.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.4.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-161] 0-Float 정수 단위계 일치성 ($1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$) 및 기계적 추력 계산 모델 (T-242, T-243)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. $1\text{ kPa} = 10^3\text{ N/m}^2 = 10^{-3}\text{ N/mm}^2 = 1\text{ mN/mm}^2$ 물리적 정수 동치 관계를 확립하여 부동소수점 없이 압력(kPa) * 단면적($\text{mm}^2$) 곱셈만으로 정확한 밀리뉴턴(mN) 기계적 추력 산출.
+  2. 뉴턴 출력은 $F(N) = F(mN) / 1000$으로 단순 정수 나눗셈 처리하여 결정론적 오차를 0으로 고정.
+- **영향:** `crates/axiom-core/src/actuator.rs`.
+
+---
+
+### [D-162] 비선형 유압 압력 다이나믹스, 벌크 탄성 계수 및 오리피스 정수 제곱근 유량 모델 (T-242, T-243)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 광물유 1.5 GPa 벌크 탄성 계수($K_{bulk}$) 기반 체적 압축 압력 갱신 공식($\Delta P = K_{bulk} \cdot \frac{-\Delta V}{V_0}$) 순수 정수 $Q16.16$ 적분.
+  2. 토리첼리-베르누이 오리피스 유량($Q = C_d A_v \sqrt{2 \Delta P / \rho}$)을 `isqrt_i64`로 풀이하여 과압 릴리프 밸브 분출 및 축압기 완충 다이나믹스 구현.
+  3. $P \ge P_{burst}$ 시 배관 파열 파단 및 압력 소실 메커니즘 확립.
+- **영향:** `crates/axiom-core/src/actuator.rs`.
+
+---
+
+### [D-163] 64B L1 정렬 ActuatorSlab64 / HydraulicChamberSlab64 및 멀티스레드 잡 시스템 연계 (T-243, T-244, T-245)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `ActuatorSlab64` (#[repr(C, align(64))], exact 64B) 및 `HydraulicChamberSlab64` (#[repr(C, align(64))], exact 64B) 설계.
+  2. 40-바이트 인라인 POD `ActuatorEventReport` 무손실 라운드트립 직렬화 및 `EVENT_ACTUATOR_PRESSURE = 0x0311`, `EVENT_ACTUATOR_BURST = 0x0310` 이벤트 버스 연계.
+  3. `dispatch_actuators_with_jobs`를 통해 Chase-Lev 워커 풀 분산 스케줄링 및 WASM C-ABI `axiom_actuator_bench_burst` 벤치마크 모달 탑재.
+- **영향:** `crates/axiom-core/src/actuator.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-wasm/src/lib.rs`.
+
+---
+
+### [D-164] Mimic The Show 챔피언십 링 실시간 메카 유압/공압 구동계 및 Axiom v4.5.0 공식 릴리즈 마일스톤 (T-246, T-247)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `mimic-the-show` `DesktopGameView`에 `MechaActuatorEngine<16, 4>` 및 `step_actuator_pipeline` 결합.
+  2. 싱글플레이 KO/넉다운 시 85 kN 외부 충격에 의한 유압 챔버 서지 및 액추에이터 동역학 해석, F3 HUD 카드(`Actuator: {} Acts | {} kN | 64B`), 56x56 미니 레이더 우측상단(내측) 청록색(#06B6D4) 인디케이터 점등, 하단 `[ACT: {}A/{}C]` 상시 모니터링 연동.
+  3. 전체 워크스페이스 버전을 v4.4.0에서 **v4.5.0**으로 공식 판올림하고 `dist/axiom-v4.5.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.5.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 
