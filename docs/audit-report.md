@@ -8,35 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 18:07 KST
-- **감사 대상:** Axiom 370대 포톤-포논 결정 음향광학 & 메타물질 클로킹 물리 연구 (T-278, `docs/audit-report.md`, `axiom-acousto-optics-and-metamaterial-cloaking-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 브릴루앙 산란(Brillouin Scattering) 음향-광학 파동 결합 역학 및 변환광학(Transformation Optics) 메타물질 클로킹 정밀 0-Float 수학 모델 수립 완료, 64B L1 캐시 정렬 `AcoustoOpticCellSlab64`, `CloakingFieldSlab64` (exact 64B POD 단언 통과), 40B POD `MetamaterialEventReport` 라운드트립 직렬화 설계, 0-힙 `MechaMetamaterialEngine<16, 8>`, 64-bit FNV-1a 상태 합의 체크섬, 4-워커 잡 디스패치 및 이벤트 버스 연계 설계 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-279 - Axiom 370대 64B L1 정렬 음향광학 셀 슬랩 및 브릴루앙 산란 솔버 구현)**:
-  1. `crates/axiom-core/src/metamaterial.rs` 신규 생성 및 프로덕션 구현:
-     - 64B L1 정렬 `AcoustoOpticCellSlab64`: `#[repr(C, align(64))]`, 정확히 64B (12B center, 4B sound_vel, 4B acoustic_freq, 4B strain, 4B delta_n, 4B bragg_angle, 4B diffraction_eff, 2B laser_wavelength, 1B flags, 1B entity_id, 24B reserved).
-     - 64B L1 정렬 `CloakingFieldSlab64`: `#[repr(C, align(64))]`, 정확히 64B (12B origin, 4B radius_inner, 4B radius_outer, 4B radial_permittivity, 4B angular_permittivity, 4B refractive_gradient, 2B cloak_efficiency, 1B emitter_id, 1B target_id, 1B flags, 27B reserved).
-     - 40B 인라인 POD 이벤트 서술자 `MetamaterialEventReport`: `pos_xyz: [i32; 3]`, `deflection_dir_xyz: [i32; 3]`, `bragg_angle_mrad: u32`, `diffraction_eff_or_grad_q16: u32`, `cloak_efficiency_pct: u16`, `laser_wavelength_nm: u16`, `emitter_id: u8`, `target_id: u8`, `flags: u8`, `event_kind: u8`. `encode` / `decode` 무손실 바이트 직렬화 지원.
-     - 0-Float 굴절률 섭동 솔버: $\Delta n_{\text{q16}} = ((((n_0^3 \cdot p) \gg 16) \cdot S) \gg 17)$.
-     - 0-Float AOD 브래그 편향 각도: $\theta_{B,\text{mrad}} = \frac{\lambda_{\text{nm}} \cdot f_{\text{kHz}}}{2 \cdot v_{s,\text{mms}}}$.
-     - 0-Float 회절 효율: $\eta_{\text{q16}} = \frac{\text{SINE\_LUT\_256}[\phi]^2}{16384}$.
-     - 변환광학 쉘 유전율: $\epsilon_{r,\text{q16}} = \frac{(r - R_1) \ll 16}{r}$, $\epsilon_{\theta,\text{q16}} = \frac{r \ll 16}{\max(1, r - R_1)}$.
-     - 0-힙 고정 크기 시뮬레이터: `MechaMetamaterialEngine<MAX_CELLS, MAX_FIELDS>` 및 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`.
-     - `compute_acousto_optic_deflection`: 광선 편향 벡터 계산.
-  2. `crates/axiom-core/src/lib.rs` 모듈 등록 및 re-export:
-     - `pub mod metamaterial;`
-     - `pub use metamaterial::{...};`
-  3. `crates/axiom-core/tests/test_metamaterial.rs` 단위 테스트 6종 작성:
-     - 슬랩 64B 정렬 및 크기 단언 테스트.
-     - 40B POD `MetamaterialEventReport` 라운드트립 직렬화 테스트.
-     - 브릴루앙 산란 및 굴절률 섭동 / 브래그 각도 계산 테스트.
-     - 변환광학 클로킹 쉘 유전율 및 광선 회피 테스트.
-     - 0-힙 엔진 FNV-1a 합의 체크섬 결정론 테스트.
-     - 불활성/경계 조건 안전성 테스트.
-  4. `tools/guard.ps1` 검증 통과 후 단일 커밋.
+- **일시:** 2026-10-24 18:10 KST
+- **감사 대상:** Axiom 370대 64B L1 정렬 음향광학 셀 슬랩 및 브릴루앙 산란 솔버 구현 (T-279, `crates/axiom-core/src/metamaterial.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_metamaterial.rs`)
+- **판정:** 🟢 **ALL CLEAR — `AcoustoOpticCellSlab64`, `CloakingFieldSlab64` 정확히 64B L1 캐시 라인 정렬 단언 통과, 40B POD `MetamaterialEventReport` 라운드트립 직렬화 통과, 브릴루앙 산란 및 AOD 브래그 편향각 계산, 변환광학 쉘 유전율 및 광선 회피 굴절 검증, 0-힙 `MechaMetamaterialEngine<16, 8>` 64-bit FNV-1a 상태 합의 체크섬 검증, 6개 단위 테스트 올패스 (0.01s), 0 경고**
+- **시공팀(Claude Code) 구현 처방전 (T-280 - Axiom 370대 메타물질 클로킹 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
+  1. `crates/axiom-core/src/metamaterial.rs` 내 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계:
+     - `metamaterial_batch_job(ctx: JobContext)` 및 `dispatch_metamaterial_with_jobs`: Chase-Lev 워크 스틸링 워커 풀 분할 병렬 처리.
+     - `emit_metamaterial_to_event_bus`: `EVENT_OPTICAL_CLOAK (0x0370)` 및 `EVENT_BRILLOUIN_SCATTER (0x0371)` 40B POD 무할당 발행 (`channel::PHYSICS | channel::VFX | channel::AUDIO`).
+  2. `crates/axiom-game/src/network.rs` `NetworkMatchDirector` 연계:
+     - `metamaterial_engine: Box<MechaMetamaterialEngine<16, 8>>` 필드 추가.
+     - `step_metamaterial(...)` 및 `step_metamaterial_with_jobs(...)` 시뮬레이션 파이프라인 메서드 추가.
+  3. 테스트 검증:
+     - `crates/axiom-core/tests/test_metamaterial_jobs.rs` (4개 잡 시스템 및 이벤트 버스 단위 테스트).
+     - `crates/axiom-game/tests/test_metamaterial_game_pipeline.rs` (2개 네트워크 매치 디렉터 게임 파이프라인 통합 테스트).
+  4. `tools/guard.ps1` 무결성 검증 통과 후 단일 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T279] Axiom 370대 64B L1 정렬 음향광학 셀 슬랩 및 브릴루앙 산란 솔버 구현
+- **일시:** 2026-10-24 18:10 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** `AcoustoOpticCellSlab64`, `CloakingFieldSlab64` 64B 캐시 정렬 상주, 브릴루앙 산란/브래그 편향/변환광학 쉘 유전율 솔버, 40B POD 무손실 직렬화, 6개 단위 테스트 올패스 (0.01s), 0 경고.
 
 ### [AUDIT-20261024-T278] Axiom 370대 포톤-포논 결정 음향광학(Acousto-Optics) & 메타물질 클로킹 물리 연구
 - **일시:** 2026-10-24 18:07 KST
