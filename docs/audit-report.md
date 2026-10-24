@@ -8,23 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:44 KST
-- **감사 대상:** Axiom Engine 250대 지형 변형 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-209, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_terrain_bench_crater` 무결성 검증, 33x33 격자(1,089 버텍스 슬랩) 64B L1 캐시 정렬 상주 검증, Melosh 체적 보존 다중 크레이터 스탬핑 및 $O(1)$ 해석적 표면 법선 도함수 $Q16.16$ 갱신 확인, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_TERRAIN_CRATER (0x0250)` 이벤트 버스 40B 인라인 POD 페이로드 방출 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 ⛰️ **250 Deformable Terrain (64B Slabs)** 대화형 모달 연동, 1.34 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 09:51 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 지형 크레이터 파쇄 및 F3 HUD 결합 (T-210, `C:\Dreamhub\Game\mimic-the-show\src\view.rs`, `C:\Dreamhub\Game\mimic-the-show\tests\test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `DeformableMeshGrid<33, 1089, 32>` (1,089개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_terrain_pipeline` 실시간 지형 파쇄 파이프라인 결합, 싱글플레이 파이터 넉다운 및 KO 시 65 kJ 운동에너지 기반 Melosh 체적 보존 충격 크레이터 자동 생성(`CraterSlab64::from_kinetic_impact`) 및 링 바닥 버텍스 굴착/융기 테셀레이션 검증, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Terrain: {} Craters | -{}mm | 64B` 텔레메트리 출력 및 56x56 미니 레이더 좌하단 보라색 인디케이터 점등, 하단 컨트롤 바 `[TER: {}C]` 상시 모니터링 연동, 27개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **C-ABI 벤치마크 엔드포인트 (`axiom_terrain_bench_crater`)**:
-     - 33x33 그리드(1,089 버텍스)에 대해 85 kJ 충격 에너지 크레이터를 인가하고, 워커 풀 분할 및 이벤트 버스 기록 후 8-요소 텔레메트리 통계(`out_stats`) 정확 도출.
-     - 64-bit FNV-1a 복합 합의 체크섬(지형 상태 ^ 이벤트 버스)을 통해 웹 환경에서의 $100\%$ 결정론 보증.
-  2. **WASM 바이너리 및 웹 쇼케이스 동기화**:
-     - `target/wasm32-unknown-unknown/release/axiom_wasm.wasm` (1,336,703 Bytes) 빌드 및 `web/`, `crates/axiom-wasm/` 배포.
-     - ⛰️ **250 Deformable Terrain (64B Slabs)** 대화형 모달을 통해 버텍스 수, 크레이터 파쇄 깊이, 융기 림 립, 잡 분할 및 이벤트 버스 방출 통계 표시.
+  1. **실시간 지형 크레이터 파이프라인 (`step_terrain_pipeline`)**:
+     - 플레이어/상대 메카 KO 시 1회 체적 보존 테셀레이션 스탬프 인가(`apply_crater_displacement`), 프레임 렌더링 루프 중복 스탬프 원천 방어.
+     - 40B 인라인 POD 페이로드(`center_xyz`, `depth`, `rim_height`, `energy`, `source_id`, `flags`) 기반 국소 이벤트 버스 방출.
+  2. **F3 HUD 및 미니 레이더 시각화**:
+     - F3 오버레이 카드 내 보라색(`0xFFA855F7`) 지형 텔레메트리 라인 표출.
+     - 56x56 미니 레이더 좌측 하단 보라색 인디케이터 점등.
+     - 하단 컨트롤 스트립 `[TER: {}C]` 상시 모니터링 연동.
   3. **헌법 및 테스트 통과**:
-     - `test_wasm_net_and_gpu_compute_bindings` 테스트 #12 통과 및 전체 23개 WASM 테스트 통과.
-     - `tools/guard.ps1` 무결성 검증 100% 통과.
+     - `mimic-the-show` 전역 27개 단위/통합 테스트 100% 통과.
+     - 엔진 코어 `tools/guard.ps1` 무결성 검증 100% 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T209] Axiom Engine 250대 지형 변형 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 09:44 KST
+- **판정:** 🟢 **ALL CLEAR (쇼케이스 승인)**
+- **검증:** 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_terrain_bench_crater` 무결성 검증, 33x33 격자(1,089 버텍스 슬랩) 64B L1 캐시 정렬 상주 검증, Melosh 체적 보존 다중 크레이터 스탬핑 및 $O(1)$ 해석적 표면 법선 도함수 $Q16.16$ 갱신 확인, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_TERRAIN_CRATER (0x0250)` 이벤트 버스 40B 인라인 POD 페이로드 방출 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 ⛰️ **250 Deformable Terrain (64B Slabs)** 대화형 모달 연동, 1.34 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T208] Axiom Engine 250대 지형 변형 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 09:38 KST
