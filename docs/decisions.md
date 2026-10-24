@@ -2108,6 +2108,50 @@
   3. 전체 워크스페이스 버전을 v4.8.0에서 **v4.9.0**으로 공식 판올림하고 `dist/axiom-v4.9.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.9.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-181] 0-Float 마이스너 완전 반자성 자기 반발력 (F_rep = B^2 * A / 2513) 정수 솔버 (T-272, T-273)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 마이스너-옥센펠트 효과에 따른 내부 자장 축출 및 표면 차폐 스크리닝 전류 자장 압력 $P_B = \frac{B^2}{2\mu_0}$를 순수 정수 제수 $2513$을 적용하여 $F_{\text{rep,mN}} = \frac{B_{\text{mT}}^2 \cdot A_{\text{mm}^2}}{2513}$로 정밀 해석.
+  2. 부동소수점(`f32/f64`) 0개 사용 헌법을 완벽히 수호하며 마이스너 반자성 반발력을 계산.
+- **영향:** `crates/axiom-core/src/superconductor.rs`.
+
+---
+
+### [D-182] 아브리코소프 자속선(Fluxoid) 3차원 플럭스 피닝 복원력 및 퀜치 전이 동역학 (T-272, T-273)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 제2종 초전도체 혼합 상태에서 결정 결함에 고정된 자속선 트랩 기하학에 기반하여, 3차원 변위 및 속도 감쇠를 포함하는 스프링-댐퍼 복원력 $\mathbf{F}_{pin} = -k_{pin} \Delta \mathbf{x} - c_{pin} \mathbf{v}$를 Q16.16 고정소수점 연산으로 계산.
+  2. Earnshaw 정리를 극복하여 상하 부상 고정 및 횡방향 슬립 방지, 6자유도 자세 틸트 복원력 동시 달성.
+  3. $T \ge T_c$ 또는 $B \ge B_{c2}$ 한계 도달 시 즉시 `SC_FLAG_QUENCHED` 전이 및 복원력 제로화, `EVENT_SUPERCONDUCT_QUENCH`를 통한 퀜치 전압 스파이크 방출 모델 수립.
+- **영향:** `crates/axiom-core/src/superconductor.rs`.
+
+---
+
+### [D-183] 64B L1 정렬 SuperconductorSlab64 & FluxPinningSlab64 및 40B POD SuperconductorEventReport (T-273, T-274)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 구조체 `SuperconductorSlab64` 및 `FluxPinningSlab64`로 정확히 64바이트 L1 캐시 라인 상주 보증.
+  2. 40B 인라인 POD `SuperconductorEventReport`를 통해 `EVENT_FLUX_PINNING = 0x0360` 및 `EVENT_SUPERCONDUCT_QUENCH = 0x0361`을 `PHYSICS | VFX | AUDIO` 채널로 방출.
+  3. 0-힙 `MechaSuperconductorEngine<MAX_CELLS, MAX_PINS>` 및 64-bit FNV-1a 상태 합의 체크섬 구현.
+  4. `dispatch_superconductor_with_jobs` 및 `NetworkMatchDirector` 연계.
+- **영향:** `crates/axiom-core/src/superconductor.rs`, `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-184] Mimic The Show 챔피언십 링 실시간 초전도 부상 결합 및 Axiom v4.10.0 공식 릴리즈 마일스톤 (T-275, T-276, T-277)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `web/index.html` 및 `crates/axiom-wasm/index.html`에 **🧲 360 Superconductivity & Quantum Levitation (64B Slabs)** 대화형 모달 및 1.49 MB WASM 바이너리 배포.
+  2. `mimic-the-show` `DesktopGameView`에 `MechaSuperconductorEngine<16, 4>` 및 `step_superconductor_pipeline` 결합 (파이터 KO/넉다운 시 50 kN 플럭스 피닝 고정력 및 퀜치 전이 해석, F3 HUD 카드 청록색(#22D3EE) 출력, 미니 레이더 및 하단 `[SC: {}C/{}P]`).
+  3. 전체 워크스페이스 버전을 v4.9.0에서 **v4.10.0**으로 공식 판올림하고 `dist/axiom-v4.10.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.10.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 
