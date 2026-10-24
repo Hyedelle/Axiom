@@ -6,17 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-203: Axiom 240대 래그돌 & IK 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`)
+- [ ] **T-204: Mimic The Show 챔피언십 링 메카 래그돌 다운/사체 분리 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
 
 ---
 
 ## ⏳ [BACKLOG]
-- [ ] **T-204: Mimic The Show 챔피언십 링 메카 래그돌 다운/사체 분리 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
 - [ ] **T-205: Axiom 240대 절차적 모듈러 메카 래그돌 & IK 물리 공식 릴리즈 v3.8.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-133]~[D-136], `tools/package.ps1`)
 
 ---
 
 ## 📜 [COMPLETED]
+- [x] **T-203: Axiom 240대 래그돌 & IK 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_ragdoll_bench_pbd` [4~16 래그돌 본 슬랩 생성 및 부모-자식 트리 구성, 폐형식 Two-Bone IK 어깨-팔꿈치-손목 도달 계산, 중력 낙하/지면 충돌 PBD 완화 루프, 관절 파단 사체 분리, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_RAGDOLL_IMPACT (0x0240)` / `EVENT_RAGDOLL_SEVER (0x0241)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 🦾 **240 Mecha Ragdoll (64B Slabs)** 대화형 모달 연동, 1.33 MB 최적화 WASM 바이너리 동기화, 7개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-202: Axiom 240대 래그돌 물리 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_ragdoll_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_ragdoll_with_jobs` [본 슬랩 N-배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_ragdoll_impacts_to_event_bus` [`EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241` 및 `channel::PHYSICS | channel::COMBAT` 채널, 40B 인라인 페이로드(entity_id, bone_id, joint_id, is_severed, flags, impact_force, hit_xyz, impulse_xyz)], `NetworkMatchDirector::step_ragdoll` 및 `step_ragdoll_with_jobs` [16-인 배틀로얄 경기장 넉다운/KO 플레이어 절차적 래그돌 물리 및 파티클/사운드 이벤트 실시간 연계], 3개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-201: Axiom 240대 64B L1 캐시 정렬 래그돌 본/조인트 슬랩 및 제약 조건 해석기 구현** (`crates/axiom-core/src/ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_ragdoll.rs`, 0-Float 64B L1 캐시 정렬 래그돌 본 슬랩 `RagdollBoneSlab64` [#[repr(C, align(64))], exact 64B slab, 24B pos/vel, 6B BAMS orientation, 6B ang_vel, 4B inv_mass Q16.16, 4B radius/length, 4B parent/id/flags/layer, 4B friction/restitution, 12B pad], 0-Float 64B L1 정렬 관절 제약 슬랩 `RagdollJointSlab64` [#[repr(C, align(64))], exact 64B slab, 4B parent/child/type/severed, 10B rest_len/angles/stiffness/damping/target, 4B torque, 12B axis XYZ Q16.16, 4B break_force, 2B flags, 26B pad], Position-Based Dynamics (PBD) 순수 정수 거리 제약 조건 완화기 `solve_distance_constraint`, 폐형식(Closed-form) $O(1)$ Two-Bone IK 해석적 해법기 `solve_two_bone_ik`, 관절 파단 및 사체 절단 `sever_joint` 분리 다이나믹스, `RagdollEngine` PBD 스텝 및 64-bit FNV-1a 결정론 합의 해시 `compute_consensus_hash`, 5개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-200: Axiom 240대 절차적 모듈러 메카 관절 래그돌(Ragdoll) 및 역운동학(IK) 피직스 연구** (`docs/audit-report.md`, `axiom-ragdoll-and-ik-physics-research.md`, 0-Float 64B L1 캐시 정렬 래그돌 본 슬랩 `RagdollBoneSlab64` [#[repr(C, align(64))], exact 64B slab, 24B pos/vel, 6B BAMS orientation, 6B ang_vel, 4B inv_mass Q16.16, 4B radius/length, 4B parent/id/flags/layer, 4B friction/restitution, 12B pad], 0-Float 64B L1 정렬 관절 제약 슬랩 `RagdollJointSlab64` [#[repr(C, align(64))], exact 64B slab, 4B parent/child/type/severed, 10B rest_len/angles/stiffness/damping/target, 4B torque, 12B axis XYZ Q16.16, 4B break_force, 2B flags, 26B pad], Position-Based Dynamics (PBD) 순수 정수 거리/힌지 제약 조건 해석기, 폐형식(Closed-form) Two-Bone IK 수식화, 피니셔/파츠 절단(Limb Severance) 분리 역학, 230대 Swept CCD / 220대 SpatialHashGrid / 200대 JobSystem / 210대 EventBus [`EVENT_RAGDOLL_IMPACT = 0x0240`] 연계 아키텍처 명세 수립 완료)

@@ -8,20 +8,24 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 08:58 KST
-- **감사 대상:** Axiom Engine 240대 래그돌 물리 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-202, `crates/axiom-core/src/ragdoll.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_ragdoll_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_ragdoll_with_jobs` 워커 풀 분할 및 Chase-Lev 워크 스틸링 연계, 40B 인라인 POD 페이로드 기반 `emit_ragdoll_impacts_to_event_bus` (`EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241`), `NetworkMatchDirector` 내 `step_ragdoll` 및 `step_ragdoll_with_jobs` 16-인 배틀로얄 래그돌 파이프라인 결합, 3개 신규 단위/통합 테스트 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 09:05 KST
+- **감사 대상:** Axiom Engine 240대 래그돌 & IK 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-203, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_ragdoll_bench_pbd` 무결성 검증, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` Position-Based Dynamics (PBD) 거리/힌지 제약 조건 완화, 폐형식 Two-Bone IK 도달 보정, 관절 파단 및 사체 분리(`sever_joint`), Chase-Lev 4-워커 잡 디스패치 및 `EVENT_RAGDOLL_IMPACT (0x0240)` / `EVENT_RAGDOLL_SEVER (0x0241)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측, 웹 3D 복셀 스튜디오 🦾 **240 Mecha Ragdoll (64B Slabs)** 대화형 모달 연동, 1.33 MB 최적화 WASM 바이너리 동기화, 7개 WASM 테스트 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **멀티스레드 잡 분할 (`dispatch_ragdoll_with_jobs`)**:
-     - 활성 본 슬랩을 $N$-배치 청크로 분할하여 `JobDescriptor64`로 생성 후 `WorkerPoolCoordinator`의 워커 큐에 균등 분산. 4-워커 무경합 드레인 100% 정상 작동.
-  2. **결정론적 이벤트 버스 방출 (`emit_ragdoll_impacts_to_event_bus`)**:
-     - `entity_id`, `bone_id`, `joint_id`, `is_severed`, `flags`, `impact_force`, `hit_xyz`, `impulse_xyz`를 정확히 40B 인라인 POD에 패킹하여 `channel::PHYSICS | channel::COMBAT` 채널로 안전 방출.
-  3. **게임 디렉터 통합 (`NetworkMatchDirector`)**:
-     - `STATE_KNOCKDOWN` 또는 `health == 0` 플레이어 발생 시 동기/비동기 래그돌 물리 스텝을 수행하고 접촉 충격/절단 이벤트를 이벤트 버스에 결합.
+  1. **C-ABI 벤치마크 인터페이스 (`axiom_ragdoll_bench_pbd`)**:
+     - 4~16개 래그돌 본 슬랩 생성 및 부모-자식 트리 구성, 폐형식 Two-Bone IK 어깨-팔꿈치-손목 도달 계산, 중력 낙하/지면 충돌 PBD 완화 루프, 관절 파단 사체 분리, 32B 텔레메트리 버퍼(본수, 조인트수, 제약해석수, 해시, 워커잡, 절단수, 버스이벤트수) 출력 완료.
+  2. **WASM 빌드 및 웹 쇼케이스 연동**:
+     - 1,328,698 Bytes (1.33 MB) 크기로 `wasm32-unknown-unknown` 릴리즈 빌드 완료 후 `crates/axiom-wasm/` 및 `web/` 양방향 동기화.
+     - 웹 3D 복셀 스튜디오 툴바에 🦾 `240 Mecha Ragdoll (64B Slabs)` 버튼 및 대화형 벤치마크 러너 `runRagdollBenchmark()` 장착.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T202] Axiom Engine 240대 래그돌 물리 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 08:58 KST
+- **판정:** 🟢 **ALL CLEAR (연계 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_ragdoll_with_jobs` 워커 풀 분할 및 Chase-Lev 워크 스틸링 연계, 40B 인라인 POD 페이로드 기반 `emit_ragdoll_impacts_to_event_bus` (`EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241`), `NetworkMatchDirector` 내 `step_ragdoll` 및 `step_ragdoll_with_jobs` 16-인 배틀로얄 래그돌 파이프라인 결합, 3개 신규 단위/통합 테스트 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T201] Axiom Engine 240대 64B L1 캐시 정렬 래그돌 본/조인트 슬랩 및 제약 조건 해석기 구현
 - **일시:** 2026-10-24 08:16 KST

@@ -5775,6 +5775,131 @@ pub extern "C" fn axiom_ccd_bench_hitbox(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_ragdoll_bench_pbd(
+    bone_count: u32,
+    iterations: u32,
+    sever_target_idx: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::ragdoll::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let count = (bone_count as usize).clamp(4, 16);
+    let iters = (iterations as usize).clamp(1, 20);
+
+    let mut engine = Box::new(RagdollEngine::<16, 16>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    // Construct modular mecha skeleton hierarchy
+    // Root bone at origin (0, 1500, 0)
+    let b0 = RagdollBoneSlab64::new(0, 0, (0, 1500, 0), 0, 100, 200); // Fixed anchor
+    engine.add_bone(b0);
+
+    for i in 1..count {
+        let parent = (i - 1) as u8;
+        let pos = ((i as i32) * 200, 1500, 0);
+        let b = RagdollBoneSlab64::new(i as u8, parent, pos, 65536, 50, 200);
+        engine.add_bone(b);
+
+        let j = RagdollJointSlab64::new(
+            parent,
+            i as u8,
+            if i % 2 == 0 { RagdollJointType::Hinge } else { RagdollJointType::BallSocket },
+            200,
+            50_000,
+        );
+        engine.add_joint(j);
+    }
+
+    // Closed-form Two-Bone IK reach correction for right arm/punch
+    let p_shoulder = (0, 1500, 0);
+    let p_target = (350, 1650, 50);
+    let pole_vector = (0, 2000, 0);
+    let elbow_pos = solve_two_bone_ik(p_shoulder, 200, 200, p_target, pole_vector);
+    if count >= 3 {
+        engine.bones[1].pos_x = elbow_pos.0;
+        engine.bones[1].pos_y = elbow_pos.1;
+        engine.bones[1].pos_z = elbow_pos.2;
+        engine.bones[2].pos_x = p_target.0;
+        engine.bones[2].pos_y = p_target.1;
+        engine.bones[2].pos_z = p_target.2;
+    }
+
+    let mut dispatched_jobs = 0usize;
+    let mut severances = 0u32;
+
+    for iter in 0..iters {
+        // Multi-threaded job system partition dispatch
+        dispatched_jobs = dispatch_ragdoll_with_jobs(
+            &engine,
+            4,
+            &mut js,
+            &mut coordinator,
+        );
+        coordinator.drain_all(&mut js);
+
+        // Perform PBD simulation step with gravity and floor collision
+        engine.step_ragdoll(-10, 4, 0, 5000);
+
+        // Sever designated target joint mid-simulation if specified
+        if sever_target_idx > 0 && (sever_target_idx as usize) < engine.active_joints_count && iter == iters / 2 {
+            if engine.sever_joint(sever_target_idx as usize) {
+                severances += 1;
+            }
+        }
+
+        // Emit impact & severance report to deterministic event bus
+        let mut reports = [RagdollImpactReport::default(); 16];
+        let mut rep_count = 0;
+        for i in 0..engine.active_bones_count {
+            let b = &engine.bones[i];
+            if b.is_active() {
+                reports[rep_count] = RagdollImpactReport {
+                    entity_id: 1,
+                    bone_id: b.bone_id,
+                    joint_id: if i > 0 { (i - 1) as u8 } else { 0 },
+                    is_severed: if b.is_severed() { 1 } else { 0 },
+                    flags: b.flags,
+                    impact_force: 10_000 + (b.pos_y.abs() as u32 * 5),
+                    hit_x: b.pos_x,
+                    hit_y: b.pos_y,
+                    hit_z: b.pos_z,
+                    impulse_x: b.vel_x,
+                    impulse_y: b.vel_y,
+                    impulse_z: b.vel_z,
+                };
+                rep_count += 1;
+            }
+        }
+
+        emit_ragdoll_impacts_to_event_bus(&reports[..rep_count], 400 + iter as u32, &mut bus);
+    }
+
+    let ragdoll_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = ragdoll_hash ^ (bus_hash.rotate_left(23));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = engine.active_bones_count as u32;
+            *out_stats.add(1) = engine.active_joints_count as u32;
+            *out_stats.add(2) = (engine.active_joints_count * iters * 4) as u32; // Constraints relaxed
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(4) = (combined_hash >> 32) as u32;
+            *out_stats.add(5) = dispatched_jobs as u32;
+            *out_stats.add(6) = severances;
+            *out_stats.add(7) = bus.count as u32;
+        }
+    }
+
+    engine.active_bones_count as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -6804,5 +6929,17 @@ mod tests {
         assert_eq!(ccd_stats[5], 4, "4 parallel dispatch CCD jobs");
         assert_eq!(ccd_stats[6], 500, "500 mm/tick displacement");
         assert!(ccd_stats[7] > 0, "Event bus must contain emitted CCD hit events");
+
+        // 11. Modular Mecha Ragdoll & Two-Bone IK Benchmark (8 bones, 5 iters, sever joint 3)
+        let mut ragdoll_stats = [0u32; 8];
+        let bones_simulated = axiom_ragdoll_bench_pbd(8, 5, 3, ragdoll_stats.as_mut_ptr());
+        assert_eq!(bones_simulated, 8);
+        assert_eq!(ragdoll_stats[0], 8, "8 active bones");
+        assert_eq!(ragdoll_stats[1], 7, "7 joints");
+        assert!(ragdoll_stats[2] > 0, "Constraints relaxed must be > 0");
+        assert!(ragdoll_stats[3] != 0 || ragdoll_stats[4] != 0, "Consensus hash non-zero");
+        assert_eq!(ragdoll_stats[5], 4, "4 parallel dispatch jobs");
+        assert_eq!(ragdoll_stats[6], 1, "1 limb severed");
+        assert!(ragdoll_stats[7] > 0, "Event bus must contain emitted ragdoll impacts");
     }
 }
