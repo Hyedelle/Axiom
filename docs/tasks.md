@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-234: Mimic The Show 챔피언십 링 실시간 XPBD 메카 파단/소성 변형 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-235: Axiom 290대 XPBD 메카 래그돌 제약 & 탄성 변형 한계 공식 릴리즈 v4.3.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-236: Axiom 300대 고정소수점 3D 셰이프 매칭 연성체(Shape Matching Deformable Soft Bodies) 및 가역 체적 보존 물리학 연구** (`crates/axiom-core/src/soft_body.rs`, `docs/audit-report.md`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-234: Mimic The Show 챔피언십 링 실시간 XPBD 메카 파단/소성 변형 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `XpbdRagdollEngine<16, 16>` [8개 본 + 7개 제약 64B L1 캐시 슬랩] 및 `step_xpbd_pipeline` 결합 [싱글플레이 파이터 넉다운/KO 시 100 kJ 충격 기반 관절 파단 및 소성 변형 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `XPBD: {} Bones | Strain: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙좌측 마젠타(#EC4899) 인디케이터 점등, 하단 컨트롤 바 `[XPBD: {}B/{}S]` 상시 모니터링 연동, 31개 게임 단위/통합 테스트 100% 통과)
 - [x] **T-233: Axiom 290대 XPBD 래그돌 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_xpbd_bench_burst` [2~16 본 슬랩 생성 및 64B L1 캐시 정렬 상주, XPBD 컴플라이언스 이산 적분, 소성 변형 및 관절 파단 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_XPBD_STRAIN (0x0290)` / `EVENT_XPBD_TEAR (0x0291)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 🦾 **290 XPBD Ragdoll (64B Slabs)** 대화형 모달 연동, 1.39 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-232: Axiom 290대 XPBD 메카 래그돌 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_xpbd_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_xpbd_with_jobs` [본 슬랩 N-배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_xpbd_to_event_bus` [`EVENT_XPBD_STRAIN = 0x0290` (소성 변형) 및 `EVENT_XPBD_TEAR = 0x0291` (관절 파단), `channel::PHYSICS | channel::COMBAT` 채널, 40B 인라인 POD 페이로드 `XpbdEventReport`(entity_id, bone_a, bone_b, constraint_id, is_severed, strain_q16, tension_force_n, rupture_pos_xyz, impulse_xyz)], `XpbdEventReport::decode` 무손실 라운드트립 디코더 및 GGPO 롤백 `rollback_to` 지원, `NetworkMatchDirector::step_xpbd` 및 `step_xpbd_with_jobs` [16-인 배틀로얄 경기장 넉다운/KO 시 XPBD 메카 래그돌 제약 해석 및 소성 변형/파단 이벤트 실시간 방출 결합], 4개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-231: Axiom 290대 64B L1 정렬 XPBD 제약 슬랩 및 순수 정수 컴플라이언스 해석기 구현** (`crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll.rs`, 0-Float 64B L1 캐시 정렬 XPBD 본 슬랩 `XpbdBoneSlab64` [#[repr(C, align(64))], exact 64B slab, 12B pos mm, 12B vel mm/s, 6B yaw/pitch/roll BAMS, 6B ang_vel, 4B inv_mass Q16.16, 2B radius, 2B length, 1B parent, 1B bone_id, 1B flags, 1B collision_group, 2B friction Q16, 2B restitution Q16, 12B pad], 0-Float 64B L1 정렬 XPBD 제약 슬랩 `XpbdConstraintSlab64` [#[repr(C, align(64))], exact 64B slab, 1B body_a, 1B body_b, 1B type, 1B flags, 2B rest_len, 2B orig_len, 4B compliance Q16, 4B lambda_acc Q16, 4B yield_strain Q16, 4B break_strain Q16, 4B current_strain Q16, 2B plastic_rate Q16, 2B min_ang, 2B max_ang, 2B damping, 6B axis Q1.15, 2B fatigue_ticks, 2B max_fatigue_ticks, 18B pad], 40-Byte 인라인 POD 이벤트 서술자 `XpbdEventReport` 무손실 라운드트립 직렬화, Extended Position-Based Dynamics (XPBD) 순수 정수 거리 제약 완화기 `solve_xpbd_distance` [시간 종속 컴플라이언스 $\tilde{\alpha} = \alpha / \Delta t^2$ 및 라그랑주 승수 $\Delta \lambda$ 적분, $\epsilon \le \epsilon_{yield}$ 완전 탄성 복원, $\epsilon_{yield} < \epsilon < \epsilon_{break}$ 영구 소성 변형(Plastic Set, $L_0$ 영구 이동), $\epsilon \ge \epsilon_{break}$ 인장 파괴 한계 관절 파단(`sever_joint`) 분리 다이나믹스], 0-Heap 고정 크기 시뮬레이터 `XpbdRagdollEngine<16, 16>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 6개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 통과)

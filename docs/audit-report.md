@@ -8,19 +8,23 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 12:43 KST
-- **감사 대상:** Axiom 290대 XPBD 래그돌 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-233, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_xpbd_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 메모리 상주 검증, XPBD 순수 정수 컴플라이언스 해석기 및 소성 변형/관절 파단 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_XPBD_STRAIN (0x0290)` / `EVENT_XPBD_TEAR (0x0291)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 🦾 290 XPBD Ragdoll (64B Slabs) 대화형 모달 연동, 1.39 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-234)**:
-  1. `mimic-the-show/src/view.rs` 내 `DesktopGameView` 구조체에 `xpbd_engine: Box<XpbdRagdollEngine<16, 16>>` 상주 필드 추가.
-  2. `step_xpbd_pipeline(&mut self) -> (usize, usize)` 구현: 싱글플레이 파이터 넉다운/KO 시 외부 충격 에너지(100 kJ)를 관절 체인에 주입하여 XPBD 제약 해석, 소성 변형(Plastic Set) 및 관절 파단(`sever_joint`) 시 국소 이벤트 버스(`EVENT_XPBD_STRAIN`, `EVENT_XPBD_TEAR`) 방출.
-  3. F3 HUD 카드에 `XPBD: {} Bones | Strain: {}% | 64B` 텔레메트리 라인 추가 (장미/분홍 `0xFFEC4899`).
-  4. 56x56 미니 레이더에 관절 파단/절단 시 경고 인디케이터 표시, 하단 컨트롤 바 프롬프트에 `[XPBD: {}B/{}S]` 상시 모니터링 연동.
-  5. `mimic-the-show/tests/test_mimic_game.rs`에 XPBD 넉다운 텔레메트리 통합 테스트 추가.
+- **일시:** 2026-10-24 12:48 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 XPBD 메카 파단/소성 변형 및 F3 HUD 결합 (T-234, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `XpbdRagdollEngine<16, 16>` (8개 본 + 7개 제약 64B L1 캐시 슬랩) 상주 무결성 검증, `step_xpbd_pipeline` 실시간 물리-XPBD 래그돌-소성 변형-파단 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 100 kJ 충격 기반 관절 파단 및 소성 변형 해석, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `XPBD: {} Bones | Strain: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙좌측 마젠타(#EC4899) 인디케이터 점등, 하단 컨트롤 바 `[XPBD: {}B/{}S]` 상시 모니터링 연동, 31개 게임 단위/통합 테스트 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-235)**:
+  1. 전체 워크스페이스 `Cargo.toml` 버전 `4.3.0` 판올림.
+  2. `docs/architecture.md` (Section 46: XPBD Mecha Ragdoll Constraints & Elastic Strain Limits) 및 `docs/decisions.md` (ADR [D-153]~[D-156]) 문서화.
+  3. `tools/package.ps1` 버전 갱신 및 실행하여 단일 배포 아카이브 `dist/axiom-v4.3.0-unified-milestone.zip` 패키징.
+  4. `tools/guard.ps1` 검증 및 Git 태그 `v4.3.0` 발행.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T233] Axiom 290대 XPBD 래그돌 벤치마크 및 WASM 스튜디오 쇼케이스 연동
+- **일시:** 2026-10-24 12:43 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_xpbd_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 메모리 상주 검증, XPBD 순수 정수 컴플라이언스 해석기 및 소성 변형/관절 파단 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_XPBD_STRAIN (0x0290)` / `EVENT_XPBD_TEAR (0x0291)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 🦾 290 XPBD Ragdoll (64B Slabs) 대화형 모달 연동, 1.39 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T232] Axiom Engine 290대 XPBD 메카 래그돌 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
 - **일시:** 2026-10-24 12:35 KST
