@@ -112,6 +112,21 @@ fn test_camera_view_matrix_and_shot_presets() {
     // Switch to Knockdown low angle
     cam.set_shot_mode(axiom_render::camera3d::CameraShot::KnockdownLowAngle);
     assert_eq!(cam.target_pitch, 250);
+
+    // Switch to 360 Broadcast Orbit
+    cam.set_shot_mode(axiom_render::camera3d::CameraShot::BroadcastOrbit360);
+    assert_eq!(cam.auto_orbit_speed, 1);
+    let start_yaw = cam.orbit_yaw;
+    for _ in 0..256 {
+        cam.step_kinematics();
+    }
+    // Full 360 degree revolution around 256 BAM circle
+    assert_eq!(cam.orbit_yaw, start_yaw);
+
+    // Manual rotation test
+    cam.manual_rotate_yaw(10);
+    assert_eq!(cam.orbit_yaw, start_yaw.wrapping_add(10));
+    assert_eq!(cam.auto_orbit_speed, 0);
 }
 
 #[test]

@@ -16,6 +16,9 @@ pub enum CameraShot {
     OpponentCorner = 2,
     ImpactCloseUp = 3,
     KnockdownLowAngle = 4,
+    BroadcastOrbit360 = 5,
+    RingsideSide = 6,
+    DynamicDirector = 7,
 }
 
 /// 64-byte L1 Cache-aligned 3D Camera with dynamic orbit, corner shots, and spring kinetics.
@@ -34,14 +37,18 @@ pub struct Camera3D {
     pub target_pitch: u8,        // 1 byte
     pub shot_mode: CameraShot,   // 1 byte
     pub shake_rot: i8,           // 1 byte
-    pub _pad: [u8; 2],           // 2 bytes -> exactly 64 bytes
+    pub auto_orbit_speed: i8,    // 1 byte (signed rotation speed in BAM/tick, e.g. +1 for smooth 360 orbit)
+    pub broadcast_mode: u8,      // 1 byte (0: standard, 1: continuous 360, 2: dynamic broadcast director)
 }
+
+const _: () = assert!(core::mem::size_of::<Camera3D>() == 64);
+const _: () = assert!(core::mem::align_of::<Camera3D>() == 64);
 
 impl Default for Camera3D {
     fn default() -> Self {
         Self {
-            target: Vec3Fixed::new(Fixed::ZERO, Fixed::from_raw(13107), Fixed::ZERO), // Y ~0.2m
-            distance: Fixed::from_raw((2.2 * 65536.0) as i64),
+            target: Vec3Fixed::new(Fixed::ZERO, Fixed::from_raw(-38000), Fixed::from_raw(-6554)), // Ring center [0.0, -0.58, -0.10]
+            distance: Fixed::from_raw((2.4 * 65536.0) as i64),
             base_focal_length: 520,
             zoom_offset: Fixed::ZERO,
             shake_x: 0,
@@ -52,7 +59,8 @@ impl Default for Camera3D {
             target_pitch: 4,
             shot_mode: CameraShot::BroadcastCenter,
             shake_rot: 0,
-            _pad: [0; 2],
+            auto_orbit_speed: 0,
+            broadcast_mode: 0,
         }
     }
 }
@@ -74,27 +82,66 @@ impl Camera3D {
             CameraShot::BroadcastCenter => {
                 self.target_yaw = 0;
                 self.target_pitch = 4;
+                self.auto_orbit_speed = 0;
             }
             CameraShot::PlayerCorner => {
                 // Over-the-shoulder looking into opponent
                 self.target_yaw = 18; // ~+25 deg BAM
                 self.target_pitch = 6;
+                self.auto_orbit_speed = 0;
             }
             CameraShot::OpponentCorner => {
                 // Looking back at player
                 self.target_yaw = 238; // ~-25 deg BAM
                 self.target_pitch = 6;
+                self.auto_orbit_speed = 0;
             }
             CameraShot::ImpactCloseUp => {
                 self.target_yaw = 0;
                 self.target_pitch = 2;
                 self.trigger_punch_zoom(Fixed::from_raw(22000)); // ~0.33m zoom
+                self.auto_orbit_speed = 0;
             }
             CameraShot::KnockdownLowAngle => {
                 // Low-angle worm's-eye hero shot looking up
                 self.target_yaw = 0;
                 self.target_pitch = 250; // -6 BAM upward tilt
+                self.auto_orbit_speed = 0;
             }
+            CameraShot::BroadcastOrbit360 => {
+                self.target_pitch = 5;
+                self.auto_orbit_speed = 1; // Smooth continuous 360 degree broadcast rotation
+            }
+            CameraShot::RingsideSide => {
+                self.target_yaw = 64; // 90 deg sideline ringside camera
+                self.target_pitch = 4;
+                self.auto_orbit_speed = 0;
+            }
+            CameraShot::DynamicDirector => {
+                self.target_pitch = 4;
+                self.auto_orbit_speed = 0;
+            }
+        }
+    }
+
+    /// Rotates the camera manually by `delta_yaw` BAM (e.g. via Q / E keys).
+    #[inline(always)]
+    pub fn manual_rotate_yaw(&mut self, delta_yaw: i8) {
+        self.orbit_yaw = self.orbit_yaw.wrapping_add(delta_yaw as u8);
+        self.target_yaw = self.orbit_yaw;
+        self.auto_orbit_speed = 0;
+    }
+
+    /// Toggles or sets 360-degree broadcast continuous orbit mode.
+    pub fn toggle_360_orbit(&mut self) -> bool {
+        if self.shot_mode == CameraShot::BroadcastOrbit360 {
+            self.set_shot_mode(CameraShot::BroadcastCenter);
+            self.broadcast_mode = 0;
+            false
+        } else {
+            self.set_shot_mode(CameraShot::BroadcastOrbit360);
+            self.broadcast_mode = 1;
+            true
         }
     }
 
@@ -120,14 +167,23 @@ impl Camera3D {
             }
         }
 
-        // Smoothly interpolate orbit yaw towards target
-        if self.orbit_yaw != self.target_yaw {
+        // Smoothly interpolate or rotate orbit yaw towards target
+        if self.auto_orbit_speed != 0 {
+            self.orbit_yaw = self.orbit_yaw.wrapping_add(self.auto_orbit_speed as u8);
+        } else if self.orbit_yaw != self.target_yaw {
             let diff = (self.target_yaw as i16) - (self.orbit_yaw as i16);
-            let step = (diff / 4).clamp(-3, 3);
+            let wrapped_diff = if diff > 128 {
+                diff - 256
+            } else if diff < -128 {
+                diff + 256
+            } else {
+                diff
+            };
+            let step = (wrapped_diff / 4).clamp(-3, 3);
             if step == 0 {
                 self.orbit_yaw = self.target_yaw;
             } else {
-                self.orbit_yaw = (self.orbit_yaw as i16 + step) as u8;
+                self.orbit_yaw = ((self.orbit_yaw as i16 + step).rem_euclid(256)) as u8;
             }
         }
 

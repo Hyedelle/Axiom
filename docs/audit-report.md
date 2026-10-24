@@ -8,27 +8,25 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 18:46 KST
-- **감사 대상:** Axiom 380대 메카 상대론적 중력 계량 텐서 & 곡률 왜곡 물리 연구 (T-284, `docs/audit-report.md`, `crates/axiom-core/src/relativity.rs`)
-- **판정:** 🟢 **ALL CLEAR — 슈바르츠실트 계량 텐서($g_{00}, g_{rr}$) Q16.16 고정소수점 정수화, 중력 시간 팽창($\Delta \tau = \Delta t \sqrt{1 - r_s / r}$) 정수 제곱근 수식화, 아인슈타인 측지선 광선 굴절 공식($\Delta \theta_{\text{mrad}} = 2000 \cdot r_s / b$) 및 광자구 포획 반경($b_{\text{crit}} \approx 2.598 \cdot r_s$) 모델 수립, 64B L1 정렬 `SpacetimeMetricSlab64` & `GravitationalLensSlab64`, 40B 인라인 POD `RelativityEventReport`, 0-힙 `MechaRelativityEngine<MAX_CELLS, MAX_WELLS>` 설계 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-285 - Axiom 380대 64B L1 정렬 시공간 계량 슬랩 및 측지선 솔버 구현)**:
-  1. `crates/axiom-core/src/relativity.rs` 신규 모듈 생성:
-     - 64-Byte L1 정렬 구조체: `SpacetimeMetricSlab64`, `GravitationalLensSlab64` (`#[repr(C, align(64))]`).
-     - 40-Byte POD: `RelativityEventReport` (`encode()`, `decode()`).
-     - 핵심 물리 연산:
-       - `compute_spacetime_metric(&mut SpacetimeMetricSlab64, [i32; 3]) -> (i32, u32, u32)` ($g_{00}, g_{rr}, \Delta \tau$).
-       - `compute_geodesic_deflection(&mut GravitationalLensSlab64, [i32; 3], [i32; 3], u32) -> ([i32; 3], bool)`.
-     - 0-힙 시뮬레이터: `MechaRelativityEngine<const MAX_CELLS: usize, const MAX_WELLS: usize>`.
-     - 64-bit FNV-1a 상태 합의 체크섬: `compute_consensus_hash(&self) -> u64`.
-     - 멀티스레드 잡 분할: `dispatch_relativity_with_jobs`.
-     - 이벤트 버스 연계: `emit_relativity_to_event_bus` (`EVENT_GRAVITATIONAL_LENS = 0x0380`, `EVENT_SPACETIME_DISTORTION = 0x0381`).
-  2. `crates/axiom-core/src/lib.rs`에 `pub mod relativity;` 등록 및 주요 타입 공개.
-  3. `crates/axiom-core/tests/test_relativity.rs` 6개 단위 테스트 작성 및 100% 통과.
-  4. `tools/guard.ps1` 검증 통과 후 단일 커밋.
+- **일시:** 2026-10-24 19:00 KST
+- **감사 대상:** Axiom 380대 64B L1 정렬 시공간 계량 슬랩 및 측지선 솔버 구현 (T-285, `crates/axiom-core/src/relativity.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_relativity.rs`, `crates/axiom-render/src/camera3d.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 64B L1 캐시 정렬 `SpacetimeMetricSlab64` & `GravitationalLensSlab64`, 40B 인라인 POD `RelativityEventReport`, 슈바르츠실트 계량($g_{00}, g_{rr}$) 및 중력 시간 팽창($\Delta \tau$), 아인슈타인 측지선 광선 편향($\Delta \theta_{\text{mrad}} = 2000 \cdot r_s / b$) 및 광자구 임계 포획($b \le 2.598 r_s$), 0-힙 `MechaRelativityEngine<16, 4>`, 64-bit FNV-1a 상태 합의 체크섬, 360도 연속 궤도 카메라 및 다이나믹 액션 디렉터 통합 검증 100% 통과**
+- **시공팀(Claude Code) 구현 처방전 (T-286 - Axiom 380대 상대론 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
+  1. `crates/axiom-game/src/network.rs`에 `NetworkMatchDirector` 상대론 시뮬레이션 파이프라인 결합:
+     - `MechaRelativityEngine<16, 4>` 필드 통합.
+     - `step_relativity(&mut self)` 및 `step_relativity_with_jobs(&mut self)` 록스텝 시뮬레이션 구현.
+     - 40B 인라인 POD `RelativityEventReport` 디코딩 및 롤백 동기화.
+  2. `crates/axiom-core/tests/test_relativity_jobs.rs` 및 `crates/axiom-game/tests/test_relativity_game_pipeline.rs` 작성.
+  3. `tools/guard.ps1` 검증 통과 후 단일 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T285] Axiom 380대 64B L1 정렬 시공간 계량 슬랩 및 측지선 솔버 구현
+- **일시:** 2026-10-24 19:00 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** `SpacetimeMetricSlab64` (exact 64B, align 64), `GravitationalLensSlab64` (exact 64B, align 64), `RelativityEventReport` (40B inline POD), `MechaRelativityEngine<16, 4>`, 360도 연속 궤도 카메라 (`CameraShot::BroadcastOrbit360`, `DynamicDirector`, `RingsideSide`), 6개 단위 테스트 100% 통과, `tools/guard.ps1` 통과.
 
 ### [AUDIT-20261024-T284] Axiom 380대 메카 상대론적 중력 계량 텐서 & 곡률 왜곡 물리 연구
 - **일시:** 2026-10-24 18:46 KST
