@@ -8,28 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 18:21 KST
-- **감사 대상:** Axiom 370대 메타물질 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-281, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
-- **판정:** 🟢 **ALL CLEAR — WASM C-ABI `axiom_metamaterial_bench_burst` 엔드포인트 구현 완료, 16셀/8쉘 64B L1 정렬 슬랩 배치 및 브릴루앙 산란/AOD 브래그 편향/변환광학 쉘 굴절 10-스텝 시뮬레이션, 4-워커 Chase-Lev 잡 스케줄링 및 40B POD 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, Web 3D 복셀 스튜디오 🔮 **370 Metamaterial Cloaking (64B Slabs)** 대화형 모달 연동, 1.50 MB (1,499,065 B) 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 테스트 스위트 올패스 (0.20s), 0 에러**
-- **시공팀(Claude Code) 구현 처방전 (T-282 - Mimic The Show 챔피언십 링 실시간 음향광학 클로킹/굴절 쉴드 및 F3 HUD 결합)**:
-  1. `mimic-the-show/src/view.rs` `DesktopGameView` 파이프라인 연계:
-     - `metamaterial_engine: Box<MechaMetamaterialEngine<16, 8>>` 필드 추가.
-     - `step_metamaterial_pipeline` 구현:
-       - 싱글플레이 파이터 회피(Dodge) / 클로킹 스킬 발동 시 1000~2000 mm 변환광학 클로킹 쉘 활성화 및 40B 인라인 POD 이벤트 방출.
-       - 브릴루앙 산란 광탄성 굴절률 변조 계산.
-     - F3 HUD 텔레메트리 카드 출력:
-       - `Cloak: {} Cells | {} Fields | 64B` 및 자수정 보라색(#C084FC 또는 #A855F7) 렌더링.
-     - 56x56 미니 레이더:
-       - 중앙 상단 자수정 보라색 클로킹 인디케이터 점등.
-     - 하단 바:
-       - `[CLK: {}C/{}F]` 상시 모니터링 연동.
-  2. `mimic-the-show/tests/test_mimic_game.rs` 단위/통합 테스트 추가 및 통과:
-     - `test_view_metamaterial_telemetry_and_hud`
-  3. `tools/guard.ps1` 검증 통과 후 양쪽 저장소 단일 커밋.
+- **일시:** 2026-10-24 18:29 KST
+- **감사 대상:** Mimic The Show 챔피언십 링 실시간 음향광학 클로킹/굴절 쉴드 및 F3 HUD 결합 (T-282, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
+- **판정:** 🟢 **ALL CLEAR — `mimic-the-show` `DesktopGameView` 내 `metamaterial_engine: Box<MechaMetamaterialEngine<16, 8>>` 64B L1 캐시 슬랩 결합 완료, `step_metamaterial_pipeline` 60Hz 실시간 브릴루앙 산란/AOD 브래그 편향/변환광학 굴절 및 넉다운 시 94% 메타물질 클로킹 은폐율 상승 수치 적분, F3 HUD 카드 `Cloak: {} Cells | {} Fields | 64B` 자수정 보라색(#A855F7) 렌더링, 56x56 미니 레이더 내부 중앙 좌측 인디케이터 점등, 하단 `[CLK: {}C/{}F]` 카운터 상시 연동, 40개 게임 테스트 올패스 (8.57s), 0 경고**
+- **시공팀(Claude Code) 구현 처방전 (T-283 - Axiom 370대 메카 음향광학 & 메타물질 클로킹 공식 릴리즈 v4.11.0)**:
+  1. `Cargo.toml` 워크스페이스 및 하위 크레이트 버전 `4.10.0` ➔ `4.11.0` 일괄 판올림.
+  2. `tools/package.ps1` 내 `$Version = "4.11.0"` 최신화.
+  3. `docs/architecture.md` 제53장: Axiom 370대 포톤-포논 결정 음향광학 & 메타물질 클로킹 아키텍처 상세 기술.
+  4. `docs/decisions.md` ADR [D-185]~[D-188] 4개 아키텍처 의사결정 기록 추가.
+  5. `tools/package.ps1 -Version "4.11.0"` 빌드 및 `dist/axiom-v4.11.0-unified-milestone.zip` 패키징 & SHA-256 검증.
+  6. 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 최신 릴리즈 바이너리 타겟팅 무결성 검증.
+  7. `tools/guard.ps1` 헌법 가드 통과 후 태그 `v4.11.0` 발행 및 단일 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T282] Mimic The Show 챔피언십 링 실시간 음향광학 클로킹/굴절 쉴드 및 F3 HUD 결합
+- **일시:** 2026-10-24 18:29 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** `DesktopGameView` 메타물질 시뮬레이터 결합, 넉다운/KO 시 94% 클로킹 은폐율 상승 및 광선 굴절, F3 HUD/미니 레이더 자수정 보라색 인디케이터, 40개 게임 테스트 올패스 (8.57s).
 
 ### [AUDIT-20261024-T281] Axiom 370대 메타물질 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 18:21 KST
