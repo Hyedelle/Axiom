@@ -8,19 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 14:14 KST
-- **감사 대상:** Axiom 310대 메카 유압/공압 액추에이터 & 인공근육 공식 릴리즈 마일스톤 v4.5.0 (T-247, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 전체 워크스페이스 v4.5.0 공식 판올림, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 메모리 무결성, 40B POD `ActuatorEventReport`, 1 kPa * 1 mm^2 = 1 mN 고정소수점 기계적 추력 계산 `compute_actuator_thrust`, 벌크 탄성 계수($K_{bulk} \approx 1.5\text{ GPa}$) 압력 스파이크 전달 모델, 오리피스 정수 제곱근(`isqrt_i64`) 유량 제어, 매키번 PAM 인공근육 인장 수축력 및 과압 릴리프/배관 파열 파단 해석, 0-힙 고정 크기 `MechaActuatorEngine<16, 4>`, `DesktopGameView` step_actuator_pipeline 결합, F3 HUD(`Actuator: {} Acts | {} kN | 64B`), 56x56 미니 레이더 우측상단(내측) 청록색(#06B6D4) 인디케이터, 하단 `[ACT: {}A/{}C]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.5.0-unified-milestone.zip` (2.31 MB, SHA-256: `ECA303D05F2A2C6A9DA40453C3F78DD0734290F8B117B0928D28BCB3392E838E` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,117,696 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-248 - Axiom 320대 대기 공기역학 항력/양력 & 와류 유도 진동(VIV) 물리 연구)**:
-  1. 선행 연구 subagent 소환:
-     - 0-Float 헌법 하에서 3차원 대기 밀도 $\rho$, 형상 항력 계수 $C_d$, 양력 계수 $C_l$, 레이놀즈 수(Reynolds Number $Re$), 와류 분리 주파수(Strouhal Number $St$)의 순수 정수 mm/s 및 $Q16.16$ 고정소수점 수식화 연구.
-     - 64B L1 캐시 정렬 `AeroBodySlab64`, `AirflowGridSlab64`, 40B POD `AeroEventReport` 슬랩 설계.
-     - 초고속 메카 펀치, 대쉬, 도약 시 발생하는 풍압 항력($F_d = \frac{1}{2} \rho v^2 C_d A$) 및 와류 유도 진동(Vortex-Induced Vibration, VIV) 모델 수립.
-     - `docs/audit-report.md` 및 `axiom-aerodynamics-and-vortex-induced-vibration-research.md` 작성.
+- **일시:** 2026-10-24 14:24 KST
+- **감사 대상:** Axiom 320대 대기 공기역학 항력/양력 & 와류 유도 진동(VIV) 물리 연구 (T-248, `axiom-aerodynamics-and-vortex-induced-vibration-research.md`, `docs/audit-report.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 계산식 및 $1\text{ Pa} = 1000\text{ mPa}$ 고정소수점 레일리 항력/양력 공식 확립, 스트라울 수 $St \approx 0.20$ 기반 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 증폭 모델 수식화 완료, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64`, 40B POD `AeroEventReport` 설계 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-249 - Axiom 320대 64B L1 정렬 공기역학/항력 슬랩 및 3D 풍동 해석기 구현)**:
+  1. `crates/axiom-core/src/aerodynamics.rs` 신규 생성:
+     - 64B L1 캐시 정렬 `AeroBodySlab64` (`#[repr(C, align(64))]`, exact 64B)
+     - 64B L1 캐시 정렬 `AirflowGridSlab64` (`#[repr(C, align(64))]`, exact 64B)
+     - 40B 인라인 POD `AeroEventReport` (라운드트립 `encode`/`decode` 검증)
+     - `compute_aerodynamic_forces(body: &mut AeroBodySlab64, wind: &AirflowGridSlab64)` 구현
+     - 0-Heap 고정 크기 시뮬레이터 `MechaAerodynamicsEngine<const MAX_BODIES: usize, const MAX_CELLS: usize>` 구현
+     - 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash(&self) -> u64` 구현
+  2. `crates/axiom-core/src/lib.rs`에 `pub mod aerodynamics;` 등록.
+  3. `crates/axiom-core/tests/test_aerodynamics.rs` 단위 테스트 7종 작성 및 `tools/guard.ps1` 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T248] Axiom 320대 대기 공기역학 항력/양력 & 와류 유도 진동(VIV) 물리 연구
+- **일시:** 2026-10-24 14:24 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 하에서 $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 계산식 및 $1\text{ Pa} = 1000\text{ mPa}$ 고정소수점 레일리 항력/양력 공식 확립, 스트라울 수 $St \approx 0.20$ 기반 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 증폭 모델 수식화 완료, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64`, 40B POD `AeroEventReport` 설계 승인.
 
 ### [AUDIT-20261024-v4.5.0] Axiom Engine v4.5.0 310대 메카 유압/공압 액추에이터 & 인공근육 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 14:14 KST
