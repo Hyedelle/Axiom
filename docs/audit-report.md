@@ -8,17 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 13:34 KST
-- **감사 대상:** Axiom Engine v4.4.0 300대 셰이프 매칭 연성체 & 가역 체적 보존 공식 릴리즈 마일스톤 종합 감사 (T-241, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-157]~[D-160], `tools/package.ps1`, `dist/axiom-v4.4.0-unified-milestone.zip`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 전체 워크스페이스 v4.4.0 공식 판올림, 64B L1 캐시 정렬 `SoftBodyParticleSlab64` & `SoftBodyClusterSlab64` 슬랩 메모리 무결성, 40B POD `SoftBodyEventReport`, Horn's Method 4x4 행렬 $N$ 및 3회 웜스타트 거듭제곱 최적 회전 쿼터니언 솔버, Clausen/Müller 가역 체적 보존 및 포아송 비압축성 횡팽창, 소성 항복 한계 파단, `SoftBodyEngine<64, 8>`, `DesktopGameView` step_soft_body_pipeline 결합, F3 HUD(`SoftBody: {} Clusters | {}% Def | 64B`), 56x56 미니 레이더 중앙-우측 보라색(#A855F7) 인디케이터, 하단 `[SFT: {}C/{}P]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.4.0-unified-milestone.zip` (2.3 MB, SHA-256: `4FAC0440338609F92A61012DA0250347E6EBA601994D51C8983113B83856A231` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,110,016 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인**
-- **선행 연구팀(Antigravity Subagent) 연구 처방전 (T-242 - Axiom 310대 절차적 모듈러 메카 공압/유압 액추에이터 및 근육 시뮬레이터)**:
-  1. 0-Float 순수 정수 mm 및 Q16.16 고정소수점 기반의 공압/유압 실린더 피스톤 압력 다이나믹스($P \cdot A = F - c \cdot v - k \cdot x$) 및 밸브 유량 방정식 수식화.
-  2. 64B L1 캐시 정렬 액추에이터 슬랩 `ActuatorSlab64` 및 유압 챔버 슬랩 `HydraulicChamberSlab64` 설계.
-  3. 240대 래그돌 / 290대 XPBD 관절 제약과의 연동을 통한 파워 서보 토크 전달 모델 정립.
+- **일시:** 2026-10-24 13:40 KST
+- **감사 대상:** Axiom 310대 절차적 모듈러 메카 공압/유압 액추에이터 및 근육 시뮬레이터 연구 (T-242, `axiom-actuator-and-muscle-physics-research.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, $1\text{ kPa} \times 1\text{ mm}^2 = 1\text{ mN}$ 정확한 정수 단위계 일치 검증, 64B L1 캐시 정렬 `ActuatorSlab64` & `HydraulicChamberSlab64` 슬랩 설계 승인, 40B POD `ActuatorEventReport`, 벌크 탄성 계수($K_{bulk}$) 비선형 압력 전달 및 오리피스 정수 제곱근(`isqrt_i64`) 유량 제어 수식화, 매키번 PAM 인공근육 인장력 및 과압 릴리프/배관 파열 역학 정립, 240/290대 래그돌 관절 서보 토크 전달 모델 수립, 0-힙 고정 용량 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 200대 JobSystem / 210대 EventBus [`EVENT_ACTUATOR_BURST = 0x0310`, `EVENT_ACTUATOR_PRESSURE = 0x0311`] 연계 명세 수립 완료**
+- **시공팀(Claude Code) 구현 처방전 (T-243 - 64B L1 정렬 액추에이터/공압 슬랩 및 비선형 압력 다이나믹스 구현)**:
+  1. `crates/axiom-core/src/actuator.rs` 신규 생성.
+  2. `ActuatorSlab64`: exact 64B slab (`#[repr(C, align(64))]`), 12B anchor_a, 12B anchor_b, 4B pressure_kpa, 4B max_force_n, 4B burst_pressure_kpa, 4B relief_pressure_kpa, 2B stroke_max, 2B current_len, 2B target_len, 2B rest_len, 2B piston_area, 2B damping_q16, 1B bone_a, 1B bone_b, 1B actuator_type, 1B flags, 1B chamber_idx, 1B entity_id, 6B pad.
+  3. `HydraulicChamberSlab64`: exact 64B slab (`#[repr(C, align(64))]`), 8B fluid_vol_mm3, 8B max_vol_mm3, 4B pressure_kpa, 4B accumulator_kpa, 4B bulk_modulus_kpa, 4B pump_flow_rate_mm3, 4B relief_threshold_kpa, 2B valve_opening_q16, 2B reservoir_level_q16, 2B orifice_area_q8, 1B flags, 1B chamber_id, 1B entity_id, 1B fluid_type, 18B pad.
+  4. 40-Byte `ActuatorEventReport` 및 `encode`/`decode` 무손실 라운드트립 직렬화.
+  5. `step_actuator_simulation`: 피스톤 추력($F_{mN} = P \cdot A - \dots$), 유압 벌크 탄성 계수 압력 갱신, 오리피스 유량 적분, 매키번 PAM 수축력, 과압 릴리프 및 배관 파열 파단 해석.
+  6. 0-힙 고정 용량 `MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>`, 64-bit FNV-1a `compute_consensus_hash`.
+  7. `crates/axiom-core/src/lib.rs` 모듈 등록 및 `crates/axiom-core/tests/test_actuator.rs` 전용 6개 단위 테스트 작성 및 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v4.4.0] Axiom Engine v4.4.0 300대 셰이프 매칭 연성체 & 가역 체적 보존 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 13:34 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 전체 워크스페이스 v4.4.0 공식 판올림, 64B L1 캐시 정렬 `SoftBodyParticleSlab64` & `SoftBodyClusterSlab64` 슬랩 메모리 무결성, 40B POD `SoftBodyEventReport`, Horn's Method 4x4 행렬 $N$ 및 3회 웜스타트 거듭제곱 최적 회전 쿼터니언 솔버, Clausen/Müller 가역 체적 보존 및 포아송 비압축성 횡팽창, 소성 항복 한계 파단, `SoftBodyEngine<64, 8>`, `DesktopGameView` step_soft_body_pipeline 결합, F3 HUD(`SoftBody: {} Clusters | {}% Def | 64B`), 56x56 미니 레이더 중앙-우측 보라색(#A855F7) 인디케이터, 하단 `[SFT: {}C/{}P]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.4.0-unified-milestone.zip` (2.3 MB, SHA-256: `4FAC0440338609F92A61012DA0250347E6EBA601994D51C8983113B83856A231` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,110,016 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-v4.4.0] Axiom Engine v4.4.0 300대 셰이프 매칭 연성체 & 가역 체적 보존 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 13:34 KST
