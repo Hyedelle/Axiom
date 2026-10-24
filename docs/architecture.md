@@ -1570,6 +1570,69 @@ Axiom 260대 과제(T-212 ~ T-217)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - `web/index.html`에 **🔊 260 Destruction Audio (64B Slabs)** 모달을 탑재하여 1.35 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_destruction_audio_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Audio: {} Voices | Pk: {} | 64B`, 56x56 미니 레이더 중앙상단 하늘색 인디케이터, 하단 `[AUD: {}V]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 43. Axiom 270대: 물리 기반 파괴 파티클 비산 & 충돌 임펄스 피직스 엔진 (v4.1.0)
+
+Axiom 270대 과제(T-218 ~ T-223)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 엄격히 수호하며, 지형 크레이터 파쇄, 메카 래그돌 관절 절단, 고속 펀치 타격 시 폭발적으로 비산되는 고속 2차 잔해 파편을 사실적으로 시뮬레이션하는 **물리 기반 파괴 파티클 비산(Debris Particle Scattering) 및 충돌 임펄스(Collision Impulse) 피직스 엔진**을 완성했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 270-Series Physics-Based Debris Particle & Collision Impulse       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (DebrisParticleSlab64 & Contact)]    │
+│    - DebrisParticleSlab64: Exact 64B Slab (pos/vel/yaw/pitch/roll/mass/e/mu) │
+│    - ParticleContactSlab64: Exact 64B Slab (contact/normal/impulse_j/flags) │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Symplectic Semi-Implicit Euler Ballistic Integrator]                    │
+│    - Earth Gravity: g = -9810 mm/s² (-163 mm/s/tick at 60 Hz)               │
+│    - Aerodynamic Drag Damping: v = (v * (65536 - k_drag)) >> 16             │
+│    - Energy-Conserving New Velocity Position Update                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [Ground Restitution Bounce & Tangential Coulomb Friction Resolution]     │
+│    - Floor Contact (z = 0): Normal Reflection vz' = -vz * e / 65536         │
+│    - Surface Friction Damping: vxy' = vxy * mu / 65536                      │
+│    - Low-Velocity Micro-Jitter Sleep Transition Threshold (30 mm/s)         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Arena Circular Boundary Perimeter Reflection]                           │
+│    - Ring Perimeter (R = 3000mm): Radial Normal Vector Ray Projection       │
+│    - Elastic Boundary Bounce with Rope Energy Absorption Factor (0.75)      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [0-Heap Fixed-Capacity Array Pool & 64-Bit Consensus Hash]               │
+│    - DebrisParticlePool<MAX_PARTICLES>: Fixed Memory Slabs, Zero Heap Alloc │
+│    - 64-bit FNV-1a compute_consensus_hash for 16-Peer Rollback Netcode      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_debris_with_jobs: N-Worker Parallel Particle Batch Dispatch   │
+│    - emit_debris_burst_to_event_bus: EVENT_DEBRIS_BURST (0x0270)            │
+│    - 40-Byte Packed POD Payload: origin_xyz, count, speeds, spread, energy  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 7. [WASM Interactive Studio & Mimic The Show Ring Integration]              │
+│    - WebGL/WASM: 💥 270 Debris Particles (64B Slabs) Interactive Modal      │
+│    - Mimic The Show: DesktopGameView step_debris_pipeline                   │
+│    - F3 HUD Card: "Debris: {} Particles | Bounces: {} | 64B" (Rose #FB7185) │
+│    - 56x56 Mini Radar: Center-Bottom Rose Indicator & Bottom Bar [DEB: {}P] │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 43.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 파티클 슬랩 (`DebrisParticleSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 L1 캐시 라인을 점유하며, 12바이트 3D 위치 mm, 12바이트 선속도 mm/s, 6바이트 요/피치/롤 16-bit BAMS 각도, 6바이트 3축 각속도 BAMS/tick, 4바이트 파편 질량 g, 2바이트 반발 계수 $e \in Q16.16$, 2바이트 마찰 계수 $\mu \in Q16.16$, 1바이트 재질 ID, 1바이트 상태 플래그, 2바이트 파편 직경 mm, 2바이트 잔여 수명 틱, 2바이트 방출체 ID, 1바이트 바운스 횟수, 15바이트 정렬 패딩으로 완벽한 하드웨어 친화적 슬랩을 구현했습니다.
+2. **0-Float 64-바이트 L1 캐시 라인 정렬 충돌 임펄스 슬랩 (`ParticleContactSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트를 점유하며, 12바이트 접촉 좌표 mm, 12바이트 단위 법선 벡터 $Q16.16$, 4바이트 충돌 운동 에너지(Joules), 2바이트 파티클 ID, 2바이트 방출체 ID, 1바이트 표면 재질, 1바이트 플래그, 1바이트 바운스 번호, 29바이트 패딩으로 직렬화됩니다.
+3. **심플렉틱 반암시적 오일러 탄도 적분기**:
+   - 지구 표준 중력 가속도 $g = -9810\text{ mm/s}^2$를 60Hz 이산 틱당 정수 가속도 $-163\text{ mm/s/tick}$로 이산화하고 공기 저항 감쇠율($k_{drag} \approx 0.995$)을 순수 정수 시프트 연산으로 적용합니다. 갱신된 새로운 속도로 위치를 진전시키는 심플렉틱 적분을 통해 물리적 에너지 발산을 방지합니다.
+4. **바닥면 반발 및 쿨롱 마찰 해석**:
+   - 지면($z \le 0$) 충돌 시 법선 속도 반사($v_z' = -v_z \cdot e / 65536$) 및 접선 마찰 감쇠($v_{xy}' = v_{xy} \cdot \mu / 65536$)를 $O(1)$ 해석적으로 연산하며, $30\text{ mm/s}$ 이하의 미소 속도 진동 시 즉시 슬립(Sleeping) 모드로 전이하여 불필요한 연산 낭비를 차단합니다.
+5. **원형 아레나 외곽 벽 충돌 반사**:
+   - 반경 $3000\text{ mm}$의 원형 링 로프 외곽 접촉 시 정수 제곱근(`isqrt_i64`) 기반의 2D 평면 방사 법선 벡터를 추출하고, 속도 벡터를 탄성 반사(에너지 보존율 75%)하여 파편이 경기장 내에 역동적으로 갇히도록 모델링했습니다.
+6. **멀티스레드 잡 시스템 및 분산 이벤트 버스 결합**:
+   - `dispatch_debris_with_jobs`를 통해 활성 파티클 슬랩을 4개 워커 풀 Chase-Lev 무잠금 덱에 분산하여 N-배치 병렬 적분을 수행합니다.
+   - 파괴 파티클 비산 이벤트는 `EVENT_DEBRIS_BURST = 0x0270` 및 `channel::PHYSICS | channel::VFX` 채널로 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드(`DebrisBurstReport`)로 방출되며, GGPO 롤백 지원 및 64-bit FNV-1a 상태 합의 체크섬을 100% 보증합니다.
+7. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **💥 270 Debris Particles (64B Slabs)** 모달을 탑재하여 1.36 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_debris_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Debris: {} Particles | Bounces: {} | 64B`, 56x56 미니 레이더 중앙하단 장미색(#FB7185) 인디케이터, 하단 `[DEB: {}P]` 상시 모니터링을 완비했습니다.
+
 
 
 

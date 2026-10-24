@@ -1733,6 +1733,49 @@
   3. 전체 워크스페이스 버전을 v3.9.0에서 **v4.0.0**으로 공식 판올림하고 `dist/axiom-v4.0.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.0.0` 발행.
 - **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-145] 0-Float 64B L1 캐시 정렬 파괴 파티클 슬랩 및 심플렉틱 반암시적 오일러 탄도 적분기 (T-218, T-219)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 규격의 파괴 파티클 슬랩 `DebrisParticleSlab64` (12B 위치 mm, 12B 속도 mm/s, 6B BAMS 각도, 6B 각속도, 4B 질량 g, 2B 반발계수 e, 2B 마찰계수 mu, 1B 재질, 1B 플래그, 2B 크기, 2B 수명, 2B 방출체, 1B 바운스, 15B 패딩) 및 충돌 임펄스 슬랩 `ParticleContactSlab64` 설계.
+  2. 지구 중력 가속도 $g = -9810\text{ mm/s}^2$를 60Hz 틱당 $-163\text{ mm/s/tick}$ 정수로 적분하고 공기 저항 감쇠율($k_{drag} \approx 0.995$)을 적용하는 반암시적 오일러 적분기 구현.
+  3. 바닥면(z=0) 탄성 반발 및 쿨롱 마찰 감쇠, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 해석.
+  4. 0-힙 고정 용량 풀 `DebrisParticlePool<MAX_PARTICLES>` 및 64-bit FNV-1a 결정론 합의 체크섬 계측.
+- **영향:** `crates/axiom-core/src/debris_particle.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_debris_particle.rs`.
+
+---
+
+### [D-146] 파괴 파티클 멀티스레드 잡 시스템 및 40-바이트 인라인 POD 이벤트 버스 파이프라인 연계 (T-220)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `dispatch_debris_with_jobs`를 통해 활성 파티클 슬랩을 1~8개 배치로 균등 분할하고 Chase-Lev 무잠금 SPMC 덱에 분산하여 N-코어 병렬 적분 스케줄링.
+  2. 40-바이트 인라인 POD 페이로드 `DebrisBurstReport` (방출 좌표, 파티클 수, 최소/최대 속도, 확산 각도, 방출체 ID, 충격 에너지, 재질, 플래그, 크기, 수명)를 `EVENT_DEBRIS_BURST = 0x0270` 및 `channel::PHYSICS | channel::VFX` 채널로 `DeterministicEventBus`에 무할당 방출.
+  3. `NetworkMatchDirector::step_debris_burst` 및 `step_debris_burst_with_jobs` 16인 경기장 결합.
+- **영향:** `crates/axiom-core/src/debris_particle.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_debris_particle_jobs.rs`, `crates/axiom-game/tests/test_debris_game_pipeline.rs`.
+
+---
+
+### [D-147] WASM 파괴 파티클 벤치마크 및 웹 3D 복셀 스튜디오 쇼케이스 연동 (T-221)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_debris_bench_burst` 및 웹 3D 복셀 스튜디오 💥 **270 Debris Particles (64B Slabs)** 대화형 모달 배포 (1.36 MB WASM).
+  2. 128 파티클 슬랩 생성, 85 kJ 폭발 비산, 4-워커 잡 디스패치 및 이벤트 버스 연계, 10-틱 탄도 적분 및 바닥/경계 충돌 반발/마찰 감쇠 계측, 64-bit FNV-1a 상태 합의 체크섬 실시간 시각화.
+- **영향:** `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`.
+
+---
+
+### [D-148] Mimic The Show 챔피언십 링 실시간 파티클 비산, F3 HUD 결합 및 공식 릴리즈 v4.1.0 (T-222, T-223)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `DebrisParticlePool<128>` 및 `step_debris_pipeline` 탑재, 싱글플레이 파이터 넉다운/KO 시 75 kJ 충격 기반 32개 파괴 파티클 원뿔 방사 비산 및 40B 인라인 POD 이벤트 버스 방출, F3 HUD 카드(`Debris: {} Particles | Bounces: {} | 64B`), 56x56 미니 레이더 중앙하단 장미색(#FB7185) 인디케이터, 하단 `[DEB: {}P]` 연동.
+  2. 전체 워크스페이스 버전을 v4.0.0에서 **v4.1.0**으로 공식 판올림하고 `dist/axiom-v4.1.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.1.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 

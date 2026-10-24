@@ -8,23 +8,32 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:13 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 파괴 파티클 비산 및 F3 HUD 결합 (T-222, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `DebrisParticlePool<128>` (128개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_debris_pipeline` 실시간 물리-파티클 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 75 kJ 충격 기반 32개 파괴 파티클 원뿔 방사 비산 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Debris: {} Particles | Bounces: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙하단 장미색(#FB7185) 인디케이터 점등, 하단 컨트롤 바 `[DEB: {}P]` 상시 모니터링 연동, 29개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 11:20 KST
+- **감사 대상:** Axiom Engine v4.1.0 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 공식 릴리즈 마일스톤 종합 감사 (T-223, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-145]~[D-148], `tools/package.ps1`, `dist/axiom-v4.1.0-unified-milestone.zip`)
+- **판정:** 🟢 **ALL CLEAR (v4.1.0 공식 승인) — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 컴파일 타임 검증, $g = -9810\text{ mm/s}^2$ (-163 mm/s/tick) 반암시적 오일러 탄도 적분기 및 공기 저항 감쇠 무결성 실증, 바닥(z=0) 반발 탄성 및 쿨롱 마찰 감쇠 충돌 해석 실증, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 기록 실증, 0-힙 고정 용량 `DebrisParticlePool<128>`, 64-bit FNV-1a 결정론 합의 해시 `compute_consensus_hash`, `dispatch_debris_with_jobs` 워커 풀 분할 병렬 디스패치 및 `emit_debris_burst_to_event_bus` 40B 인라인 POD 이벤트 버스 발행(`EVENT_DEBRIS_BURST = 0x0270`), WASM 💥 270 Debris Particles (64B Slabs) 대화형 모달 및 1.36 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_debris_pipeline` 실시간 물리-파티클 결합 및 F3 HUD 카드(Rose-Red `0xFFFB7185`)/미니 레이더 중앙하단 장미색 인디케이터/하단 `[DEB: {}P]` 상시 모니터링 일체화, 상용 배포 패키지 `dist/axiom-v4.1.0-unified-milestone.zip` (2.25 MB, SHA-256 검증 완료), 전체 워크스페이스 v4.1.0 판올림 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **실시간 파이프라인 결합**:
-     - `step_debris_pipeline`: 파이터 다운 시 75 kJ 32개 파편 생성, 반암시적 오일러 60Hz 적분, 바닥 및 원형 아레나 벽 반발 임펄스 누적.
-     - 40B 인라인 POD 이벤트 버스 발행 (`EVENT_DEBRIS_BURST = 0x0270`).
-  2. **F3 HUD 및 텔레메트리 렌더링**:
-     - HUD 카드 높이 232px 확장, 9번째 카드 라인 `Debris: {} Particles | Bounces: {} | 64B` (`0xFFFB7185`).
-     - 미니 레이더 중앙하단(`radar_cx - 4, radar_cy + 18`) 8x8 장미색 인디케이터.
-     - 하단 바 `[DEB: {}P]` 상시 모니터링.
-  3. **회귀 검증**:
-     - `test_view_debris_particles_knockdown_and_hud_telemetry` 통과 및 전체 29개 테스트 올패스.
+  1. **물리 엔진 무결성**:
+     - 64B L1 캐시 정렬 슬랩 (`DebrisParticleSlab64`, `ParticleContactSlab64`) 100% 정렬.
+     - 심플렉틱 반암시적 오일러 탄도 적분 (중력, 공기 저항, 반발 탄성, 마찰력, 아레나 경계).
+     - 30 mm/s 이하 미소 진동 슬립 모드 전이.
+  2. **병렬 잡 시스템 및 이벤트 버스 파이프라인**:
+     - `dispatch_debris_with_jobs` 4-워커 Chase-Lev SPMC 무잠금 덱 분배.
+     - 40B 인라인 POD `DebrisBurstReport` 및 `EVENT_DEBRIS_BURST = 0x0270` (`channel::PHYSICS | channel::VFX`).
+     - GGPO 롤백 넷코드 시퀀스 되감기(`rollback_to`) 지원.
+  3. **크로스 플랫폼 쇼케이스 및 상용 패키징**:
+     - 1.36 MB 최적화 WASM 바이너리 및 웹 3D 복셀 스튜디오 대화형 벤치마크.
+     - `mimic-the-show` 챔피언십 링 KO 시 32 파티클 방사 비산 및 F3 HUD 텔레메트리 연동.
+     - 단일 배포 아카이브 `dist/axiom-v4.1.0-unified-milestone.zip` (2.25 MB, SHA-256: `5A0672D2C5DAF6310C9E9D9D9AAA6911F6465D110C1E70F78A650A12B2B73730`).
+     - 바탕화면 바로가기 최신 바이너리 타겟팅 및 구동 검증 완료.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T222] Mimic The Show 챔피언십 링 실시간 파괴 파티클 비산 및 F3 HUD 결합
+- **일시:** 2026-10-24 11:13 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `DebrisParticlePool<128>` (128개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_debris_pipeline` 실시간 물리-파티클 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 75 kJ 충격 기반 32개 파괴 파티클 원뿔 방사 비산 및 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Debris: {} Particles | Bounces: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙하단 장미색(#FB7185) 인디케이터 점등, 하단 컨트롤 바 `[DEB: {}P]` 상시 모니터링 연동, 29개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T221] Axiom Engine 270대 파괴 파티클 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 11:06 KST
