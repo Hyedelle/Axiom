@@ -5026,8 +5026,8 @@ pub extern "C" fn axiom_voxel_bench_simd_fluid(steps: u32, out_stats: *mut u32) 
     let iterations = steps.clamp(1, 10_000);
     let mut simd_eng = SimdFluidEngine::new();
     let mut total_moved = 0u32;
-    let mut total_quenched = 0u32;
-    let mut total_relaxed = 0u32;
+    let mut _total_quenched = 0u32;
+    let mut _total_relaxed = 0u32;
 
     for step in 0..iterations {
         if step % 50 == 0 {
@@ -5045,8 +5045,8 @@ pub extern "C" fn axiom_voxel_bench_simd_fluid(steps: u32, out_stats: *mut u32) 
         }
 
         let (q_temp, r_stress) = eng.fluid.relax_thermal_and_stress(&mut eng.thermal);
-        total_quenched += q_temp;
-        total_relaxed += r_stress;
+        _total_quenched += q_temp;
+        _total_relaxed += r_stress;
 
         let res = simd_eng.step_fluid_simd(&mut eng.fluid, &mut eng.volume, Some(&mut eng.thermal), 25);
         total_moved += res.units_moved;
@@ -6144,6 +6144,111 @@ pub extern "C" fn axiom_debris_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_shockwave_bench_burst(
+    wave_count: u32,
+    dust_count: u32,
+    impulse_energy_j: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::shockwave::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let waves_to_spawn = (wave_count as usize).clamp(1, 32);
+    let dust_to_spawn = (dust_count as usize).clamp(1, 32);
+    let energy = if impulse_energy_j > 0 { impulse_energy_j } else { 100_000 };
+
+    let mut engine = Box::new(VolumetricShockwaveEngine::<32, 32>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    let mut spawned_waves = 0;
+    for i in 0..waves_to_spawn {
+        let offset = (i as i32) * 100;
+        let shock_type = if i % 2 == 0 { SHOCKWAVE_TYPE_SPHERICAL } else { SHOCKWAVE_TYPE_TOROIDAL };
+        if engine.trigger_shockwave(
+            (offset, 500, offset),
+            100,
+            75_000,
+            340_000,
+            150,
+            energy,
+            (i + 1) as u32,
+            1,
+            shock_type,
+            100,
+        ).is_some() {
+            spawned_waves += 1;
+        }
+    }
+
+    let mut spawned_dust = 0;
+    for i in 0..dust_to_spawn {
+        let offset = (i as i32) * 80;
+        if engine.trigger_dust_cloud(
+            (offset, 0, offset),
+            150,
+            4000,
+            120_000,
+            200,
+            1,
+            (i + 1) as u32,
+            60,
+            100,
+        ).is_some() {
+            spawned_dust += 1;
+        }
+    }
+
+    let report = ShockwaveReport::from_explosion(
+        (0, 500, 0),
+        3500,
+        340_000,
+        energy,
+        1,
+        1,
+        200,
+    );
+    emit_shockwave_to_event_bus(&report, 100, &mut bus);
+
+    // Multi-threaded job system partition dispatch
+    let dispatched_jobs = dispatch_shockwave_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step volumetric shockwave & dust simulation across 10 ticks
+    for tick in 1..=10 {
+        engine.step_simulation(100 + tick);
+    }
+
+    let wave_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = wave_hash ^ (bus_hash.rotate_left(23));
+    let transmittance = engine.sample_fog_transmittance((500, 200, 500));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 32;                                       // Capacity shockwaves (32)
+            *out_stats.add(1) = engine.active_shockwaves_count() as u32;  // Active shockwaves
+            *out_stats.add(2) = engine.active_dust_count() as u32;        // Active dust clouds
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;     // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;             // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                   // Worker partition jobs
+            *out_stats.add(6) = transmittance as u32;                     // Fog transmittance at sample point (Q16.16)
+            *out_stats.add(7) = spawned_dust as u32;                      // Spawned dust emitters
+        }
+    }
+
+    spawned_waves as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7220,5 +7325,17 @@ mod tests {
         assert!(debris_stats[3] != 0 || debris_stats[4] != 0, "Debris consensus hash non-zero");
         assert_eq!(debris_stats[5], 4, "4 parallel dispatch jobs");
         assert_eq!(debris_stats[7], debris_stats[6], "Bounces match contacts on floor/boundary");
+
+        // 15. Volumetric Shockwave & Procedural Dust Storm Benchmark (8 shockwaves, 16 dust clouds, 120kJ energy)
+        let mut shock_stats = [0u32; 8];
+        let spawned_waves = axiom_shockwave_bench_burst(8, 16, 120_000, shock_stats.as_mut_ptr());
+        assert_eq!(spawned_waves, 8, "Shockwave benchmark must spawn 8 waves");
+        assert_eq!(shock_stats[0], 32, "32 shockwave slabs capacity");
+        assert_eq!(shock_stats[1], 8, "8 shockwaves active after 10 ticks");
+        assert_eq!(shock_stats[2], 16, "16 dust clouds active after 10 ticks");
+        assert!(shock_stats[3] != 0 || shock_stats[4] != 0, "Shockwave consensus hash non-zero");
+        assert_eq!(shock_stats[5], 4, "4 parallel dispatch jobs");
+        assert!(shock_stats[6] <= 65536, "Fog transmittance must be valid Q16.16 (0..=65536)");
+        assert_eq!(shock_stats[7], 16, "16 dust emitters spawned");
     }
 }

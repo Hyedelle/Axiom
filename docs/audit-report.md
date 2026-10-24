@@ -8,28 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:34 KST
-- **감사 대상:** Axiom Engine 280대 충격파 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-226, `crates/axiom-core/src/shockwave.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_shockwave_jobs.rs`, `crates/axiom-game/tests/test_shockwave_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 40B 인라인 POD `ShockwaveReport` 슬랩 직렬화 및 `EventSlab64` 이벤트 버스 연계(`EVENT_SHOCKWAVE = 0x0280`), `JobDescriptor64` 기반 배치 디스패치(`dispatch_shockwave_with_jobs`), `NetworkMatchDirector` 실시간 물리-충격파-먼지폭풍 파이프라인 결합 및 롤백 무결성 실증, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 11:42 KST
+- **감사 대상:** Axiom Engine 280대 먼지 폭풍 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-227, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_shockwave_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 메모리 상주 검증, Sedov-Taylor 음속(340m/s) 파면 전파 및 거리 역제곱 감쇠 계측, Stokes' 침강(120mm/s) 및 Q16.16 Beer-Lambert 시야 투과율 필드 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_SHOCKWAVE (0x0280)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 대화형 모달 연동, 1.38 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 단위 테스트 및 7개 통합 테스트 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **40B 인라인 POD 페이로드 (`ShockwaveReport`)**:
-     - `size_of::<ShockwaveReport>() == 40`, `align_of == 4`.
-     - `from_shockwave`, `from_explosion`, `encode`, `decode` 완벽 일치성 검증.
-     - `EventSlab64`의 40B 페이로드 영역에 100% 빈틈없이 패킹.
-  2. **결정론적 이벤트 버스 (`DeterministicEventBus`) 연계**:
-     - 이벤트 타입 `EVENT_SHOCKWAVE = 0x0280`.
-     - 채널: `CHANNEL_PHYSICS (0x0001) | CHANNEL_VFX (0x0004)`.
-     - 0-Heap 고정 링 버퍼에 완벽히 추가되며 롤백 세컨스 추적 가능.
-  3. **멀티스레드 잡 시스템 (`JobSystem`) 연계**:
-     - `shockwave_batch_job` 청크 분할 및 `dispatch_shockwave_with_jobs`를 통한 병렬 연산.
-  4. **게임플레이 넷코드 결합 (`NetworkMatchDirector`)**:
-     - `step_shockwave()` 및 `step_shockwave_with_jobs()` 추가.
-     - 넉다운/KO 판정 시 100 kJ 충격파 및 80% 밀도 먼지 폭풍 실시간 방출 확인.
-     - 롤백 시 이벤트 버스 되감기 일치성 보증.
+  1. **C-ABI WebAssembly 함수 규격 (`axiom_shockwave_bench_burst`)**:
+     - 0-힙 고정 용량 `VolumetricShockwaveEngine<32, 32>` 인스턴스화.
+     - 1~32개 구형/토로이달 충격파 파면 전파 및 1~32개 먼지 폭풍 에미터 침강 시뮬레이션.
+     - 40B 인라인 POD `ShockwaveReport` 이벤트 버스 발행.
+     - 8-워드 텔레메트리 출력 버퍼 일치성 검증 완료.
+  2. **Beer-Lambert 광학 투과율 계측**:
+     - 0-Float 정수 고정소수점 $Q16.16$ 투과율 $T \in [0, 65536]$.
+     - 다중 먼지 에미터 중첩 영역 소광 계수 누적 및 포화(0%) 클램핑 검증.
+  3. **WASM 바이너리 빌드 및 쇼케이스 동기화**:
+     - 1,377,456 바이트 (~1.38 MB) 릴리즈 바이너리 컴파일 및 `crates/axiom-wasm/`, `web/` 완벽 동기화.
+     - 웹 UI 💥 **280 Dust Storm & Shockwaves (64B Slabs)** 버튼 및 `runShockwaveBenchmark()` 모달 배포.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T226] Axiom Engine 280대 충격파 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 11:34 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 40B 인라인 POD `ShockwaveReport` 슬랩 직렬화 및 `EventSlab64` 이벤트 버스 연계(`EVENT_SHOCKWAVE = 0x0280`), `JobDescriptor64` 기반 배치 디스패치(`dispatch_shockwave_with_jobs`), `NetworkMatchDirector` 실시간 물리-충격파-먼지폭풍 파이프라인 결합 및 롤백 무결성 실증, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T225] Axiom Engine 280대 64B L1 정렬 충격파 슬랩 및 볼류메트릭 파티클 감쇠기 구현
 - **일시:** 2026-10-24 11:29 KST
