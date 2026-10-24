@@ -8,27 +8,31 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:24 KST
-- **감사 대상:** Axiom Engine 280대 절차적 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 연구 (T-224, `docs/audit-report.md`, `axiom-dust-storm-and-volumetric-shockwave-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 설계 승인, Sedov-Taylor 점폭발 상사해 이산 정수 적분 모델 (파면 반경 R, 두께 ΔR, 피크 압력 역제곱 감쇠 P(R) = P0*(R0/R)^2) 수립, 270대 파괴 파티클 및 240대 래그돌 방사형 척력 임펄스 및 토로이달 지면 충격파 모드 수식화, 지형 파쇄 먼지 폭풍(Stokes' Settling 중력 침강, Q16.16 시야 소광 투과율) 모델 승인, 0-힙 고정 용량 `VolumetricShockwaveEngine` 아키텍처 승인, 250대 크레이터 / 270대 파괴 파티클 / 200대 JobSystem / 210대 EventBus [`EVENT_SHOCKWAVE = 0x0280`] 연계 아키텍처 명세 수립 완료**
+- **일시:** 2026-10-24 11:29 KST
+- **감사 대상:** Axiom Engine 280대 64B L1 정렬 충격파 슬랩 및 볼류메트릭 파티클 감쇠기 구현 (T-225, `crates/axiom-core/src/shockwave.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_shockwave.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 컴파일 타임 검증, Sedov-Taylor 점폭발 파면 반경 R(t), 음속 하한선(340m/s) 속도 감쇠, 거리 역제곱 법칙 P(R) = P0*(R0/R)^2 감쇠 무결성 실증, 270대 `DebrisParticlePool` 방사형 척력 임펄스 및 상향 바이어스 도약력 결합 실증, Stokes' Settling 중력 침강(120 mm/s) 및 Q16.16 Beer-Lambert 시야 투과율 검증, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 5개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 설계**:
-     - `ShockwaveSlab64`: $11 \times 4\text{B(coords/radii/speed/thick/impulse/emitter/tick)} + 2 \times 2\text{B(ticks)} + 4 \times 1\text{B(type/flags/mat/damp)} + 12\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-     - `DustEmitterSlab64`: $8 \times 4\text{B(coords/radii/speed/emitter/tick)} + 5 \times 2\text{B(density/speed/rate/life/fog)} + 3\text{B(rgb)} + 2 \times 1\text{B(mat/flags)} + 15\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+  1. **64B L1 캐시 라인 정렬 및 크기**:
+     - `ShockwaveSlab64`: 정확히 64B, `align_of == 64`.
+     - `DustEmitterSlab64`: 정확히 64B, `align_of == 64`.
   2. **Sedov-Taylor 이산 정수 적분 및 충격파 척력 수식**:
      - 음속 하한선($v_{sound} = 340,000\text{ mm/s}$) 및 거리 역제곱 압력 임펄스 감쇠.
-     - 270대 Debris 파티클 및 240대 Ragdoll 본 방사형 척력 임펄스 $\vec{J} = \frac{P(d)}{d} \vec{r}$.
-     - 지면 충격파 수평 바이어스 토로이달 모드.
-  3. **지형 파쇄 먼지 폭풍 및 광학 감쇠 모델**:
-     - Stokes 침강 속도($-2\text{ mm/tick}$) 및 Q16.16 틱당 밀도 지수 감쇠.
-     - Beer-Lambert 0-Float 1차 근사 시야 투과율 $\text{Transmittance}_{q16} \in [0, 65536]$.
-  4. **서브시스템 및 이벤트 버스 연계**:
-     - 40B 인라인 POD 페이로드 `ShockwaveReport` 기반 `EVENT_SHOCKWAVE = 0x0280` (`channel::PHYSICS | channel::VFX`).
-     - N-배치 워커 풀 분할 잡 `dispatch_shockwave_with_jobs`.
+     - 270대 Debris 파티클 방사형 척력 임펄스 $\vec{J} = \frac{P(d)}{d} \vec{r}$ 및 $+y$ 상향 도약 바이어스 가산.
+     - 토로이달(Toroidal) 지면 충격파 수직 스케일링.
+  3. **지형 파쇄 먼지 폭풍 및 광학 감쇠**:
+     - 미세 분진 중력 침강 하강 및 지수 밀도 감쇠.
+     - 0-Float Beer-Lambert 시야 투과율 $T \in [0, 65536]$.
+  4. **결정론 및 합의 해시**:
+     - 64-bit FNV-1a 상태 합의 해시 일치성 검증 완료.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T224] Axiom Engine 280대 절차적 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 연구
+- **일시:** 2026-10-24 11:24 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 설계 승인, Sedov-Taylor 점폭발 상사해 이산 정수 적분 모델 (파면 반경 R, 두께 ΔR, 피크 압력 역제곱 감쇠 P(R) = P0*(R0/R)^2) 수립, 270대 파괴 파티클 및 240대 래그돌 방사형 척력 임펄스 및 토로이달 지면 충격파 모드 수식화, 지형 파쇄 먼지 폭풍(Stokes' Settling 중력 침강, Q16.16 시야 소광 투과율) 모델 승인, 0-힙 고정 용량 `VolumetricShockwaveEngine` 아키텍처 승인, 250대 크레이터 / 270대 파괴 파티클 / 200대 JobSystem / 210대 EventBus [`EVENT_SHOCKWAVE = 0x0280`] 연계 아키텍처 명세 수립 완료.
 
 ### [AUDIT-20261024-v4.1.0] Axiom Engine v4.1.0 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 11:20 KST
