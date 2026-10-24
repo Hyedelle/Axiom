@@ -8,21 +8,32 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 18:36 KST
-- **감사 대상:** Axiom 370대 메카 음향광학 & 메타물질 클로킹 공식 릴리즈 v4.11.0 (T-283, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
-- **판정:** 🟢 **ALL CLEAR — 전체 워크스페이스 v4.11.0 공식 판올림 완료, 제53장 아키텍처 및 ADR [D-185]~[D-188] 명세 수립, `tools/package.ps1` 빌드 및 `dist/axiom-v4.11.0-unified-milestone.zip` (2.37 MB, SHA-256: `C81F7A57FC5CC98F1001BF5093580109E43C0B1C185646D3C75DA4127C353070`) 패키징 검증, 바탕화면 바로가기 최신 릴리즈 바이너리(1,163,264 B) 타겟팅 무결성 확인, `tools/guard.ps1` 헌법 가드 통과**
-- **시공팀(Claude Code) 구현 처방전 (T-284 - Axiom 380대 메카 상대론적 중력 계량 텐서 & 시공간 곡률 왜곡 물리 연구)**:
-  1. 상대론적 중력장 및 아인슈타인 계량 텐서($g_{\mu\nu} = \eta_{\mu\nu} + h_{\mu\nu}$)의 0-Float 고정소수점 정수 수식화 연구:
-     - 슈바르츠실트 계량(Schwarzschild Metric) 기반 시공간 팽창($g_{00} = -(1 - 2GM/c^2 r)$) 및 공간 수축($g_{rr} = (1 - 2GM/c^2 r)^{-1}$) Q16.16 정수화.
-     - 메카 중력 제어기/워프 드라이브/중력장 왜곡 쉴드에 의한 측지선(Geodesic) 레이저/입자 궤도 편향 계산.
-  2. 64B L1 캐시 라인 정렬 구조체 설계:
-     - `SpacetimeMetricSlab64`: exact 64 bytes (`#[repr(C, align(64))]`).
-     - `GravitationalLensSlab64`: exact 64 bytes (`#[repr(C, align(64))]`).
-  3. 40B 인라인 POD 이벤트 서술자 `RelativityEventReport` 및 0-힙 엔진 `MechaRelativityEngine<MAX_CELLS, MAX_WELLS>` 설계.
+- **일시:** 2026-10-24 18:46 KST
+- **감사 대상:** Axiom 380대 메카 상대론적 중력 계량 텐서 & 곡률 왜곡 물리 연구 (T-284, `docs/audit-report.md`, `crates/axiom-core/src/relativity.rs`)
+- **판정:** 🟢 **ALL CLEAR — 슈바르츠실트 계량 텐서($g_{00}, g_{rr}$) Q16.16 고정소수점 정수화, 중력 시간 팽창($\Delta \tau = \Delta t \sqrt{1 - r_s / r}$) 정수 제곱근 수식화, 아인슈타인 측지선 광선 굴절 공식($\Delta \theta_{\text{mrad}} = 2000 \cdot r_s / b$) 및 광자구 포획 반경($b_{\text{crit}} \approx 2.598 \cdot r_s$) 모델 수립, 64B L1 정렬 `SpacetimeMetricSlab64` & `GravitationalLensSlab64`, 40B 인라인 POD `RelativityEventReport`, 0-힙 `MechaRelativityEngine<MAX_CELLS, MAX_WELLS>` 설계 완료**
+- **시공팀(Claude Code) 구현 처방전 (T-285 - Axiom 380대 64B L1 정렬 시공간 계량 슬랩 및 측지선 솔버 구현)**:
+  1. `crates/axiom-core/src/relativity.rs` 신규 모듈 생성:
+     - 64-Byte L1 정렬 구조체: `SpacetimeMetricSlab64`, `GravitationalLensSlab64` (`#[repr(C, align(64))]`).
+     - 40-Byte POD: `RelativityEventReport` (`encode()`, `decode()`).
+     - 핵심 물리 연산:
+       - `compute_spacetime_metric(&mut SpacetimeMetricSlab64, [i32; 3]) -> (i32, u32, u32)` ($g_{00}, g_{rr}, \Delta \tau$).
+       - `compute_geodesic_deflection(&mut GravitationalLensSlab64, [i32; 3], [i32; 3], u32) -> ([i32; 3], bool)`.
+     - 0-힙 시뮬레이터: `MechaRelativityEngine<const MAX_CELLS: usize, const MAX_WELLS: usize>`.
+     - 64-bit FNV-1a 상태 합의 체크섬: `compute_consensus_hash(&self) -> u64`.
+     - 멀티스레드 잡 분할: `dispatch_relativity_with_jobs`.
+     - 이벤트 버스 연계: `emit_relativity_to_event_bus` (`EVENT_GRAVITATIONAL_LENS = 0x0380`, `EVENT_SPACETIME_DISTORTION = 0x0381`).
+  2. `crates/axiom-core/src/lib.rs`에 `pub mod relativity;` 등록 및 주요 타입 공개.
+  3. `crates/axiom-core/tests/test_relativity.rs` 6개 단위 테스트 작성 및 100% 통과.
+  4. `tools/guard.ps1` 검증 통과 후 단일 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T284] Axiom 380대 메카 상대론적 중력 계량 텐서 & 곡률 왜곡 물리 연구
+- **일시:** 2026-10-24 18:46 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 슈바르츠실트 계량 텐서, 중력 시간 팽창, 측지선 굴절각, 알쿠비에레 워프 편향 실드 0-Float 정수 모델 및 64B L1 슬랩/40B POD/0-힙 엔진 설계 완료.
 
 ### [AUDIT-20261024-v4.11.0] Axiom 370대 메카 음향광학 & 메타물질 클로킹 공식 릴리즈 v4.11.0
 - **일시:** 2026-10-24 18:36 KST
