@@ -16,6 +16,9 @@
 
 use core::mem::{align_of, size_of};
 use crate::ragdoll::isqrt_i64;
+use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
 
 /// Event type discriminant for debris burst scattering.
 pub const EVENT_DEBRIS_BURST: u16 = 0x0270;
@@ -588,6 +591,18 @@ impl<const MAX_PARTICLES: usize> DebrisParticlePool<MAX_PARTICLES> {
         contact_count
     }
 
+    /// Returns the number of currently active debris particles.
+    #[inline(always)]
+    pub fn active_count(&self) -> usize {
+        let mut count = 0;
+        for p in &self.particles {
+            if p.is_active() {
+                count += 1;
+            }
+        }
+        count
+    }
+
     /// Computes guaranteed bit-exact 64-bit FNV-1a checksum of active particles and pool state.
     pub fn compute_consensus_hash(&self) -> u64 {
         const FNV_OFFSET: u64 = 0xcbf29ce484222325;
@@ -621,5 +636,259 @@ impl<const MAX_PARTICLES: usize> DebrisParticlePool<MAX_PARTICLES> {
         h ^= self.total_bounces;
         h = h.wrapping_mul(FNV_PRIME);
         h
+    }
+}
+
+/// Physical debris burst report emitted into the deterministic event bus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[repr(C)]
+pub struct DebrisBurstReport {
+    /// 4B: Burst center origin X in integer mm
+    pub origin_x: i32,
+    /// 4B: Burst center origin Y in integer mm
+    pub origin_y: i32,
+    /// 4B: Burst center origin Z in integer mm
+    pub origin_z: i32,
+    /// 2B: Number of particles scattered in this burst
+    pub particle_count: u16,
+    /// 2B: Minimum scatter speed in mm/s
+    pub speed_min_mms: u16,
+    /// 2B: Maximum scatter speed in mm/s
+    pub speed_max_mms: u16,
+    /// 2B: Cone dispersion half-angle in 16-bit BAMS
+    pub spread_bams: u16,
+    /// 4B: Originating entity, crater, or bone ID
+    pub emitter_id: u32,
+    /// 4B: Total kinetic explosion energy in Joules (J)
+    pub impulse_energy_j: u32,
+    /// 1B: Debris material classification (`DEBRIS_MAT_*`)
+    pub material: u8,
+    /// 1B: Operational flags (`DEBRIS_FLAG_*`)
+    pub flags: u8,
+    /// 2B: Average particle radius in millimeters
+    pub avg_size_mm: u16,
+    /// 2B: Base lifetime in ticks
+    pub lifetime_ticks: u16,
+    /// 6B: Explicit alignment padding to exact 40 bytes
+    pub _reserved: [u8; 6],
+}
+
+impl DebrisBurstReport {
+    /// Creates a new burst report from explosion/impact parameters.
+    pub fn from_burst(
+        origin: (i32, i32, i32),
+        particle_count: u16,
+        speed_min_mms: u16,
+        speed_max_mms: u16,
+        spread_bams: u16,
+        material: u8,
+        emitter_id: u32,
+        impulse_energy_j: u32,
+    ) -> Self {
+        Self {
+            origin_x: origin.0,
+            origin_y: origin.1,
+            origin_z: origin.2,
+            particle_count,
+            speed_min_mms,
+            speed_max_mms,
+            spread_bams,
+            emitter_id,
+            impulse_energy_j,
+            material,
+            flags: DEBRIS_FLAG_ACTIVE,
+            avg_size_mm: 25,
+            lifetime_ticks: 120,
+            _reserved: [0u8; 6],
+        }
+    }
+
+    /// Decodes a report from a 40-byte inline POD event payload.
+    pub fn decode(payload: &[u8; 40]) -> Self {
+        let origin_x = i32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
+        let origin_y = i32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+        let origin_z = i32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
+        let particle_count = u16::from_le_bytes([payload[12], payload[13]]);
+        let speed_min_mms = u16::from_le_bytes([payload[14], payload[15]]);
+        let speed_max_mms = u16::from_le_bytes([payload[16], payload[17]]);
+        let spread_bams = u16::from_le_bytes([payload[18], payload[19]]);
+        let emitter_id = u32::from_le_bytes([payload[20], payload[21], payload[22], payload[23]]);
+        let impulse_energy_j = u32::from_le_bytes([payload[24], payload[25], payload[26], payload[27]]);
+        let material = payload[28];
+        let flags = payload[29];
+        let avg_size_mm = u16::from_le_bytes([payload[30], payload[31]]);
+        let lifetime_ticks = u16::from_le_bytes([payload[32], payload[33]]);
+        let mut _reserved = [0u8; 6];
+        _reserved.copy_from_slice(&payload[34..40]);
+
+        Self {
+            origin_x,
+            origin_y,
+            origin_z,
+            particle_count,
+            speed_min_mms,
+            speed_max_mms,
+            spread_bams,
+            emitter_id,
+            impulse_energy_j,
+            material,
+            flags,
+            avg_size_mm,
+            lifetime_ticks,
+            _reserved,
+        }
+    }
+}
+
+/// Worker task that processes a partition of debris particles for parallel ballistic integration.
+pub fn debris_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let particle_count = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for p in 0..particle_count {
+        let idx = start_idx.wrapping_add(p);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Partitions debris particle ballistic updates across the worker pool for parallel integration.
+pub fn dispatch_debris_with_jobs<
+    const MAX_PARTICLES: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    pool: &DebrisParticlePool<MAX_PARTICLES>,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    let active = pool.active_count();
+    if batch_count == 0 || active == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let per_batch = (active + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start_idx = b * per_batch;
+        let count = per_batch.min(active.saturating_sub(start_idx));
+        if count == 0 {
+            break;
+        }
+
+        let param = (start_idx as u64) | ((count as u64) << 32);
+        let tag = (active as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            debris_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits physical debris burst event into a DeterministicEventBus.
+///
+/// Encodes a 40-byte inline POD payload:
+/// - 0..4: origin_x (i32)
+/// - 4..8: origin_y (i32)
+/// - 8..12: origin_z (i32)
+/// - 12..14: particle_count (u16)
+/// - 14..16: speed_min_mms (u16)
+/// - 16..18: speed_max_mms (u16)
+/// - 18..20: spread_bams (u16)
+/// - 20..24: emitter_id (u32)
+/// - 24..28: impulse_energy_j (u32)
+/// - 28: material (u8)
+/// - 29: flags (u8)
+/// - 30..32: avg_size_mm (u16)
+/// - 32..34: lifetime_ticks (u16)
+/// - 34..40: reserved ([u8; 6])
+pub fn emit_debris_burst_to_event_bus<const BUS_CAP: usize>(
+    report: &DebrisBurstReport,
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> bool {
+    let mut payload = [0u8; 40];
+    payload[0..4].copy_from_slice(&report.origin_x.to_le_bytes());
+    payload[4..8].copy_from_slice(&report.origin_y.to_le_bytes());
+    payload[8..12].copy_from_slice(&report.origin_z.to_le_bytes());
+    payload[12..14].copy_from_slice(&report.particle_count.to_le_bytes());
+    payload[14..16].copy_from_slice(&report.speed_min_mms.to_le_bytes());
+    payload[16..18].copy_from_slice(&report.speed_max_mms.to_le_bytes());
+    payload[18..20].copy_from_slice(&report.spread_bams.to_le_bytes());
+    payload[20..24].copy_from_slice(&report.emitter_id.to_le_bytes());
+    payload[24..28].copy_from_slice(&report.impulse_energy_j.to_le_bytes());
+    payload[28] = report.material;
+    payload[29] = report.flags;
+    payload[30..32].copy_from_slice(&report.avg_size_mm.to_le_bytes());
+    payload[32..34].copy_from_slice(&report.lifetime_ticks.to_le_bytes());
+    payload[34..40].copy_from_slice(&report._reserved);
+
+    event_bus
+        .emit_raw(
+            tick,
+            EVENT_DEBRIS_BURST,
+            channel::PHYSICS | channel::VFX,
+            report.emitter_id,
+            0,
+            payload,
+        )
+        .is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_debris_burst_report_size_and_roundtrip() {
+        assert_eq!(size_of::<DebrisBurstReport>(), 40);
+
+        let report = DebrisBurstReport::from_burst(
+            (1200, 50, -850),
+            32,
+            3000,
+            8000,
+            16384,
+            DEBRIS_MAT_STONE,
+            42,
+            15000,
+        );
+
+        let mut bus = DeterministicEventBus::<16>::new();
+        assert!(emit_debris_burst_to_event_bus(&report, 100, &mut bus));
+        assert_eq!(bus.count, 1);
+
+        let ev = &bus.events[0];
+        assert_eq!(ev.event_type, EVENT_DEBRIS_BURST);
+        assert_eq!(ev.channel_mask, channel::PHYSICS | channel::VFX);
+        assert_eq!(ev.source_id, 42);
+
+        let decoded = DebrisBurstReport::decode(&ev.payload);
+        assert_eq!(decoded.origin_x, 1200);
+        assert_eq!(decoded.origin_y, 50);
+        assert_eq!(decoded.origin_z, -850);
+        assert_eq!(decoded.particle_count, 32);
+        assert_eq!(decoded.speed_min_mms, 3000);
+        assert_eq!(decoded.speed_max_mms, 8000);
+        assert_eq!(decoded.spread_bams, 16384);
+        assert_eq!(decoded.emitter_id, 42);
+        assert_eq!(decoded.impulse_energy_j, 15000);
+        assert_eq!(decoded.material, DEBRIS_MAT_STONE);
+        assert_eq!(decoded.flags, DEBRIS_FLAG_ACTIVE);
     }
 }

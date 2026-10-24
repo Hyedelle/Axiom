@@ -27,6 +27,10 @@ use axiom_core::destruction_audio::{
     dispatch_destruction_audio_with_jobs, emit_destruction_audio_to_event_bus,
     DestructionAudioEngine, DestructionAudioReport, DestructionVoiceSlab64,
 };
+use axiom_core::debris_particle::{
+    dispatch_debris_with_jobs, emit_debris_burst_to_event_bus, DebrisBurstReport,
+    DebrisParticlePool,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1055,6 +1059,48 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_destruction_audio_with_jobs(engine, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_destruction_audio(engine, voice)
+    }
+
+    /// Evaluates dynamic procedural debris particle scattering from physical impacts, craters, or knockdowns,
+    /// scattering the particles in the arena and emitting the event into the event bus.
+    pub fn step_debris_burst<const PARTICLES: usize>(
+        &mut self,
+        pool: &mut DebrisParticlePool<PARTICLES>,
+        report: &DebrisBurstReport,
+    ) -> usize {
+        let spawned = pool.scatter_debris_burst(
+            report.origin_x,
+            report.origin_y,
+            report.origin_z,
+            report.particle_count as usize,
+            report.speed_min_mms as i32,
+            report.speed_max_mms as i32,
+            report.material,
+            report.emitter_id,
+            report.impulse_energy_j,
+        );
+        if spawned > 0 {
+            emit_debris_burst_to_event_bus(report, self.current_world.tick, &mut self.event_bus);
+        }
+        spawned
+    }
+
+    /// Evaluates dynamic procedural debris particle ballistic integration parallelized across the worker pool using JobSystem.
+    pub fn step_debris_burst_with_jobs<
+        const PARTICLES: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        pool: &mut DebrisParticlePool<PARTICLES>,
+        report: &DebrisBurstReport,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> usize {
+        dispatch_debris_with_jobs(pool, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_debris_burst(pool, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.

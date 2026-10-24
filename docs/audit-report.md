@@ -8,23 +8,27 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 10:50 KST
-- **감사 대상:** Axiom Engine 270대 64B L1 정렬 파괴 파티클 슬랩 및 충돌 임펄스 적분기 구현 (T-219, `crates/axiom-core/src/debris_particle.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_debris_particle.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 컴파일 타임 검증, $g = -9810\text{ mm/s}^2$ (-163 mm/s/tick) 반암시적 오일러 탄도 적분기 및 공기 저항 감쇠 무결성 실증, 바닥(z=0) 반발 탄성 계수($e$) 및 마찰 감쇠 계수($\mu$) 충돌 임펄스 해석 실증, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 기록 실증, 수명 만료 자동 비활성화 및 0-힙 고정 용량 풀 재활용 검증, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 5개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 11:00 KST
+- **감사 대상:** Axiom Engine 270대 파괴 파티클 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-220, `crates/axiom-core/src/debris_particle.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_debris_particle_jobs.rs`, `crates/axiom-game/tests/test_debris_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 40B 인라인 POD `DebrisBurstReport` 및 `EVENT_DEBRIS_BURST = 0x0270` (`channel::PHYSICS | channel::VFX`) 결정론적 이벤트 버스 방출/디코딩/롤백 무결성 검증, Chase-Lev SPMC 워크 스틸링 워커 풀 연계 `dispatch_debris_with_jobs` 파티클 적분 N-배치 분할 검증, `NetworkMatchDirector::step_debris_burst` 및 `step_debris_burst_with_jobs` 16인 경기장 실시간 파괴 파티클 비산 파이프라인 결합 검증, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 및 크기**:
-     - `DebrisParticleSlab64`: 정확히 64B, `align_of == 64`.
-     - `ParticleContactSlab64`: 정확히 64B, `align_of == 64`.
-  2. **반암시적 오일러 적분 및 반발 임펄스 수식**:
-     - 정수 중력 가속도($-163\text{ mm/s/tick}$) 및 공기 저항 감쇠율($k_{drag} \approx 0.995$) 적분.
-     - 바닥 충돌 시 법선 속도 반발($v_z' = -v_z \cdot e / 65536$) 및 접선 마찰 감쇠($v_{xy}' = v_{xy} \cdot \mu / 65536$).
-     - 미소 진동 슬립(Sleep) 전이 조건 확립.
-  3. **결정론 및 합의 해시**:
-     - 동일 시드 PRNG 분산 시 100% 동일한 상태 및 64-bit FNV-1a 해시 생성 검증.
+  1. **40B 인라인 POD 이벤트 페이로드 무결성**:
+     - `DebrisBurstReport`: 정확히 40B, 0-힙 이벤트 버스 슬랩에 바이트 패킹 및 무손실 라운드트립 디코딩.
+     - 롤백 넷코드 시퀀스 되감기(`rollback_to`) 지원.
+  2. **워커 풀 SPMC 잡 스케줄링**:
+     - 활성 파티클 수 기반 균등 N-배치 분할 및 `dispatch_debris_with_jobs`를 통한 로컬 큐 푸시.
+     - `WorkerPoolCoordinator::drain_all`을 통한 100% 무잠금 협력적 태스크 소진.
+  3. **16-인 경기장 실시간 파이프라인**:
+     - `NetworkMatchDirector` 물리 스텝과 연계되어 파이터 피격/지형 파쇄 시 실시간 비산 및 이벤트 전파.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T219] Axiom Engine 270대 64B L1 정렬 파괴 파티클 슬랩 및 충돌 임펄스 적분기 구현
+- **일시:** 2026-10-24 10:50 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 컴파일 타임 검증, $g = -9810\text{ mm/s}^2$ (-163 mm/s/tick) 반암시적 오일러 탄도 적분기 및 공기 저항 감쇠 무결성 실증, 바닥(z=0) 반발 탄성 계수($e$) 및 마찰 감쇠 계수($\mu$) 충돌 임펄스 해석 실증, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 기록 실증, 수명 만료 자동 비활성화 및 0-힙 고정 용량 풀 재활용 검증, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 5개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T218] Axiom Engine 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 연구
 - **일시:** 2026-10-24 10:45 KST

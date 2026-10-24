@@ -105,6 +105,7 @@ pub use deformable_mesh::{
     VERTEX_FLAG_PINNED,
 };
 pub use debris_particle::{
+    debris_batch_job, dispatch_debris_with_jobs, emit_debris_burst_to_event_bus, DebrisBurstReport,
     DebrisParticlePool, DebrisParticleSlab64, ParticleContactSlab64, CONTACT_TYPE_ENTITY,
     CONTACT_TYPE_FLOOR, CONTACT_TYPE_TERRAIN, CONTACT_TYPE_WALL, DEBRIS_FLAG_ACTIVE,
     DEBRIS_FLAG_BOUNCED, DEBRIS_FLAG_CRITICAL, DEBRIS_FLAG_GROUNDED, DEBRIS_FLAG_SLEEPING,
