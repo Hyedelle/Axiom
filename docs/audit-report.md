@@ -8,25 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 15:57 KST
-- **감사 대상:** Axiom 340대 광자 복사 수송(Radiative Transfer) & 고에너지 입자선 물리학 연구 (T-260, `axiom-radiative-transfer-and-particle-beam-research.md`, `docs/audit-report.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, Stefan-Boltzmann $T^4$ 정수 복사 플럭스 $E = (T/100)^4 \times 567 / 100$ W/m², 유리식 Padé 근사 Beer-Lambert 광학적 깊이 감쇠 $T = 65536^2 / (65536 + \tau + \tau^2/131072)$, 고에너지 빔 아머 절제 관통 모델 $d = E_{\text{eff}} / (A \cdot Q_{\text{ablation}})$ 수립, 64B L1 정렬 `RadiationCellSlab64` & `ParticleBeamSlab64`, 40B POD `RadiationEventReport` 설계 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-261 - Axiom 340대 64B L1 정렬 복사 수송 슬랩 및 Monte Carlo 광자 패킷 해석기 구현)**:
-  1. `crates/axiom-core/src/radiation.rs` 신규 생성:
-     - 64B L1 캐시 정렬 `RadiationCellSlab64` (`#[repr(C, align(64))]`, exact 64B)
-     - 64B L1 캐시 정렬 `ParticleBeamSlab64` (`#[repr(C, align(64))]`, exact 64B)
-     - 40B 인라인 POD `RadiationEventReport` (라운드트립 `encode`/`decode` 검증)
-     - `compute_beer_lambert_transmittance_q16(tau_q16: u32) -> u32` 구현
-     - `compute_stefan_boltzmann_emission_flux(temp_k: u32) -> u32` 구현
-     - `compute_beam_ablation_penetration(...) -> u16` 구현
-     - 0-Heap 고정 크기 시뮬레이터 `MechaRadiationEngine<const MAX_CELLS: usize, const MAX_BEAMS: usize>` 구현
-     - 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash(&self) -> u64` 구현
-  2. `crates/axiom-core/src/lib.rs`에 `pub mod radiation;` 등록.
-  3. `crates/axiom-core/tests/test_radiation.rs` 단위 테스트 6종 작성 및 `tools/guard.ps1` 검증.
+- **일시:** 2026-10-24 16:03 KST
+- **감사 대상:** Axiom 340대 64B L1 정렬 복사 수송 슬랩 및 Monte Carlo 광자 패킷 해석기 구현 (T-261, `crates/axiom-core/src/radiation.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_radiation.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RadiationCellSlab64` & `ParticleBeamSlab64`, 40B POD `RadiationEventReport` 무손실 라운드트립 직렬화, Stefan-Boltzmann 흑체 복사 방출 정수 수식, Padé 근사 Beer-Lambert 광학적 깊이 투과율, 고에너지 빔 스팟 분산 및 티타늄 아머 절제 관통 해석, 0-힙 고정 크기 `MechaRadiationEngine<MAX_CELLS, MAX_BEAMS>`, 64-bit FNV-1a 상태 합의 체크섬 구현, 6개 단위 테스트 100% 통과, `tools/guard.ps1` 100% 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-262 - Axiom 340대 복사 수송 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
+  1. `crates/axiom-core/src/radiation.rs` 확장:
+     - `radiation_batch_job`: 슬랩 배치 청크 분할 단위 작업 처리
+     - `dispatch_radiation_with_jobs`: Chase-Lev 4-워커 풀 분산 스케줄링
+     - `emit_radiation_to_event_bus`: `EVENT_RADIATION_BURST = 0x0340`, `EVENT_BEAM_PENETRATION = 0x0341` 이벤트 버스 방출 (`channel::PHYSICS | channel::VFX | channel::AUDIO`)
+     - `RadiationEventReport::decode`를 통한 GGPO 롤백 지원
+  2. `crates/axiom-game/src/network.rs` 연계:
+     - `NetworkMatchDirector`에 `step_radiation` 및 `step_radiation_with_jobs` 결합
+  3. 테스트 작성:
+     - `crates/axiom-core/tests/test_radiation_jobs.rs` (3종 단위 테스트)
+     - `crates/axiom-game/tests/test_radiation_game_pipeline.rs` (2종 통합 테스트)
+  4. `tools/guard.ps1` 검증 및 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T261] Axiom 340대 64B L1 정렬 복사 수송 슬랩 및 Monte Carlo 광자 패킷 해석기 구현
+- **일시:** 2026-10-24 16:03 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 하에서 64B L1 캐시 정렬 `RadiationCellSlab64` & `ParticleBeamSlab64`, 40B POD `RadiationEventReport`, Stefan-Boltzmann 정수 복사 플럭스, Padé Beer-Lambert 투과율, 티타늄 아머 절제 관통 해석, 0-힙 `MechaRadiationEngine`, 64-bit FNV-1a 체크섬, 6개 단위 테스트 올패스, `tools/guard.ps1` 통과.
 
 ### [AUDIT-20261024-T260] Axiom 340대 광자 복사 수송 & 고에너지 입자선 물리학 연구
 - **일시:** 2026-10-24 15:57 KST
