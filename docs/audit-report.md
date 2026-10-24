@@ -8,20 +8,25 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 14:28 KST
-- **감사 대상:** Axiom 320대 64B L1 정렬 공기역학/항력 슬랩 및 3D 풍동 해석기 구현 (T-249, `crates/axiom-core/src/aerodynamics.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_aerodynamics.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64` 슬랩 메모리 무결성, 40-Byte 인라인 POD `AeroEventReport` 무손실 라운드트립 직렬화, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 0-힙 고정 크기 `MechaAerodynamicsEngine<MAX_BODIES, MAX_CELLS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 7개 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-250 - Axiom 320대 공기역학 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
-  1. `crates/axiom-core/src/aerodynamics.rs`:
-     - `aero_batch_job` 및 `dispatch_aerodynamics_with_jobs` 검증/보강
-     - `emit_aero_to_event_bus` 무결성 검증
-  2. `crates/axiom-game/src/network.rs`:
-     - `NetworkMatchDirector` 내 `step_aerodynamics` 및 `step_aerodynamics_with_jobs` 연계
-  3. `crates/axiom-core/tests/test_aerodynamics_jobs.rs` 및 `crates/axiom-game/tests/test_aerodynamics_game_pipeline.rs` 작성 및 `tools/guard.ps1` 검증.
+- **일시:** 2026-10-24 14:35 KST
+- **감사 대상:** Axiom 320대 공기역학 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-250, `crates/axiom-core/src/aerodynamics.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_aerodynamics_jobs.rs`, `crates/axiom-game/tests/test_aerodynamics_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_aerodynamics_with_jobs` (바디 슬랩 청크 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_aero_to_event_bus` (`EVENT_AERO_DRAG = 0x0320`, `EVENT_AERO_VORTEX = 0x0321`, `channel::PHYSICS | channel::VFX | channel::AUDIO`, 40B 인라인 POD 페이로드 `AeroEventReport`) 무결성 실증, `NetworkMatchDirector::step_aerodynamics` 및 `step_aerodynamics_with_jobs` (16-인 경기장 공기역학 수치 적분 및 이벤트 실시간 방출 결합), 5개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-251 - Axiom 320대 공기역학 벤치마크 및 WASM 스튜디오 쇼케이스 연동)**:
+  1. `crates/axiom-wasm/src/lib.rs`:
+     - C-ABI 엔드포인트 `axiom_aero_bench_burst(body_count: u32, steps: u32) -> u64` 구현 (64B L1 캐시 정렬 `AeroBodySlab64`, Chase-Lev 4-워커 디스패치, `compute_consensus_hash` 계측).
+     - `crates/axiom-wasm/tests/wasm_tests.rs` 또는 기존 WASM 테스트 스위트에 공기역학 벤치마크 테스트 추가.
+  2. `crates/axiom-wasm/index.html` 및 `web/index.html`:
+     - 웹 3D 복셀 스튜디오 내 **💨 320 Aerodynamics & VIV (64B Slabs)** 모달 UI 및 벤치마크 연동.
+  3. `tools/build_wasm.ps1` 빌드 및 `tools/guard.ps1` 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T250] Axiom 320대 공기역학 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 14:35 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_aerodynamics_with_jobs` (바디 슬랩 청크 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_aero_to_event_bus` (`EVENT_AERO_DRAG = 0x0320`, `EVENT_AERO_VORTEX = 0x0321`, `channel::PHYSICS | channel::VFX | channel::AUDIO`, 40B 인라인 POD 페이로드 `AeroEventReport`) 무결성 실증, `NetworkMatchDirector::step_aerodynamics` 및 `step_aerodynamics_with_jobs` (16-인 경기장 공기역학 수치 적분 및 이벤트 실시간 방출 결합), 5개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T249] Axiom 320대 64B L1 정렬 공기역학/항력 슬랩 및 3D 풍동 해석기 구현
 - **일시:** 2026-10-24 14:28 KST

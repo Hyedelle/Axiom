@@ -46,6 +46,10 @@ use axiom_core::actuator::{
     dispatch_actuators_with_jobs, emit_actuator_to_event_bus, ActuatorEventReport,
     MechaActuatorEngine,
 };
+use axiom_core::aerodynamics::{
+    dispatch_aerodynamics_with_jobs, emit_aero_to_event_bus, AeroEventReport,
+    MechaAerodynamicsEngine,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1276,6 +1280,40 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_actuators_with_jobs(engine, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_actuator(engine, report)
+    }
+
+    /// Advances physical simulation of mecha aerodynamics (drag/lift/VIV) and optionally emits an event.
+    pub fn step_aerodynamics<const BODIES: usize, const CELLS: usize>(
+        &mut self,
+        engine: &mut MechaAerodynamicsEngine<BODIES, CELLS>,
+        report: Option<&AeroEventReport>,
+    ) -> bool {
+        engine.step_simulation();
+
+        if let Some(rep) = report {
+            emit_aero_to_event_bus(rep, self.current_world.tick, &mut self.event_bus);
+        }
+
+        true
+    }
+
+    /// Advances physical simulation of mecha aerodynamics using worker pool parallel dispatch.
+    pub fn step_aerodynamics_with_jobs<
+        const BODIES: usize,
+        const CELLS: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut MechaAerodynamicsEngine<BODIES, CELLS>,
+        report: Option<&AeroEventReport>,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_aerodynamics_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_aerodynamics(engine, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.
