@@ -35,6 +35,9 @@ use axiom_core::shockwave::{
     dispatch_shockwave_with_jobs, emit_shockwave_to_event_bus, ShockwaveReport,
     VolumetricShockwaveEngine,
 };
+use axiom_core::xpbd_ragdoll::{
+    dispatch_xpbd_with_jobs, emit_xpbd_to_event_bus, XpbdEventReport, XpbdRagdollEngine,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1163,6 +1166,40 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_shockwave_with_jobs(engine, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_shockwave(engine, report)
+    }
+
+    /// Advances physical simulation of an XPBD mecha ragdoll and emits strain/tear events.
+    pub fn step_xpbd<const BONES: usize, const CONSTRAINTS: usize>(
+        &mut self,
+        engine: &mut XpbdRagdollEngine<BONES, CONSTRAINTS>,
+        report: Option<&XpbdEventReport>,
+    ) -> bool {
+        engine.step_xpbd(-9810, 4, 0, 5000);
+
+        if let Some(rep) = report {
+            emit_xpbd_to_event_bus(rep, self.current_world.tick, &mut self.event_bus);
+        }
+
+        true
+    }
+
+    /// Advances physical simulation of an XPBD mecha ragdoll using worker pool parallel dispatch.
+    pub fn step_xpbd_with_jobs<
+        const BONES: usize,
+        const CONSTRAINTS: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut XpbdRagdollEngine<BONES, CONSTRAINTS>,
+        report: Option<&XpbdEventReport>,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_xpbd_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_xpbd(engine, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.

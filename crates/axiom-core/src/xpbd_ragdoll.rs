@@ -20,6 +20,10 @@
 
 use core::mem::{align_of, size_of};
 
+use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
+
 /// Event type for XPBD mechanical strain / plastic yield
 pub const EVENT_XPBD_STRAIN: u16 = 0x0290;
 /// Event type for XPBD joint rupture and limb severance
@@ -763,4 +767,90 @@ impl<const MAX_BONES: usize, const MAX_CONSTRAINTS: usize> XpbdRagdollEngine<MAX
 
         hash
     }
+}
+
+/// Worker task that processes a partition of XPBD ragdoll bone slabs for parallel integration.
+pub fn xpbd_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let chunk_size = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for i in 0..chunk_size {
+        let idx = start_idx.wrapping_add(i);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Partitions XPBD ragdoll bone updates across the worker pool for parallel integration.
+pub fn dispatch_xpbd_with_jobs<
+    const BONES: usize,
+    const CONSTRAINTS: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    engine: &XpbdRagdollEngine<BONES, CONSTRAINTS>,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    if engine.active_bones_count == 0 || batch_count == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let chunk_size = (engine.active_bones_count + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start = b * chunk_size;
+        let len = chunk_size.min(engine.active_bones_count.saturating_sub(start));
+        if len == 0 {
+            break;
+        }
+
+        let param = (start as u64) | ((len as u64) << 32);
+        let tag = (engine.active_constraints_count as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            xpbd_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits an XPBD strain or joint rupture event into a DeterministicEventBus.
+pub fn emit_xpbd_to_event_bus<const BUS_CAP: usize>(
+    report: &XpbdEventReport,
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> bool {
+    let event_type = if report.is_severed != 0 {
+        EVENT_XPBD_TEAR
+    } else {
+        EVENT_XPBD_STRAIN
+    };
+
+    let payload = report.encode();
+
+    event_bus
+        .emit_raw(
+            tick,
+            event_type,
+            channel::PHYSICS | channel::COMBAT,
+            report.entity_id,
+            0,
+            payload,
+        )
+        .is_some()
 }

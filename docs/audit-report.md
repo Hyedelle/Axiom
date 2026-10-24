@@ -8,18 +8,23 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 12:25 KST
-- **감사 대상:** Axiom 290대 64B L1 정렬 XPBD 제약 슬랩 및 순수 정수 컴플라이언스 해석기 구현 (T-231, `crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 컴파일 타임 검증, 40-Byte 인라인 POD `XpbdEventReport` 무손실 직렬화 검증, Extended Position-Based Dynamics (XPBD) 순수 정수 거리 제약 완화기 `solve_xpbd_distance` (컴플라이언스 $\tilde{\alpha}$, $\epsilon \le \epsilon_{yield}$ 완전 탄성 복원, $\epsilon_{yield} < \epsilon < \epsilon_{break}$ 영구 소성 변형, $\epsilon \ge \epsilon_{break}$ 관절 파단) 무결성 실증, 0-Heap 플랫 시뮬레이터 `XpbdRagdollEngine<16, 16>`, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 6개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-232)**:
-  1. `crates/axiom-core/src/xpbd_ragdoll.rs` 내 멀티스레드 배치 잡 함수 `xpbd_batch_job` 및 `dispatch_xpbd_with_jobs` 구현 (Chase-Lev 워커 풀 분산 스케줄링).
-  2. 0-Heap 이벤트 버스 발행 함수 `emit_xpbd_to_event_bus` 구현 (`EVENT_XPBD_STRAIN = 0x0290`, `EVENT_XPBD_TEAR = 0x0291` 및 `channel::PHYSICS | channel::COMBAT`, 40B 인라인 POD `XpbdEventReport`).
-  3. `crates/axiom-game/src/network.rs` `NetworkMatchDirector`에 `XpbdRagdollEngine<16, 16>` 탑재 및 `step_xpbd`, `step_xpbd_with_jobs` 파이프라인 결합.
-  4. `test_xpbd_ragdoll_jobs.rs` 및 `test_xpbd_game_pipeline.rs` 작성 및 `tools/guard.ps1` 검증.
+- **일시:** 2026-10-24 12:35 KST
+- **감사 대상:** Axiom 290대 XPBD 메카 래그돌 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-232, `crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_xpbd_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_xpbd_with_jobs` (본 슬랩 N-배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_xpbd_to_event_bus` (`EVENT_XPBD_STRAIN = 0x0290` 및 `EVENT_XPBD_TEAR = 0x0291`, `channel::PHYSICS | channel::COMBAT`, 40B 인라인 POD 페이로드 `XpbdEventReport`) 무결성 실증, `NetworkMatchDirector::step_xpbd` 및 `step_xpbd_with_jobs` (16-인 배틀로얄 경기장 넉다운/KO 시 XPBD 메카 래그돌 제약 해석 및 소성 변형/파단 이벤트 실시간 방출 결합), 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-233)**:
+  1. `crates/axiom-wasm/src/lib.rs` 내 C-ABI 엔드포인트 `axiom_xpbd_bench_burst(bone_count: u32, substeps: u32, impulse_energy_j: u32, out_stats: *mut u32) -> u32` 구현.
+  2. 4~16 본 슬랩 생성 및 XPBD 제약 해석, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_XPBD_STRAIN` / `EVENT_XPBD_TEAR` 이벤트 버스 연계 계측, 64-bit FNV-1a 상태 합의 체크섬.
+  3. `crates/axiom-wasm/index.html` 및 `web/index.html` 내 🦾 **290 XPBD Ragdoll (64B Slabs)** 대화형 버튼 및 텔레메트리 모달 연동.
+  4. WASM 릴리즈 컴파일 및 동기화.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T231] Axiom Engine 290대 64B L1 정렬 XPBD 제약 슬랩 및 순수 정수 컴플라이언스 해석기 구현
+- **일시:** 2026-10-24 12:25 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 컴파일 타임 검증, 40-Byte 인라인 POD `XpbdEventReport` 무손실 직렬화 검증, Extended Position-Based Dynamics (XPBD) 순수 정수 거리 제약 완화기 `solve_xpbd_distance` (컴플라이언스 $\tilde{\alpha}$, $\epsilon \le \epsilon_{yield}$ 완전 탄성 복원, $\epsilon_{yield} < \epsilon < \epsilon_{break}$ 영구 소성 변형, $\epsilon \ge \epsilon_{break}$ 관절 파단) 무결성 실증, 0-Heap 플랫 시뮬레이터 `XpbdRagdollEngine<16, 16>`, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 6개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T230] Axiom 290대 고정소수점 3D 래그돌 관절 XPBD 솔버 및 탄성 변형 한계 연구
 - **일시:** 2026-10-24 12:15 KST

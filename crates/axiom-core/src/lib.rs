@@ -133,7 +133,8 @@ pub use shockwave::{
     SHOCKWAVE_TYPE_TOROIDAL, SPEED_OF_SOUND_MMS,
 };
 pub use xpbd_ragdoll::{
-    isqrt_i64 as xpbd_isqrt_i64, solve_xpbd_distance, XpbdBoneSlab64, XpbdConstraintSlab64,
+    dispatch_xpbd_with_jobs, emit_xpbd_to_event_bus, isqrt_i64 as xpbd_isqrt_i64,
+    solve_xpbd_distance, xpbd_batch_job, XpbdBoneSlab64, XpbdConstraintSlab64,
     XpbdConstraintType, XpbdEventReport, XpbdRagdollEngine, EVENT_XPBD_STRAIN, EVENT_XPBD_TEAR,
     Q16_ONE as XPBD_Q16_ONE, XPBD_BONE_FLAG_ACTIVE, XPBD_BONE_FLAG_FROZEN,
     XPBD_BONE_FLAG_GROUNDED, XPBD_BONE_FLAG_SEVERED, XPBD_CONSTRAINT_FLAG_ACTIVE,
