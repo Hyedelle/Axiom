@@ -6060,6 +6060,90 @@ pub extern "C" fn axiom_audio_bench_destruction(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_debris_bench_burst(
+    particle_count: u32,
+    material_id: u32,
+    impulse_energy_j: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::debris_particle::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let count_to_spawn = (particle_count as usize).clamp(4, 128);
+    let mat = match material_id {
+        0 => DEBRIS_MAT_DIRT,
+        1 => DEBRIS_MAT_STONE,
+        2 => DEBRIS_MAT_METAL,
+        3 => DEBRIS_MAT_MOLTEN,
+        _ => DEBRIS_MAT_SAND,
+    };
+    let energy = if impulse_energy_j > 0 { impulse_energy_j } else { 60_000 };
+
+    let mut pool = Box::new(DebrisParticlePool::<128>::new(12345, 0, 3000));
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    let spawned = pool.scatter_debris_burst(
+        0, 1000, 0,
+        count_to_spawn,
+        2000, 8000,
+        mat,
+        1,
+        energy,
+    );
+
+    let report = DebrisBurstReport::from_burst(
+        (0, 1000, 0),
+        spawned as u16,
+        2000,
+        8000,
+        16384,
+        mat,
+        1,
+        energy,
+    );
+    emit_debris_burst_to_event_bus(&report, 100, &mut bus);
+
+    // Multi-threaded job system partition dispatch
+    let dispatched_jobs = dispatch_debris_with_jobs(
+        &pool,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step ballistic simulation across 10 ticks
+    let mut contacts = [ParticleContactSlab64::empty(); 16];
+    let mut total_contacts = 0;
+    for tick in 1..=10 {
+        total_contacts += pool.step_debris_simulation(&mut contacts, 100 + tick);
+    }
+
+    let debris_hash = pool.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = debris_hash ^ (bus_hash.rotate_left(19));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = pool.particles.len() as u32;             // Total particle slabs (128)
+            *out_stats.add(1) = pool.total_spawned as u32;               // Spawned particles
+            *out_stats.add(2) = pool.active_count() as u32;              // Active particles
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = total_contacts as u32;                   // Surface/boundary contacts
+            *out_stats.add(7) = pool.total_bounces as u32;               // Total bounces
+        }
+    }
+
+    spawned as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7125,5 +7209,16 @@ mod tests {
         assert_eq!(audio_stats[5], 4, "4 parallel dispatch jobs");
         assert_eq!(audio_stats[6], peak_amplitude);
         assert_eq!(audio_stats[7], 4, "Event bus must contain 4 audio destruction events");
+
+        // 14. Physics-Based Debris Particle Scattering & Collision Impulse Benchmark (32 particles, Stone material, 60kJ energy)
+        let mut debris_stats = [0u32; 8];
+        let spawned_particles = axiom_debris_bench_burst(32, 1, 60_000, debris_stats.as_mut_ptr());
+        assert_eq!(spawned_particles, 32, "Debris benchmark must spawn 32 particles");
+        assert_eq!(debris_stats[0], 128, "128 particle slabs capacity");
+        assert_eq!(debris_stats[1], 32, "32 particles spawned");
+        assert!(debris_stats[2] > 0, "Active particles remaining after 10 ticks");
+        assert!(debris_stats[3] != 0 || debris_stats[4] != 0, "Debris consensus hash non-zero");
+        assert_eq!(debris_stats[5], 4, "4 parallel dispatch jobs");
+        assert_eq!(debris_stats[7], debris_stats[6], "Bounces match contacts on floor/boundary");
     }
 }
