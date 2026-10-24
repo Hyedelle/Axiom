@@ -8,18 +8,27 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 12:56 KST
-- **감사 대상:** Axiom 290대 XPBD 메카 래그돌 제약 & 탄성 변형 한계 공식 릴리즈 v4.3.0 (T-235, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-153]~[D-156], `tools/package.ps1`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 전체 워크스페이스 v4.3.0 공식 판올림, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 메모리 무결성, 40B POD `XpbdEventReport`, Müller & Macklin XPBD 순수 정수 유효 컴플라이언스($\tilde{\alpha} = \alpha / \Delta t^2$) 및 3-단계 금속 탄성 변형 한계 모델(가역 탄성 / 소성 변형 세트 $L_0$ 이동 / 극한 인장 파괴 관절 파단 `sever_joint`), `XpbdRagdollEngine<16, 16>`, `DesktopGameView` step_xpbd_pipeline 결합, F3 HUD(`XPBD: {} Bones | Strain: {}% | 64B`), 56x56 미니 레이더 중앙-좌측 마젠타(#EC4899) 인디케이터, 하단 `[XPBD: {}B/{}S]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.3.0-unified-milestone.zip` (2.29 MB, SHA-256: `F21F45DECF773970520F326FAE3E9FCCD4667AE782AC5E3F084039982C2A7377` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,099,264 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-236)**:
-  1. `crates/axiom-core/src/soft_body.rs` 신규 모듈 설계를 위한 0-Float, 64B L1 캐시 정렬 연성체(Soft Body) 및 셰이프 매칭(Shape Matching, Müller et al. 2005) 물리학 선행 연구 수행.
-  2. 분산 질점 입자(`SoftBodyParticleSlab64`) 및 3D 클러스터(`SoftBodyClusterSlab64`) 구조체 정의.
-  3. 극분해(Polar Decomposition) 대칭 행렬 $S = \sqrt{A^T A}$ 대신 0-Float 정수 반복 직교화(Iterative Orthogonalization) 또는 최적 강체 변환(Optimal Rigid Transformation) 알고리즘 수식화.
-  4. 가역 체적 보존(Volume Conservation via Clausen/Müller Constraint) 수식 도출.
+- **일시:** 2026-10-24 13:03 KST
+- **감사 대상:** Axiom 300대 고정소수점 3D 셰이프 매칭 연성체 및 가역 체적 보존 물리학 연구 (T-236, `crates/axiom-core/src/soft_body.rs`, `axiom-shape-matching-soft-body-research.md`, `docs/audit-report.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `SoftBodyParticleSlab64` & `SoftBodyClusterSlab64` 슬랩 설계 승인, 40B POD `SoftBodyEventReport`, 부동소수점 극분해($A = RS$) 및 SVD 완전 배제, Horn(1987) 4x4 대칭 정합 행렬 $N$ 및 3회 웜스타트 거듭제곱법(Power Iteration) 무나눗셈/무부동소수점 최적 강체 회전 정합 모델 수립, Clausen/Müller 가역 체적 보존(Reversible Volume Conservation) 및 포아송 비압축성 팽창/수축 임펄스 수식화, 0-힙 고정 용량 시뮬레이터 `SoftBodyEngine<MAX_PARTICLES, MAX_CLUSTERS>`, 290대 XPBD 메카 래그돌 / 280대 충격파 / 270대 파괴 파티클 / 200대 JobSystem(`dispatch_soft_body_with_jobs`) / 210대 EventBus [`EVENT_SOFT_BODY_DEFORM = 0x0300`, 40B 인라인 POD 페이로드 `SoftBodyEventReport`] 연계 명세 수립 완료**
+- **시공팀(Claude Code) 구현 처방전 (T-237)**:
+  1. `crates/axiom-core/src/soft_body.rs` 생성:
+     - `SoftBodyParticleSlab64` (#[repr(C, align(64))], exact 64B).
+     - `SoftBodyClusterSlab64` (#[repr(C, align(64))], exact 64B).
+     - `SoftBodyEventReport` (#[repr(C)], exact 40B POD, encode/decode).
+     - `solve_shape_matching_cluster`: Horn's method 4x4 행렬 $N$ 및 3회 거듭제곱 반복 최적 회전 쿼터니언 도출, 셰이프 목표 좌표 $g_i = c + R q_i$, 체적 보존 팽창/수축 변위 계산, 변형률 및 항복 검사.
+     - `SoftBodyEngine<MAX_PARTICLES, MAX_CLUSTERS>`: 0-힙 고정 배열 시뮬레이터, `step_soft_body`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`.
+  2. `crates/axiom-core/src/lib.rs`에 `pub mod soft_body;` 노출.
+  3. `crates/axiom-core/tests/test_soft_body.rs`에 6개 단위 테스트 작성 및 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v4.3.0] Axiom Engine v4.3.0 290대 XPBD 메카 래그돌 제약 & 탄성 변형 한계 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 12:56 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 전체 워크스페이스 v4.3.0 공식 판올림, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 메모리 무결성, 40B POD `XpbdEventReport`, Müller & Macklin XPBD 순수 정수 유효 컴플라이언스($\tilde{\alpha} = \alpha / \Delta t^2$) 및 3-단계 금속 탄성 변형 한계 모델(가역 탄성 / 소성 변형 세트 $L_0$ 이동 / 극한 인장 파괴 관절 파단 `sever_joint`), `XpbdRagdollEngine<16, 16>`, `DesktopGameView` step_xpbd_pipeline 결합, F3 HUD(`XPBD: {} Bones | Strain: {}% | 64B`), 56x56 미니 레이더 중앙-좌측 마젠타(#EC4899) 인디케이터, 하단 `[XPBD: {}B/{}S]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.3.0-unified-milestone.zip` (2.29 MB, SHA-256: `F21F45DECF773970520F326FAE3E9FCCD4667AE782AC5E3F084039982C2A7377` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,099,264 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T234] Mimic The Show 챔피언십 링 실시간 XPBD 메카 파단/소성 변형 및 F3 HUD 결합
 - **일시:** 2026-10-24 12:48 KST
