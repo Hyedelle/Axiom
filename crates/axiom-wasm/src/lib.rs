@@ -6584,6 +6584,109 @@ pub extern "C" fn axiom_actuator_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_aero_bench_burst(
+    body_count: u32,
+    cell_count: u32,
+    test_speed_mm_s: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::aerodynamics::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let bodies_to_spawn = (body_count as usize).clamp(1, 16);
+    let cells_to_spawn = (cell_count as usize).clamp(1, 4);
+    let speed = if test_speed_mm_s > 0 { test_speed_mm_s as i32 } else { 25_000 };
+
+    let mut engine = Box::new(MechaAerodynamicsEngine::<16, 4>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for c in 0..cells_to_spawn {
+        let cell = AirflowGridSlab64::new(c as u8, [c as i32 * 1000, 0, 0]);
+        engine.register_cell(cell);
+    }
+
+    let mut total_spawned_bodies = 0;
+    for i in 0..bodies_to_spawn {
+        let b_type = match i % 4 {
+            0 => AERO_BODY_CYLINDER,
+            1 => AERO_BODY_SPHERE,
+            2 => AERO_BODY_PLATE,
+            _ => AERO_BODY_AIRFOIL,
+        };
+        let mut body = AeroBodySlab64::new(
+            1,
+            b_type,
+            40_000 + (i as u32 * 2000),
+            25_000 + (i as u32 * 1000),
+            100 + (i as u16 * 10),
+            52428,
+        );
+        body.vel_xyz = [speed + (i as i32 * 1000), 0, 0];
+        body.cell_idx = (i % cells_to_spawn) as u8;
+
+        if engine.register_body(body).is_some() {
+            total_spawned_bodies += 1;
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_aerodynamics_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for 10 ticks
+    let mut total_lock_ins = 0;
+    for _ in 0..10 {
+        let (_eval, lock_in) = engine.step_simulation();
+        total_lock_ins += lock_in;
+    }
+
+    // Emit representative aerodynamic event
+    if engine.active_bodies_count > 0 {
+        let report = AeroEventReport {
+            pos_xyz: engine.bodies[0].pos_xyz,
+            rel_vel_xyz: engine.bodies[0].vel_xyz,
+            drag_force_n: engine.bodies[0].drag_force_n,
+            viv_force_n: engine.bodies[0].viv_force_n,
+            shedding_freq_q8: engine.bodies[0].shedding_freq_q8,
+            entity_id: engine.bodies[0].entity_id,
+            body_id: 0,
+            flags: engine.bodies[0].flags,
+            body_type: engine.bodies[0].body_type,
+            reserved: [0; 2],
+        };
+        emit_aero_to_event_bus(&report, 100, &mut bus);
+    }
+
+    let aero_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = aero_hash ^ (bus_hash.rotate_left(31));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                         // Capacity bodies (16)
+            *out_stats.add(1) = engine.active_bodies_count as u32;          // Active bodies count
+            *out_stats.add(2) = engine.active_cells_count as u32;           // Active cells count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;       // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;               // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                     // Worker partition jobs
+            *out_stats.add(6) = engine.bodies[0].drag_force_n.unsigned_abs(); // Drag force N
+            *out_stats.add(7) = total_lock_ins as u32;                      // Total lock-in occurrences
+        }
+    }
+
+    total_spawned_bodies as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7702,5 +7805,15 @@ mod tests {
         assert_eq!(act_stats[2], 2, "2 chambers active");
         assert!(act_stats[3] != 0 || act_stats[4] != 0, "Actuator consensus hash non-zero");
         assert_eq!(act_stats[5], 4, "4 parallel dispatch jobs");
+
+        // 19. Procedural Aerodynamics & Vortex-Induced Vibration Benchmark (8 bodies, 2 cells, 25 m/s)
+        let mut aero_stats = [0u32; 8];
+        let spawned_bodies = axiom_aero_bench_burst(8, 2, 25_000, aero_stats.as_mut_ptr());
+        assert_eq!(spawned_bodies, 8, "Aero benchmark must spawn 8 bodies");
+        assert_eq!(aero_stats[0], 16, "16 aero body slabs capacity");
+        assert_eq!(aero_stats[1], 8, "8 aero bodies active");
+        assert_eq!(aero_stats[2], 2, "2 airflow grid cells active");
+        assert!(aero_stats[3] != 0 || aero_stats[4] != 0, "Aero consensus hash non-zero");
+        assert_eq!(aero_stats[5], 4, "4 parallel dispatch jobs");
     }
 }
