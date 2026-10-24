@@ -62,6 +62,10 @@ use axiom_core::plasma::{
     dispatch_plasma_with_jobs, emit_plasma_to_event_bus, MechaPlasmaEngine,
     PlasmaEventReport,
 };
+use axiom_core::superconductor::{
+    dispatch_superconductor_with_jobs, emit_superconductor_to_event_bus,
+    MechaSuperconductorEngine, SuperconductorEventReport,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1436,6 +1440,42 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_plasma_with_jobs(engine, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_plasma(engine, ambient_gas_pressure_kpa, plasma_density_g_m3, report)
+    }
+
+    /// Advances physical simulation of mecha superconductivity (Quantum Levitation / Meissner Effect) and optionally emits an event.
+    pub fn step_superconductor<const CELLS: usize, const PINS: usize>(
+        &mut self,
+        engine: &mut MechaSuperconductorEngine<CELLS, PINS>,
+        ambient_b_field_mt: u32,
+        report: Option<&SuperconductorEventReport>,
+    ) -> bool {
+        engine.step_simulation(ambient_b_field_mt);
+
+        if let Some(rep) = report {
+            emit_superconductor_to_event_bus(rep, self.current_world.tick, &mut self.event_bus);
+        }
+
+        true
+    }
+
+    /// Advances physical simulation of mecha superconductivity using worker pool parallel dispatch.
+    pub fn step_superconductor_with_jobs<
+        const CELLS: usize,
+        const PINS: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut MechaSuperconductorEngine<CELLS, PINS>,
+        ambient_b_field_mt: u32,
+        report: Option<&SuperconductorEventReport>,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_superconductor_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_superconductor(engine, ambient_b_field_mt, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.
