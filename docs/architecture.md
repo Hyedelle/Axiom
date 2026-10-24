@@ -1759,6 +1759,74 @@ Axiom 290대 과제(T-230 ~ T-235)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - `web/index.html`에 **🦾 290 XPBD Ragdoll (64B Slabs)** 모달을 탑재하여 1.39 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_xpbd_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `XPBD: {} Bones | Strain: {}% | 64B`, 56x56 미니 레이더 중앙-좌측 마젠타(#EC4899) 인디케이터, 하단 `[XPBD: {}B/{}S]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 46. Axiom 300대: 고정소수점 3D 셰이프 매칭 연성체 및 가역 체적 보존 물리학 엔진 (v4.4.0)
+
+Axiom 300대 과제(T-236 ~ T-241)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 완벽히 수호하며, 메카 장갑 판재 및 탄성 구조체의 충격 찌그러짐과 비압축성 체적 복원을 시뮬레이션하는 **고정소수점 3D 셰이프 매칭 연성체(Shape Matching Deformable Soft Bodies) 및 가역 체적 보존(Reversible Volume Conservation) 물리학 엔진**을 완성했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│       Axiom 300-Series Shape Matching Soft Body & Volume Conservation       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (Particle & Cluster)]                │
+│    - SoftBodyParticleSlab64: Exact 64B Slab (pos/vel/orig_offset/inv_mass)  │
+│    - SoftBodyClusterSlab64: Exact 64B Slab (center/quat/stiffness/volume)   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Horn's Method (1987) 4x4 Matrix N & 3-Step Power Iteration Rotation]   │
+│    - Zero Float Polar Decomposition Elimination: Covariance Matrix A in Q16 │
+│    - 4x4 Symmetric Horn Matrix N from Cross-Covariance                      │
+│    - 3-Step Warm-Started Power Iteration: Exact Unit Quaternion in Q1.15    │
+│    - Target Shape Coordinates: g_i = c + R * q_i with Alpha Stiffness      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [Clausen/Müller Reversible Volume Conservation & Transverse Expansion]   │
+│    - Tetrahedral Cluster Volume: V = 1/6 * sum(x1 . (x2 x x3))              │
+│    - Volume Incompressibility Deviation Constraint: C_V = V - V_0           │
+│    - Analytical Poisson Transverse Radial Expansion/Contraction Displacement│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Plastic Fracture & Permanent Strain Mechanics]                          │
+│    - Plastic Yield Threshold: plastic_yield_q16 in Q16.16                   │
+│    - Permanent Plastic Set: Original Offset q_i Update upon Excessive Force │
+│    - PARTICLE_FLAG_FRACTURED: Armor Surface Crack and Detachment Dynamics   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [0-Heap Fixed-Capacity Simulator & 64-Bit Consensus State Hash]          │
+│    - SoftBodyEngine<64, 8>: 0 Heap Allocation in Tick Simulation Loop       │
+│    - Bit-Exact 64-Bit FNV-1a Hash for 16-Peer Distributed Rollback Netcode  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_soft_body_with_jobs: Chunked Batch via Chase-Lev Stealing     │
+│    - EVENT_SOFT_BODY_DEFORM (0x0300) to DeterministicEventBus               │
+│    - 40-Byte Packed POD Payload: SoftBodyEventReport                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 7. [WASM Studio Showcase & Mimic The Show Championship Ring Integration]    │
+│    - WebGL/WASM: 🧩 300 Soft Body (64B Slabs) Interactive Modal (1.41 MB)   │
+│    - Mimic The Show: step_soft_body_pipeline with F3 HUD Card, Radar & Bar  │
+│    - F3 HUD Card: "SoftBody: {} Clusters | {}% Def | 64B" (Purple #A855F7)  │
+│    - 56x56 Mini Radar: Center-Right Purple Indicator & Bar [SFT: {}C/{}P]   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 46.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 연성체 입자 슬랩 (`SoftBodyParticleSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 캐시 라인을 차지하며, 12바이트 3D 위치 mm, 12바이트 선속도 mm/s, 12바이트 원본 중심 오프셋 mm, 4바이트 역질량 $Q16.16$, 2바이트 충돌 반경 mm, 2바이트 소속 클러스터 인덱스, 1바이트 상태 플래그, 1바이트 재질 ID, 2바이트 전단 응력 $Q16.16$, 16바이트 정렬 패딩으로 완벽한 메모리 정렬을 달성했습니다.
+2. **0-Float 64-바이트 L1 캐시 라인 정렬 연성체 클러스터 슬랩 (`SoftBodyClusterSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트를 차지하며, 12바이트 현재 중심 mm, 12바이트 원본 중심 mm, 8바이트 정합 회전 쿼터니언 $Q1.15$, 4바이트 형상 복원 강성 $\alpha \in Q16.16$, 4바이트 체적 보존 강성 $k_{vol} \in Q16.16$, 8바이트 목표 자연 체적 $V_0\text{ mm}^3$, 2바이트 입자 개수, 2바이트 입자 시작 오프셋, 1바이트 상태 플래그, 1바이트 소유 엔티티 ID, 2바이트 소성 항복 한계 $Q16.16$, 8바이트 정렬 패딩으로 직렬화됩니다.
+3. **Horn's Method (1987) 4x4 행렬 $N$ 및 3회 웜스타트 거듭제곱법 회전 정합 솔버**:
+   - 부동소수점 극분해($A = RS$) 및 SVD 계산을 완전히 배제하고, 공분산 행렬 $A = \sum m_i \mathbf{p}_i \mathbf{q}_i^T$로부터 Horn의 4x4 대칭 정합 행렬 $N$을 구성했습니다.
+   - 이전 프레임의 쿼터니언을 초기 벡터로 재사용하는 웜스타트(Warm-Started) 3회 거듭제곱 반복(Power Iteration)과 순수 정수 제곱근(`isqrt_i64`)을 통해 나눗셈 및 비결정론 부동소수점 없이 비트 단위로 완벽히 동일한 $Q1.15$ 최적 강체 회전 쿼터니언을 도출합니다.
+4. **Clausen/Müller 가역 체적 보존 및 포아송 비압축성 횡팽창 모델**:
+   - 입자 클러스터 사면체 체적 $V = \frac{1}{6} \sum (\mathbf{x}_1 \cdot (\mathbf{x}_2 \times \mathbf{x}_3))$을 계측하고, 목표 체적 $V_0$ 대비 체적 편차 $C_V = V - V_0$에 비례하는 포아송 횡팽창/수축 변위 $\Delta \mathbf{x}_{vol}$을 해석적으로 분산 인가하여 연성체 젤리/고무/메카 아머의 찌그러짐 시 측면 부풀어오름 역학을 실시간 구현했습니다.
+5. **소성 변형 세트 및 표면 파쇄 메커니즘**:
+   - 항복 변형률 $\epsilon_{yield}$ 초과 시 원본 오프셋 $\mathbf{q}_i$가 소성 영구 변형(Plastic Set)을 겪으며, 임계치를 초과한 극단적 외력 인가 시 `PARTICLE_FLAG_FRACTURED` 플래그가 점등되어 표면 장갑 균열 및 탈락 다이나믹스로 연계됩니다.
+6. **0-Heap 고정 크기 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `SoftBodyEngine<64, 8>`은 힙 할당을 일체 발생시키지 않으며, 모든 입자/클러스터 상태에 대해 64-bit FNV-1a 해시를 계산하여 16-인 P2P 롤백 넷코드 간 100% 무오차 결정론 상태 합의를 보증합니다.
+7. **멀티스레드 잡 시스템 및 분산 이벤트 버스 연계**:
+   - `dispatch_soft_body_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기 풀에 연성체 클러스터 청크를 병렬 분산합니다.
+   - 40-바이트 인라인 POD 이벤트 서술자 `SoftBodyEventReport`를 통해 `EVENT_SOFT_BODY_DEFORM = 0x0300` 이벤트를 `DeterministicEventBus`에 발행하여 GGPO 롤백 지원과 VFX/SFX 실시간 방출을 완비했습니다.
+8. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **🧩 300 Soft Body (64B Slabs)** 모달을 탑재하여 1.41 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_soft_body_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `SoftBody: {} Clusters | {}% Def | 64B`, 56x56 미니 레이더 중앙-우측 보라색(#A855F7) 인디케이터, 하단 `[SFT: {}C/{}P]` 상시 모니터링을 완비했습니다.
+
 
 
 

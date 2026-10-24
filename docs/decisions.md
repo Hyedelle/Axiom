@@ -1851,6 +1851,48 @@
   3. 전체 워크스페이스 버전을 v4.2.0에서 **v4.3.0**으로 공식 판올림하고 `dist/axiom-v4.3.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.3.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-157] 0-Float 고정소수점 3D 셰이프 매칭(Shape Matching) 및 Horn's Method 최적 회전 정합 규격화 (T-236, T-237)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 0-Float 헌법 하에서 부동소수점 극분해($A = RS$) 및 SVD를 완전히 배제하고, Horn(1987) 4x4 대칭 정합 행렬 $N$ 구성 및 3회 웜스타트 거듭제곱법(Power Iteration) 무나눗셈/무부동소수점 최적 강체 회전 정합 모델 수립 ($Q1.15$ 단위 쿼터니언 도출).
+  2. 상대 변위 공분산 행렬 $A = \sum m_i \mathbf{p}_i \mathbf{q}_i^T$로부터 목표 형상 좌표 $\mathbf{g}_i = \mathbf{c} + R \mathbf{q}_i$를 도출하고 $\alpha \in Q16.16$ 형상 복원 강성을 적용하여 $O(N)$ 나노초 단위 고속 형상 복원 실증.
+- **영향:** `crates/axiom-core/src/soft_body.rs`.
+
+---
+
+### [D-158] Clausen/Müller 가역 체적 보존(Reversible Volume Conservation) 및 소성 항복 한계 모델 (T-236, T-237)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 입자 클러스터 사면체 체적 $V = \frac{1}{6} \sum (\mathbf{x}_1 \cdot (\mathbf{x}_2 \times \mathbf{x}_3))$ 및 목표 체적 $V_0$ 대비 체적 편차 $C_V = V - V_0$를 계측하여, 포아송 비압축성 횡팽창/수축 변위 $\Delta \mathbf{x}_{vol}$을 해석적으로 분산 인가.
+  2. 소성 항복 변형률 $\epsilon_{yield}$ 초과 시 입자 플래그 `PARTICLE_FLAG_FRACTURED` 점등 및 원본 오프셋 $\mathbf{q}_i$의 영구 소성 변형 세트 이동 메커니즘 확립.
+- **영향:** `crates/axiom-core/src/soft_body.rs`.
+
+---
+
+### [D-159] 64B L1 캐시 정렬 SoftBodyParticleSlab64 / SoftBodyClusterSlab64, 40B POD SoftBodyEventReport 및 잡 시스템 분산 (T-236, T-238, T-239)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `SoftBodyParticleSlab64` (#[repr(C, align(64))], exact 64B) 및 `SoftBodyClusterSlab64` (#[repr(C, align(64))], exact 64B)를 설계하여 L1 캐시 미스 없는 연속 메모리 레이아웃 보장.
+  2. 40-바이트 인라인 POD `SoftBodyEventReport` 무손실 라운드트립 직렬화 및 `EVENT_SOFT_BODY_DEFORM = 0x0300` 이벤트 버스 연계.
+  3. `dispatch_soft_body_with_jobs`를 통해 Chase-Lev 워커 풀 분산 스케줄링 및 WASM C-ABI `axiom_soft_body_bench_burst` 벤치마크 모달 탑재.
+- **영향:** `crates/axiom-core/src/soft_body.rs`, `crates/axiom-wasm/src/lib.rs`.
+
+---
+
+### [D-160] Mimic The Show 챔피언십 링 실시간 메카 연성체 아머 충격 변형 및 Axiom v4.4.0 공식 릴리즈 마일스톤 (T-240, T-241)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `mimic-the-show` `DesktopGameView`에 `SoftBodyEngine<64, 8>` 및 `step_soft_body_pipeline` 결합.
+  2. 싱글플레이 KO/넉다운 시 75 kN 외부 충격에 의한 연성체 아머 변형 및 체적 보존 해석, F3 HUD 카드(`SoftBody: {} Clusters | {}% Def | 64B`), 56x56 미니 레이더 중앙-우측 보라색(#A855F7) 인디케이터 점등, 하단 `[SFT: {}C/{}P]` 상시 모니터링 연동.
+  3. 전체 워크스페이스 버전을 v4.3.0에서 **v4.4.0**으로 공식 판올림하고 `dist/axiom-v4.4.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.4.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 
