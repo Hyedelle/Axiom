@@ -1690,6 +1690,50 @@
   3. 전체 워크스페이스 버전을 v3.8.0에서 **v3.9.0**으로 공식 판올림하고 `dist/axiom-v3.9.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.9.0` 발행.
 - **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-141] 0-Float 64B L1 캐시 정렬 파괴 음향 보이스 슬랩 및 음향 환경 존 슬랩 아키텍처 (T-212, T-213)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 파괴 음향 보이스 슬랩 `DestructionVoiceSlab64`를 `#[repr(C, align(64))]` 64바이트 L1 캐시 라인 크기로 정렬하여, 4바이트 좌표/속도/에너지/출처 ID/틱 타임스탬프 필드를 전방 배치하고, 2바이트 주파수/감쇠율/진폭/길이/커서/잔향전송률 필드 및 1바이트 재질/플래그, 14바이트 명시적 패딩으로 0-암시적 컴파일러 패딩을 보장.
+  2. 음향 환경 존 슬랩 `AcousticZoneSlab64`를 `#[repr(C, align(64))]` 64바이트로 정렬하여 3D 중심점, 반경, 공기 감쇠율, 표면 흡수율, $RT_{60}$ 잔향 시간, 고주파 감쇠, 초기 반사음 이득을 일체화.
+- **영향:** `crates/axiom-core/src/destruction_audio.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_destruction_audio.rs`.
+
+---
+
+### [D-142] 물리적 고체 충격 모달 공명 합성 및 4개 서로소 빗살 필터 FDN 표면 잔향 필드 (T-212, T-213)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 부동소수점 없는 256-엔트리 정수 사인파 LUT (`SINE_LUT_256`) 및 32비트 위상 누산기를 기반으로 4개 비정수 모달 고유 진동과 PRNG 크랙 트랜지언트 버스트를 가산 합성하는 `synthesize_destruction_impact_pcm` 알고리즘 채택.
+  2. 흙(85Hz), 석재(280Hz), 금속(850Hz), 용암(120Hz), 모래(100Hz) 5대 지형 재질별 고유 모달 감쇠비 및 표면 흡수율 수식화.
+  3. 지연 길이 241, 353, 479, 613 샘플의 서로소 정수 FDN 빗살 필터를 flat array에 내장하여 0-Heap 안정적 잔향 꼬리 합성.
+- **영향:** `crates/axiom-core/src/destruction_audio.rs`, `crates/axiom-core/tests/test_destruction_audio.rs`.
+
+---
+
+### [D-143] 음향 보이스 배치 분할 잡 시스템 병렬 합성 및 40-바이트 인라인 POD 이벤트 버스 파이프라인 (T-214)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `dispatch_destruction_audio_with_jobs`를 통해 활성 보이스를 1~8개 배치로 균등 분할하고 Chase-Lev 무잠금 SPMC 덱에 분산하여 N-코어 병렬 PCM 합성 스케줄링.
+  2. 40-바이트 인라인 POD 페이로드 `DestructionAudioReport` (좌표, 주파수, 진폭, 출처 ID, 재질, 플래그, 재생 길이, 충격 에너지, 잔향 전송률)를 `EVENT_AUDIO_DESTRUCTION = 0x0260` 및 `channel::PHYSICS | channel::AUDIO` 채널로 `DeterministicEventBus`에 무할당 방출.
+  3. `NetworkMatchDirector::step_destruction_audio` 및 `step_destruction_audio_with_jobs` 16인 경기장 결합.
+- **영향:** `crates/axiom-core/src/destruction_audio.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_destruction_audio_jobs.rs`, `crates/axiom-game/tests/test_destruction_audio_game_pipeline.rs`.
+
+---
+
+### [D-144] WASM 파괴 음향 벤치마크, Mimic The Show 챔피언십 링 결합 및 공식 릴리즈 v4.0.0 (T-215, T-216, T-217)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_audio_bench_destruction` 및 웹 3D 복셀 스튜디오 🔊 **260 Destruction Audio (64B Slabs)** 대화형 모달 배포 (1.35 MB WASM).
+  2. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `DestructionAudioEngine<16, 4>` 및 `step_destruction_audio_pipeline` 탑재, 싱글플레이 파이터 넉다운/KO 시 75 kJ 충격 기반 금속 모달 공명 및 FDN 표면 잔향 필드 실시간 합성, 40B 인라인 POD 이벤트 버스 방출, F3 HUD 카드(`Audio: {} Voices | Pk: {} | 64B`), 56x56 미니 레이더 중앙상단 하늘색 인디케이터, 하단 `[AUD: {}V]` 연동.
+  3. 전체 워크스페이스 버전을 v3.9.0에서 **v4.0.0**으로 공식 판올림하고 `dist/axiom-v4.0.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.0.0` 발행.
+- **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
+
 
 
 

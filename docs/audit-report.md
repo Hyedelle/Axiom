@@ -8,24 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 10:31 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 파괴 음향 합성 및 F3 HUD 결합 (T-216, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `DestructionAudioEngine<16, 4>` (16개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_destruction_audio_pipeline` 실시간 물리-음향 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 75 kJ 충격 기반 금속 모달 공명 및 4개 서로소 빗살 필터 FDN 표면 잔향 필드 실시간 합성, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Audio: {} Voices | Pk: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙상단 하늘색 인디케이터 점등, 하단 컨트롤 바 `[AUD: {}V]` 상시 모니터링 연동, 28개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 10:40 KST
+- **감사 대상:** Axiom Engine v4.0.0 260대 절차적 파괴 음향 합성 & 표면 잔향 필드 공식 릴리즈 마일스톤 종합 감사 (T-217, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-141]~[D-144], `tools/package.ps1`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `DestructionVoiceSlab64` & `AcousticZoneSlab64` 슬랩 컴파일 타임 검증, 256-엔트리 정수 사인파 LUT (`SINE_LUT_256`) 및 결정론적 PRNG 노이즈 트랜지언트 버스트 생성기 무결성 검증, 5대 지형 재질별 고유 모달 공명 주파수 비/감쇠율/포락선 합성기 `synthesize_destruction_impact_pcm` 무결성 검증, 0-힙 고정 용량 `DestructionAudioEngine` 3D 공간 음향 거리 역제곱 감쇠/스테레오 패닝 및 4개 서로소 정수 FDN 빗살 필터 잔향 필드 검증, `dispatch_destruction_audio_with_jobs` 워커 풀 분할 병렬 디스패치 및 `emit_destruction_audio_to_event_bus` 40B 인라인 POD 이벤트 버스 발행(`EVENT_AUDIO_DESTRUCTION = 0x0260`), WASM 🔊 260 Destruction Audio (64B Slabs) 대화형 모달 및 1.35 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_destruction_audio_pipeline` 실시간 물리-음향 합성 및 F3 HUD 카드/미니 레이더 하늘색 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v4.0.0-unified-milestone.zip` (2.24 MB, SHA-256: `B9F590C6F8C87E4262880B239389D7338E3C2BB4E67DE227334B652D3AEFAE64` 검증 완료), 전체 워크스페이스 v4.0.0 판올림 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **실시간 물리-음향 합성 결합**:
-     - `DesktopGameView`에 `DestructionAudioEngine<16, 4>` 탑재.
-     - `step_destruction_audio_pipeline`을 통해 넉다운/KO 발생 시 $75\text{ kJ}$ 금속 충격 보이스 생성 및 $48\text{ kHz}$ 스테레오 프레임(480 샘플) 렌더링 검증 완료.
-  2. **진단 HUD 및 레이더 시각화**:
-     - F3 넷코드 카드에 `Audio: {} Voices | Pk: {} | 64B` 추가 (하늘색 `0xFF38BDF8`).
-     - 미니 레이더 중앙 상단에 하늘색 음향 인디케이터 점등.
-     - 하단 컨트롤 바에 `[AUD: {}V]` 상시 모니터링 연동.
-  3. **단위 및 통합 테스트 검증**:
-     - `test_view_destruction_audio_knockdown_and_hud_telemetry` 추가.
-     - `mimic-the-show` 전체 28개 테스트 100% 통과 및 `tools/guard.ps1` 무결성 검증 통과.
+  1. **상용 크로스 플랫폼 릴리즈 패키지**:
+     - `dist/axiom-v4.0.0-unified-milestone.zip` (2.24 MB) 생성 완료.
+     - SHA-256: `B9F590C6F8C87E4262880B239389D7338E3C2BB4E67DE227334B652D3AEFAE64` 검증 완료.
+     - `bin/mimic-the-show.exe` (1.02 MB), `bin/axiom.exe` (0.91 MB), `web/axiom-wasm.wasm` (1.35 MB), 5대 프로시저럴 복셀 맵(`.axvm`) 패키징 완료.
+  2. **바탕화면 바로가기 최신화 검증**:
+     - `C:\Users\willy\Desktop\Mimic The Show.lnk` 대상 바이너리(`mimic-the-show.exe`) 최신 빌드(10:34) 확인 완료.
+  3. **아키텍처 및 결정론 규격 일체화**:
+     - `docs/architecture.md` Section 42 추가.
+     - `docs/decisions.md` [D-141] ~ [D-144] 의사결정 기록 추가.
+     - 전체 워크스페이스 `tools/guard.ps1` 무결성 검증 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T216] Mimic The Show 챔피언십 링 실시간 파괴 음향 합성 및 F3 HUD 결합
+- **일시:** 2026-10-24 10:31 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `DestructionAudioEngine<16, 4>` (16개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_destruction_audio_pipeline` 실시간 물리-음향 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 75 kJ 충격 기반 금속 모달 공명 및 4개 서로소 빗살 필터 FDN 표면 잔향 필드 실시간 합성, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Audio: {} Voices | Pk: {} | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙상단 하늘색 인디케이터 점등, 하단 컨트롤 바 `[AUD: {}V]` 상시 모니터링 연동, 28개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T215] Axiom Engine 260대 파괴 음향 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 10:24 KST

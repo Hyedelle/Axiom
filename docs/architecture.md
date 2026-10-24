@@ -1509,6 +1509,68 @@ Axiom 250대 과제(T-206 ~ T-211)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - `web/index.html`에 **⛰️ 250 Deformable Terrain (64B Slabs)** 모달을 탑재하여 1.34 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_terrain_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Terrain: {} Craters | -{}mm | 64B`, 56x56 미니 레이더 보라색 인디케이터, 하단 `[TER: {}C]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 42. Axiom 260대: 절차적 파괴 음향 합성 & 표면 잔향 필드 피직스 엔진 (v4.0.0)
+
+Axiom 260대 과제(T-212 ~ T-217)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 완벽히 수호하며, 지형 파쇄 크레이터 형성, 메카 래그돌 관절 파단, 초고속 펀치 타격 및 복셀 샤드 비산 시 물리적 충격파를 실시간으로 해석·합성하는 **절차적 파괴 음향 합성(Procedural Destruction Audio Synthesis)** 및 **표면 잔향 필드(Surface Reverb Field)** 피직스 엔진을 구축했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 260-Series Procedural Destruction Audio & Surface Reverb Physics   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (DestructionVoiceSlab64 & ZoneSlab64)]│
+│    - DestructionVoiceSlab64: Exact 64B Slab (pos/vel/freq/decay/amp/send)   │
+│    - AcousticZoneSlab64: Exact 64B Slab (center/radius/abs/rt60/air_factor) │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Solid Impact Modal Resonance & Non-Linear Crack Impulse Synthesis]      │
+│    - 256-Entry Integer Sine Wave LUT (SINE_LUT_256: [i16; 256])             │
+│    - 4 Inharmonic Orthogonal Normal Modes with Exponential Q16.16 Decay     │
+│    - Deterministic PRNG Crack Transient Burst (First 192 Samples ~ 4ms)     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [5 Terrain Materials Acoustic Absorption & Diffuse Reverb Modeling]       │
+│    - Dirt (85Hz, alpha 0.85), Stone (280Hz, alpha 0.15), Metal (850Hz, 0.05)│
+│    - Molten (120Hz, alpha 0.70), Sand (100Hz, alpha 0.90)                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [4 Coprime Integer FDN Comb Filters Surface Reverb Field]                │
+│    - Comb Line Delays: 241, 353, 479, 613 samples (Coprime Feedback Loops)  │
+│    - Zero Buffer Allocations, Saturating 16-Bit Integer Arithmetic          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [3D Spatial Stereo Panning & Inverse Distance Attenuation]               │
+│    - Integer Distance Falloff (1.0 @ 1000mm, isqrt_i64 integer norm)        │
+│    - 48 kHz Discrete Sampling & 64-Bit FNV-1a Deterministic Consensus Hash │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_destruction_audio_with_jobs: Voice Partition Chase-Lev SPMC   │
+│    - emit_destruction_audio_to_event_bus: EVENT_AUDIO_DESTRUCTION (0x0260)  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 7. [WASM Interactive Studio & Mimic The Show Ring Integration]              │
+│    - WebGL/WASM: 🔊 260 Destruction Audio (64B Slabs) Interactive Modal     │
+│    - Mimic The Show: DesktopGameView step_destruction_audio_pipeline        │
+│    - F3 HUD Card: "Audio: {} Voices | Pk: {} | 64B" & Mini Radar Indicator  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 42.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 음향 보이스 슬랩 (`DestructionVoiceSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 L1 캐시 라인을 점유하며, 12바이트 3D 위치 mm, 12바이트 선속도 mm/s, 4바이트 충격 역적 에너지(J), 4바이트 발원 엔티티 ID, 4바이트 틱 타임스탬프, 2바이트 기저 주파수($f_0$ Hz), 2바이트 모달 감쇠율 $Q16.16$, 2바이트 초기 진폭 $Q16.16$, 2바이트 지속 시간 샘플, 2바이트 재생 커서, 2바이트 잔향 전송률, 1바이트 재질 ID, 1바이트 상태 플래그, 14바이트 정렬 패딩으로 구성된 완전 무패딩 슬랩을 구현했습니다.
+2. **0-Float 64-바이트 L1 캐시 라인 정렬 음향 환경 존 슬랩 (`AcousticZoneSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트를 점유하며, 12바이트 3D 중심점 mm, 4바이트 유효 반경 mm, 4바이트 공기 감쇠율 $Q16.16$, 2바이트 표면 흡수율 $\alpha_{abs}$, 2바이트 잔향 감쇠 시간 $RT_{60}$ ms, 2바이트 고주파 감쇠비, 2바이트 초기 반사음 이득, 2바이트 존 ID, 1바이트 주 재질, 1바이트 플래그, 32바이트 패딩으로 직렬화됩니다.
+3. **고체 물리 충격 모달 공명 합성 (`synthesize_destruction_impact_pcm`)**:
+   - $s(t) = s_{\text{transient}}(t) + \sum_{m=1}^4 A_m e^{-t/\tau_m} \sin(2\pi f_m t + \phi_m)$
+   - 부동소수점 없는 256-엔트리 정수 사인파 LUT (`SINE_LUT_256: [i16; 256]`)와 32비트 위상 누산기를 기반으로 4개의 비정수비 모달 고유 진동을 가산 합성합니다.
+4. **4개 서로소 정수 FDN 빗살 필터 잔향 필드**:
+   - 지연 길이 $241, 353, 479, 613$ 샘플(서로소 정수)의 피드백 빗살 필터를 flat array에 내장하여 동적 힙 할당 없이 무한 순환 잔향 꼬리(Diffuse Reverb Tail)를 안정적으로 감쇠 합성합니다.
+5. **0-힙 엔진 및 64-bit FNV-1a 결정론 합의 검증**:
+   - `DestructionAudioEngine<MAX_VOICES, MAX_ZONES>`는 고정 용량 플랫 구조로 동작하며, 64-bit FNV-1a 체크섬 함수 `compute_consensus_hash`를 통해 16-인 롤백 넷코드 환경에서 오디오 파형과 환경 상태의 완전 비트 일치성을 보장합니다.
+6. **멀티스레드 잡 시스템 및 분산 이벤트 버스 결합**:
+   - `dispatch_destruction_audio_with_jobs`를 통해 활성 보이스를 4~8 워커 풀 Chase-Lev 무잠금 덱에 분산하여 병렬 합성을 수행합니다.
+   - 파괴 음향 이벤트는 `EVENT_AUDIO_DESTRUCTION = 0x0260` 및 `channel::PHYSICS | channel::AUDIO` 채널로 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드로 방출됩니다.
+7. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **🔊 260 Destruction Audio (64B Slabs)** 모달을 탑재하여 1.35 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_destruction_audio_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Audio: {} Voices | Pk: {} | 64B`, 56x56 미니 레이더 중앙상단 하늘색 인디케이터, 하단 `[AUD: {}V]` 상시 모니터링을 완비했습니다.
+
+
 
 
 
