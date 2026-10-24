@@ -7146,6 +7146,120 @@ pub extern "C" fn axiom_superconductor_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_metamaterial_bench_burst(
+    cell_count: u32,
+    field_count: u32,
+    dt_ticks: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::metamaterial::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let cells_to_spawn = (cell_count as usize).clamp(1, 16);
+    let fields_to_spawn = (field_count as usize).clamp(1, 8);
+    let dt = if dt_ticks > 0 { dt_ticks } else { 10 };
+
+    let mut engine = Box::new(MechaMetamaterialEngine::<16, 8>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for c in 0..cells_to_spawn {
+        let cell = AcoustoOpticCellSlab64::new(
+            c as u8,
+            [c as i32 * 300, 0, 100],
+            4_200_000,
+            100_000,
+            if c % 2 == 0 { 1064 } else { 532 },
+        );
+        engine.register_cell(cell);
+    }
+
+    let mut total_spawned_fields = 0;
+    for f in 0..fields_to_spawn {
+        let field = CloakingFieldSlab64::new(
+            (f + 10) as u8,
+            f as u8,
+            [f as i32 * 400, 0, 150],
+            1000 + (f as u32 * 100),
+            2000 + (f as u32 * 200),
+        );
+        if engine.register_field(field).is_some() {
+            total_spawned_fields += 1;
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_metamaterial_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for dt ticks
+    for _ in 0..dt {
+        engine.step_simulation(1);
+    }
+
+    // Emit representative optical cloak event
+    if engine.active_fields_count > 0 {
+        let report = MetamaterialEventReport {
+            pos_xyz: engine.fields[0].origin_xyz,
+            deflection_dir_xyz: [32000, 1500, 0],
+            bragg_angle_mrad: 12,
+            diffraction_eff_or_grad_q16: engine.fields[0].refractive_gradient_q16,
+            cloak_efficiency_pct: engine.fields[0].cloak_efficiency_pct,
+            laser_wavelength_nm: 1064,
+            emitter_id: engine.fields[0].emitter_id,
+            target_id: engine.fields[0].target_id,
+            flags: engine.fields[0].flags,
+            event_kind: META_EVENT_KIND_CLOAK,
+        };
+        emit_metamaterial_to_event_bus(&report, 100, &mut bus);
+    }
+
+    // Emit representative brillouin scatter event
+    if engine.active_cells_count > 0 {
+        let report = MetamaterialEventReport {
+            pos_xyz: engine.cells[0].center_xyz,
+            deflection_dir_xyz: [31500, 2500, 0],
+            bragg_angle_mrad: engine.cells[0].bragg_angle_mrad,
+            diffraction_eff_or_grad_q16: engine.cells[0].diffraction_eff_q16,
+            cloak_efficiency_pct: 0,
+            laser_wavelength_nm: engine.cells[0].laser_wavelength_nm,
+            emitter_id: engine.cells[0].entity_id,
+            target_id: 0,
+            flags: engine.cells[0].flags,
+            event_kind: META_EVENT_KIND_SCATTER,
+        };
+        emit_metamaterial_to_event_bus(&report, 101, &mut bus);
+    }
+
+    let meta_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = meta_hash ^ (bus_hash.rotate_left(31));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                      // Capacity cells (16)
+            *out_stats.add(1) = engine.active_cells_count as u32;        // Active cells count
+            *out_stats.add(2) = engine.active_fields_count as u32;       // Active fields count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = engine.fields[0].cloak_efficiency_pct as u32; // Cloak efficiency %
+            *out_stats.add(7) = (engine.total_cloaked_volume_accum_mm3 / 1_000_000) as u32; // Cloaked volume in dm3
+        }
+    }
+
+    total_spawned_fields as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -8318,5 +8432,17 @@ mod tests {
         assert!(sc_stats[3] != 0 || sc_stats[4] != 0, "Superconductor consensus hash non-zero");
         assert_eq!(sc_stats[5], 4, "4 parallel dispatch jobs");
         assert!(sc_stats[6] > 0, "Pinning force must be positive");
+
+        // 24. Metamaterial Cloaking & Acousto-Optics Benchmark (8 cells, 2 fields, 10 ticks)
+        let mut meta_stats = [0u32; 8];
+        let spawned_meta_fields = axiom_metamaterial_bench_burst(8, 2, 10, meta_stats.as_mut_ptr());
+        assert_eq!(spawned_meta_fields, 2, "Metamaterial benchmark must spawn 2 fields");
+        assert_eq!(meta_stats[0], 16, "16 metamaterial cell slabs capacity");
+        assert_eq!(meta_stats[1], 8, "8 acousto-optic cells active");
+        assert_eq!(meta_stats[2], 2, "2 cloaking fields active");
+        assert!(meta_stats[3] != 0 || meta_stats[4] != 0, "Metamaterial consensus hash non-zero");
+        assert_eq!(meta_stats[5], 4, "4 parallel dispatch jobs");
+        assert_eq!(meta_stats[6], 95, "Cloaking efficiency 95%");
+        assert!(meta_stats[7] > 0, "Cloaked volume must be positive");
     }
 }
