@@ -1936,6 +1936,49 @@
   3. 전체 워크스페이스 버전을 v4.4.0에서 **v4.5.0**으로 공식 판올림하고 `dist/axiom-v4.5.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.5.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-165] 0-Float 대기 동압($q$) 정수 단위계 및 레일리 항력 모델 확립 (T-248, T-249)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 계산식 및 $1\text{ Pa} = 1000\text{ mPa}$ 고정소수점 단위계를 도입하여 부동소수점 없이 대기 동압을 무오차 산출.
+  2. 투영 단면적 $A$와 무차원 항력 계수 $C_d$를 결합한 레일리 항력 공식 $F_{d,\text{mN}} = \frac{q \cdot A \cdot C_d}{10^6 \times 65536}$ 확립.
+- **영향:** `crates/axiom-core/src/aerodynamics.rs`.
+
+---
+
+### [D-166] 폰 카르만 와류 거리(von Kármán Vortex Street) 분리 및 Lock-in 공진 $2.5\times$ 기진력 증폭 모델 (T-248, T-249)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 스트라울 수($St \approx 0.20$) 기반 와류 방출 주파수 $f_s = \frac{St \cdot v}{D}$ 및 60Hz 틱당 BAMS 16-bit 위상각 누적 모델 수립.
+  2. 와류 주파수가 메카 구조물 고유 진동수 대역($25 \sim 45\text{ Hz}$) 진입 시 `AERO_FLAG_LOCK_IN` 트리거 및 기진력 계수 $C_{\text{viv}}$ 2.5배(16384 -> 40960 in Q16) 급격 증폭 모델 확립.
+  3. 256-엔트리 정수 사인파 LUT를 통한 직교 횡방향 버펫팅 가속도 인가.
+- **영향:** `crates/axiom-core/src/aerodynamics.rs`.
+
+---
+
+### [D-167] 64B L1 정렬 AeroBodySlab64 / AirflowGridSlab64 및 멀티스레드 잡 시스템 연계 (T-249, T-250, T-251)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `AeroBodySlab64` (#[repr(C, align(64))], exact 64B) 및 `AirflowGridSlab64` (#[repr(C, align(64))], exact 64B) 설계.
+  2. 40-바이트 인라인 POD `AeroEventReport` 무손실 라운드트립 직렬화 및 `EVENT_AERO_DRAG = 0x0320`, `EVENT_AERO_VORTEX = 0x0321` 이벤트 버스 연계.
+  3. `dispatch_aerodynamics_with_jobs`를 통해 Chase-Lev 워커 풀 분산 스케줄링 및 WASM C-ABI `axiom_aero_bench_burst` 벤치마크 모달 탑재.
+- **영향:** `crates/axiom-core/src/aerodynamics.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-wasm/src/lib.rs`.
+
+---
+
+### [D-168] Mimic The Show 챔피언십 링 실시간 대기 공기역학 결합 및 Axiom v4.6.0 공식 릴리즈 마일스톤 (T-252, T-253)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `mimic-the-show` `DesktopGameView`에 `MechaAerodynamicsEngine<16, 4>` 및 `step_aero_pipeline` 결합.
+  2. 싱글플레이 KO/넉다운 시 30 m/s 고속 풍압 충격파 및 Lock-in 폰 카르만 와류 진동 해석, F3 HUD 카드(`Aero: {} Bodies | {} N | 64B`), 56x56 미니 레이더 좌측상단(내측) 하늘색(#38BDF8) 인디케이터 점등, 하단 `[AERO: {}B/{}C]` 상시 모니터링 연동.
+  3. 전체 워크스페이스 버전을 v4.5.0에서 **v4.6.0**으로 공식 판올림하고 `dist/axiom-v4.6.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.6.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 

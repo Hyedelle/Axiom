@@ -8,19 +8,24 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 14:59 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 메카 대기 항력/풍압 이펙트 및 F3 HUD 결합 (T-252, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `MechaAerodynamicsEngine<16, 4>` (8개 바디 + 1개 대기 그리드 셀 64B L1 캐시 슬랩) 상주 무결성 검증, `step_aero_pipeline` 실시간 물리-공기역학 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 30 m/s 고속 풍압 충격파 및 Lock-in 와류 진동 해석, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출 (`EVENT_AERO_DRAG = 0x0320`, `EVENT_AERO_VORTEX = 0x0321`), F3 HUD 카드 `Aero: {} Bodies | {} N | 64B` 텔레메트리 하늘색(#38BDF8) 출력 및 56x56 미니 레이더 좌측상단(내측) 하늘색 인디케이터 점등, 하단 컨트롤 바 `[AERO: {}B/{}C]` 상시 모니터링 연동, 34개 게임 단위/통합 테스트 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-253 - Axiom 320대 메카 대기 공기역학 & 풍동 시뮬레이션 공식 릴리즈 v4.6.0)**:
-  1. `Cargo.toml` 워크스페이스 버전 `4.6.0` 판올림.
-  2. `docs/architecture.md` (Section 48: Procedural Atmospheric Aerodynamics & Vortex-Induced Vibration) 및 `docs/decisions.md` (ADRs [D-165]~[D-168]) 최신화.
-  3. `tools/package.ps1 -Version "4.6.0"` 실행 및 SHA-256 검증, 릴리즈 아카이브 생성.
-  4. 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 및 릴리즈 바이너리 무결성 검증.
-  5. `tools/guard.ps1` 검증 및 Git 태그 `v4.6.0` 발행.
+- **일시:** 2026-10-24 15:09 KST
+- **감사 대상:** Axiom 320대 메카 대기 공기역학 & 풍동 시뮬레이션 공식 릴리즈 마일스톤 v4.6.0 (T-253, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `tools/package.ps1`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 전체 워크스페이스 v4.6.0 공식 판올림, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64` 슬랩 메모리 무결성, 40B POD `AeroEventReport`, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 0-힙 고정 크기 `MechaAerodynamicsEngine<16, 4>`, `DesktopGameView` step_aero_pipeline 결합, F3 HUD(`Aero: {} Bodies | {} N | 64B`), 56x56 미니 레이더 좌측상단(내측) 하늘색(#38BDF8) 인디케이터, 하단 `[AERO: {}B/{}C]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.6.0-unified-milestone.zip` (2.32 MB, SHA-256: `E57462119F6F543C0B53357423ACDBB57F6295F9A3295A18658D30BF2B68C1EA` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,125,888 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-254 - Axiom 330대 입자 기반 대기 난류(Turbulence) & 압축성 충격파 경계층(Shock Boundary Layer) 물리 연구)**:
+  1. 선행 연구 subagent 소환:
+     - 0-Float 헌법 하에서 Kolmogorov 난류 에너지 캐스케이드 모델, Navier-Stokes 와도(Vorticity) 이산 격자 표현.
+     - 초음속 충격파(Mach > 1) 경계층 박리(Shock Boundary Layer Separation) 및 천음속 천이(Transonic Transition) 정수 수식화.
+     - 64B L1 캐시 정렬 난류 슬랩 및 40B POD 이벤트 버스 규격 수립.
+     - `docs/audit-report.md` 및 `axiom-turbulence-and-shock-boundary-layer-research.md` 작성.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v4.6.0] Axiom Engine v4.6.0 320대 메카 대기 공기역학 & 풍동 시뮬레이션 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 15:09 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 전체 워크스페이스 v4.6.0 공식 판올림, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64` 슬랩 메모리 무결성, 40B POD `AeroEventReport`, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 0-힙 고정 크기 `MechaAerodynamicsEngine<16, 4>`, `DesktopGameView` step_aero_pipeline 결합, F3 HUD(`Aero: {} Bodies | {} N | 64B`), 56x56 미니 레이더 좌측상단(내측) 하늘색(#38BDF8) 인디케이터, 하단 `[AERO: {}B/{}C]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.6.0-unified-milestone.zip` (2.32 MB, SHA-256: `E57462119F6F543C0B53357423ACDBB57F6295F9A3295A18658D30BF2B68C1EA` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,125,888 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T252] Mimic The Show 챔피언십 링 실시간 메카 대기 항력/풍압 이펙트 및 F3 HUD 결합
 - **일시:** 2026-10-24 14:59 KST

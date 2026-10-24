@@ -1894,6 +1894,70 @@ Axiom 310대 과제(T-242 ~ T-247)에서는 엔진의 핵심 헌법(0-Float in C
    - `web/index.html`에 **⚡ 310 Mecha Actuators (64B Slabs)** 모달을 탑재하여 1.42 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_actuator_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Actuator: {} Acts | {} kN | 64B`, 56x56 미니 레이더 우측상단(내측) 청록색(#06B6D4) 인디케이터, 하단 `[ACT: {}A/{}C]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 48. Axiom 320대: 절차적 대기 공기역학 항력/양력 & 와류 유도 진동(VIV) 피직스 엔진 (v4.6.0)
+
+Axiom 320대 과제(T-248 ~ T-253)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 엄격히 수호하며, 고속 격투 메카(펀치/대쉬/넉다운 속도 20~40 m/s)의 대기 유체 저항과 원통형 사지 후류에서 발생하는 폰 카르만 와류 거리(von Kármán Vortex Street) 및 기계적 공진 록인(Lock-in Resonance) 현상을 시뮬레이션하는 **절차적 대기 공기역학(Procedural Atmospheric Aerodynamics) 및 와류 유도 진동(Vortex-Induced Vibration, VIV) 피직스 엔진**을 완성했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 320-Series Atmospheric Aerodynamics & Vortex-Induced Vibration     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (AeroBodySlab64 & AirflowGrid)]     │
+│    - AeroBodySlab64: Exact 64B Slab (pos/vel/area/mass/drag/viv/Cd/Cl/St/D)  │
+│    - AirflowGridSlab64: Exact 64B Slab (wind_vel/density/pressure/turb/temp)│
+│    - AeroEventReport: Exact 40B Inline POD (Event Bus Packed Payload)       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Zero-Float SI Dynamic Pressure Equivalence & Rayleigh Drag Model]      │
+│    - Dynamic Pressure: q_mPa = (rho_g_m3 * v_mm_s^2) / (2 * 10^6)            │
+│    - Rayleigh Drag: F_d_mN = (q_mPa * A_mm2 * Cd_Q16) / (10^6 * 65536)      │
+│    - Symplectic Velocity Deceleration Integration (Opposing Relative Wind)  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [von Kármán Vortex Shedding & Lock-in Resonance Mechanics]               │
+│    - Shedding Frequency: f_s_Q8 = (v_mm_s * St_Q16) / (256 * D_mm)          │
+│    - Strouhal Number: St ~ 0.20 (13107 in Q16.16) for Cylindrical Limbs    │
+│    - BAMS 16-bit Phase Accumulator: delta_theta = (v * St) / (60 * D)       │
+│    - 25~45 Hz Mechanical Lock-in: 2.5x Buffeting Amplification (C_viv 40960)│
+│    - Transverse Cross-Flow Force: SINE_LUT_256 Orthogonal Impulse Injection │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [0-Heap Fixed-Capacity Simulator & 64-Bit Consensus State Hash]          │
+│    - MechaAerodynamicsEngine<MAX_BODIES, MAX_CELLS>: 0 Heap in Simulation   │
+│    - Bit-Exact 64-Bit FNV-1a Hash for 16-Peer Distributed Rollback Netcode  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_aerodynamics_with_jobs: Chunked Batch via Chase-Lev Stealing  │
+│    - EVENT_AERO_DRAG (0x0320) & EVENT_AERO_VORTEX (0x0321)                  │
+│    - 40-Byte Packed POD Payload: AeroEventReport                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [WASM Studio Showcase & Mimic The Show Championship Ring Integration]    │
+│    - WebGL/WASM: 💨 320 Aerodynamics & VIV (64B Slabs) Modal (1.43MB)       │
+│    - Mimic The Show: step_aero_pipeline with F3 HUD Card, Radar & Bar       │
+│    - F3 HUD Card: "Aero: {} Bodies | {} N | 64B" (Sky Blue #38BDF8)         │
+│    - 56x56 Mini Radar: Top-Left (Inner) Sky Blue Dot & Bar [AERO: {}B/{}C]  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 48.1 핵심 구조 및 기술적 특성
+1. **0-Float 정수 동압($q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$) 및 레일리 항력 모델**:
+   - 표준 대기 밀도($\rho = 1,225\text{ g/m}^3$)와 상대 풍속($v\text{ in mm/s}$)에 대해 $i64$ 오버플로 없이 순수 정수 밀리파스칼($\text{mPa}$) 동압을 산출합니다.
+   - 고속 펀치($40\text{ m/s}$) 시 $q = 980\text{ Pa}$ 정확한 물리적 수렴을 보장하며, 투영 면적 $A$와 무차원 항력 계수 $C_d$를 결합하여 감속 저항력을 도출합니다.
+2. **0-Float 64-바이트 L1 캐시 라인 정렬 공기역학 슬랩 (`AeroBodySlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 캐시 라인을 점유하며, 12B 위치 mm, 12B 속도 mm/s, 4B 단면적 $\text{mm}^2$, 4B 질량 g, 4B 항력 N, 4B VIV 진동력 N, 2B 항력 계수 $C_d$, 2B 양력 계수 $C_l$, 2B 스트라울 수 $St$, 2B 특성 직경 $D$, 2B 와류 위상각, 2B 방출 주파수 $Q8.8$, 1B 엔티티 ID, 1B 바디 타입(실린더, 구체, 평판, 익형), 1B 플래그, 1B 셀 인덱스, 8B 패딩으로 완벽한 하드웨어 친화적 슬랩을 완성했습니다.
+3. **0-Float 64-바이트 L1 캐시 라인 정렬 대기 셀 슬랩 (`AirflowGridSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트를 차지하며, 12B 바람 속도 mm/s, 4B 대기 밀도 $\text{g/m}^3$, 4B 기압 kPa, 2B 난류 강도, 2B 기온 Celsius, 1B 셀 ID, 1B 플래그, 38B 패딩으로 직렬화됩니다.
+4. **폰 카르만 와류 방출 및 Lock-in 기계적 공진 모델**:
+   - 실린더형 메카 암 주변 기류에서 스트라울 수($St \approx 0.20$)에 따른 와류 박리 주파수($f_s = \frac{St \cdot v}{D}$)를 실시간 추적합니다.
+   - 와류 주파수가 메카 골격의 고유 진동수 대역($25 \sim 45\text{ Hz}$)에 도달하면 `AERO_FLAG_LOCK_IN`이 트리거되어 횡방향 기진력 계수 $C_{\text{viv}}$가 $2.5\times$ 급격히 증폭되며, 256-엔트리 정수 사인파 LUT를 통해 횡방향 버펫팅(Buffeting) 요동을 유도합니다.
+5. **0-Heap 고정 크기 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `MechaAerodynamicsEngine<16, 4>`는 힙 할당을 일체 발생시키지 않으며, 모든 바디 및 대기 셀 상태에 대해 64-bit FNV-1a 해시를 계산하여 16-인 P2P 롤백 넷코드 간 100% 무오차 결정론 상태 합의를 보증합니다.
+6. **멀티스레드 잡 시스템 및 분산 이벤트 버스 연계**:
+   - `dispatch_aerodynamics_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기 풀에 바디 청크를 병렬 분산합니다.
+   - 40-바이트 인라인 POD 이벤트 서술자 `AeroEventReport`를 통해 `EVENT_AERO_DRAG = 0x0320` 및 `EVENT_AERO_VORTEX = 0x0321` 이벤트를 `DeterministicEventBus`에 발행하여 GGPO 롤백 지원과 VFX/SFX 실시간 방출을 완비했습니다.
+7. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **💨 320 Aerodynamics & VIV (64B Slabs)** 모달을 탑재하여 1.43 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_aero_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Aero: {} Bodies | {} N | 64B`, 56x56 미니 레이더 좌측상단(내측) 하늘색(#38BDF8) 인디케이터, 하단 `[AERO: {}B/{}C]` 상시 모니터링을 완비했습니다.
+
 
 
 
