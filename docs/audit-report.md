@@ -8,23 +8,25 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 14:24 KST
-- **감사 대상:** Axiom 320대 대기 공기역학 항력/양력 & 와류 유도 진동(VIV) 물리 연구 (T-248, `axiom-aerodynamics-and-vortex-induced-vibration-research.md`, `docs/audit-report.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 계산식 및 $1\text{ Pa} = 1000\text{ mPa}$ 고정소수점 레일리 항력/양력 공식 확립, 스트라울 수 $St \approx 0.20$ 기반 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 증폭 모델 수식화 완료, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64`, 40B POD `AeroEventReport` 설계 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-249 - Axiom 320대 64B L1 정렬 공기역학/항력 슬랩 및 3D 풍동 해석기 구현)**:
-  1. `crates/axiom-core/src/aerodynamics.rs` 신규 생성:
-     - 64B L1 캐시 정렬 `AeroBodySlab64` (`#[repr(C, align(64))]`, exact 64B)
-     - 64B L1 캐시 정렬 `AirflowGridSlab64` (`#[repr(C, align(64))]`, exact 64B)
-     - 40B 인라인 POD `AeroEventReport` (라운드트립 `encode`/`decode` 검증)
-     - `compute_aerodynamic_forces(body: &mut AeroBodySlab64, wind: &AirflowGridSlab64)` 구현
-     - 0-Heap 고정 크기 시뮬레이터 `MechaAerodynamicsEngine<const MAX_BODIES: usize, const MAX_CELLS: usize>` 구현
-     - 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash(&self) -> u64` 구현
-  2. `crates/axiom-core/src/lib.rs`에 `pub mod aerodynamics;` 등록.
-  3. `crates/axiom-core/tests/test_aerodynamics.rs` 단위 테스트 7종 작성 및 `tools/guard.ps1` 검증.
+- **일시:** 2026-10-24 14:28 KST
+- **감사 대상:** Axiom 320대 64B L1 정렬 공기역학/항력 슬랩 및 3D 풍동 해석기 구현 (T-249, `crates/axiom-core/src/aerodynamics.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_aerodynamics.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64` 슬랩 메모리 무결성, 40-Byte 인라인 POD `AeroEventReport` 무손실 라운드트립 직렬화, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 0-힙 고정 크기 `MechaAerodynamicsEngine<MAX_BODIES, MAX_CELLS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 7개 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-250 - Axiom 320대 공기역학 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
+  1. `crates/axiom-core/src/aerodynamics.rs`:
+     - `aero_batch_job` 및 `dispatch_aerodynamics_with_jobs` 검증/보강
+     - `emit_aero_to_event_bus` 무결성 검증
+  2. `crates/axiom-game/src/network.rs`:
+     - `NetworkMatchDirector` 내 `step_aerodynamics` 및 `step_aerodynamics_with_jobs` 연계
+  3. `crates/axiom-core/tests/test_aerodynamics_jobs.rs` 및 `crates/axiom-game/tests/test_aerodynamics_game_pipeline.rs` 작성 및 `tools/guard.ps1` 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T249] Axiom 320대 64B L1 정렬 공기역학/항력 슬랩 및 3D 풍동 해석기 구현
+- **일시:** 2026-10-24 14:28 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `AeroBodySlab64` & `AirflowGridSlab64` 슬랩 메모리 무결성, 40-Byte 인라인 POD `AeroEventReport` 무손실 라운드트립 직렬화, $q_{\text{mPa}} = \frac{\rho \cdot v^2}{2 \times 10^6}$ 정수 동압 및 레일리 항력/양력 계산, 폰 카르만 와류 방출 및 Lock-in 공진 $2.5\times$ 기진력 증폭, 0-힙 고정 크기 `MechaAerodynamicsEngine<MAX_BODIES, MAX_CELLS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 7개 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T248] Axiom 320대 대기 공기역학 항력/양력 & 와류 유도 진동(VIV) 물리 연구
 - **일시:** 2026-10-24 14:24 KST
