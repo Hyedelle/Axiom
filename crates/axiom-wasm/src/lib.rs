@@ -6249,6 +6249,116 @@ pub extern "C" fn axiom_shockwave_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_xpbd_bench_burst(
+    bone_count: u32,
+    substeps: u32,
+    impulse_energy_j: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::xpbd_ragdoll::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let bones_to_spawn = (bone_count as usize).clamp(2, 16);
+    let subs = if substeps > 0 { substeps as usize } else { 4 };
+    let energy = if impulse_energy_j > 0 { impulse_energy_j } else { 85_000 };
+
+    let mut engine = Box::new(XpbdRagdollEngine::<16, 16>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    // Spawn mecha chain
+    let mut spawned_bones = 0;
+    for i in 0..bones_to_spawn {
+        let parent = if i == 0 { 255 } else { (i - 1) as u8 };
+        let inv_mass = if i == 0 { 0 } else { 65536 }; // Bone 0 is anchor
+        let pos_x = (i as i32) * 250;
+        let pos_y = 2000;
+        let pos_z = 0;
+        if engine.add_bone(XpbdBoneSlab64::new(
+            i as u8,
+            parent,
+            (pos_x, pos_y, pos_z),
+            inv_mass,
+            75,
+            250,
+        )).is_some() {
+            spawned_bones += 1;
+        }
+
+        if i > 0 {
+            // Add distance constraint with 5% yield strain and 20% rupture strain
+            engine.add_constraint(XpbdConstraintSlab64::new_distance(
+                (i - 1) as u8,
+                i as u8,
+                250,
+                0, // Rigid XPBD
+                3277,
+                13107,
+            ));
+        }
+    }
+
+    // Apply high impact impulse to distal bone to trigger plastic strain or rupture
+    if spawned_bones > 1 {
+        let last_idx = spawned_bones - 1;
+        let impulse_mms = (energy / 50).min(5000) as i32;
+        engine.bones[last_idx].vel_x = impulse_mms;
+        engine.bones[last_idx].vel_y = -(impulse_mms / 2);
+    }
+
+    // Multi-threaded job system partition dispatch
+    let dispatched_jobs = dispatch_xpbd_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step XPBD ragdoll simulation across 10 ticks
+    for _tick in 1..=10 {
+        engine.step_xpbd(-9810, subs, 0, 5000);
+    }
+
+    // Emit event report if plastic or severance happened
+    let is_severed = engine.total_severances > 0;
+    let report = XpbdEventReport {
+        entity_id: 1,
+        bone_a: 0,
+        bone_b: (spawned_bones - 1) as u8,
+        constraint_id: 0,
+        is_severed: if is_severed { 1 } else { 0 },
+        strain_q16: engine.constraints[0].current_strain_q16,
+        tension_force_n: energy,
+        rupture_pos_xyz: [engine.bones[spawned_bones - 1].pos_x, engine.bones[spawned_bones - 1].pos_y, 0],
+        impulse_xyz: [engine.bones[spawned_bones - 1].vel_x, engine.bones[spawned_bones - 1].vel_y, 0],
+    };
+    emit_xpbd_to_event_bus(&report, 100, &mut bus);
+
+    let xpbd_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = xpbd_hash ^ (bus_hash.rotate_left(29));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                      // Capacity bone slabs (16)
+            *out_stats.add(1) = engine.active_bones_count as u32;        // Active bones count
+            *out_stats.add(2) = engine.active_constraints_count as u32;  // Active constraints count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = engine.total_plastic_events;             // Total plastic yield events
+            *out_stats.add(7) = engine.total_severances;                 // Total severed constraints
+        }
+    }
+
+    spawned_bones as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7337,5 +7447,15 @@ mod tests {
         assert_eq!(shock_stats[5], 4, "4 parallel dispatch jobs");
         assert!(shock_stats[6] <= 65536, "Fog transmittance must be valid Q16.16 (0..=65536)");
         assert_eq!(shock_stats[7], 16, "16 dust emitters spawned");
+
+        // 16. XPBD Mecha Ragdoll & Elastic Strain Limits Benchmark (8 bones, 4 substeps, 90kJ energy)
+        let mut xpbd_stats = [0u32; 8];
+        let spawned_bones = axiom_xpbd_bench_burst(8, 4, 90_000, xpbd_stats.as_mut_ptr());
+        assert_eq!(spawned_bones, 8, "XPBD benchmark must spawn 8 bones");
+        assert_eq!(xpbd_stats[0], 16, "16 bone slabs capacity");
+        assert_eq!(xpbd_stats[1], 8, "8 bones active after 10 ticks");
+        assert_eq!(xpbd_stats[2], 7, "7 constraints active");
+        assert!(xpbd_stats[3] != 0 || xpbd_stats[4] != 0, "XPBD consensus hash non-zero");
+        assert_eq!(xpbd_stats[5], 4, "4 parallel dispatch jobs");
     }
 }

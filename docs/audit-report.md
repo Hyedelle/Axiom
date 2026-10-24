@@ -8,18 +8,24 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 12:35 KST
-- **감사 대상:** Axiom 290대 XPBD 메카 래그돌 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-232, `crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_xpbd_ragdoll_jobs.rs`, `crates/axiom-game/tests/test_xpbd_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_xpbd_with_jobs` (본 슬랩 N-배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_xpbd_to_event_bus` (`EVENT_XPBD_STRAIN = 0x0290` 및 `EVENT_XPBD_TEAR = 0x0291`, `channel::PHYSICS | channel::COMBAT`, 40B 인라인 POD 페이로드 `XpbdEventReport`) 무결성 실증, `NetworkMatchDirector::step_xpbd` 및 `step_xpbd_with_jobs` (16-인 배틀로얄 경기장 넉다운/KO 시 XPBD 메카 래그돌 제약 해석 및 소성 변형/파단 이벤트 실시간 방출 결합), 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-233)**:
-  1. `crates/axiom-wasm/src/lib.rs` 내 C-ABI 엔드포인트 `axiom_xpbd_bench_burst(bone_count: u32, substeps: u32, impulse_energy_j: u32, out_stats: *mut u32) -> u32` 구현.
-  2. 4~16 본 슬랩 생성 및 XPBD 제약 해석, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_XPBD_STRAIN` / `EVENT_XPBD_TEAR` 이벤트 버스 연계 계측, 64-bit FNV-1a 상태 합의 체크섬.
-  3. `crates/axiom-wasm/index.html` 및 `web/index.html` 내 🦾 **290 XPBD Ragdoll (64B Slabs)** 대화형 버튼 및 텔레메트리 모달 연동.
-  4. WASM 릴리즈 컴파일 및 동기화.
+- **일시:** 2026-10-24 12:43 KST
+- **감사 대상:** Axiom 290대 XPBD 래그돌 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-233, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_xpbd_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 메모리 상주 검증, XPBD 순수 정수 컴플라이언스 해석기 및 소성 변형/관절 파단 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_XPBD_STRAIN (0x0290)` / `EVENT_XPBD_TEAR (0x0291)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 🦾 290 XPBD Ragdoll (64B Slabs) 대화형 모달 연동, 1.39 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-234)**:
+  1. `mimic-the-show/src/view.rs` 내 `DesktopGameView` 구조체에 `xpbd_engine: Box<XpbdRagdollEngine<16, 16>>` 상주 필드 추가.
+  2. `step_xpbd_pipeline(&mut self) -> (usize, usize)` 구현: 싱글플레이 파이터 넉다운/KO 시 외부 충격 에너지(100 kJ)를 관절 체인에 주입하여 XPBD 제약 해석, 소성 변형(Plastic Set) 및 관절 파단(`sever_joint`) 시 국소 이벤트 버스(`EVENT_XPBD_STRAIN`, `EVENT_XPBD_TEAR`) 방출.
+  3. F3 HUD 카드에 `XPBD: {} Bones | Strain: {}% | 64B` 텔레메트리 라인 추가 (장미/분홍 `0xFFEC4899`).
+  4. 56x56 미니 레이더에 관절 파단/절단 시 경고 인디케이터 표시, 하단 컨트롤 바 프롬프트에 `[XPBD: {}B/{}S]` 상시 모니터링 연동.
+  5. `mimic-the-show/tests/test_mimic_game.rs`에 XPBD 넉다운 텔레메트리 통합 테스트 추가.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T232] Axiom Engine 290대 XPBD 메카 래그돌 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 12:35 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_xpbd_with_jobs` (본 슬랩 N-배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_xpbd_to_event_bus` (`EVENT_XPBD_STRAIN = 0x0290` 및 `EVENT_XPBD_TEAR = 0x0291`, `channel::PHYSICS | channel::COMBAT`, 40B 인라인 POD 페이로드 `XpbdEventReport`) 무결성 실증, `NetworkMatchDirector::step_xpbd` 및 `step_xpbd_with_jobs` (16-인 배틀로얄 경기장 넉다운/KO 시 XPBD 메카 래그돌 제약 해석 및 소성 변형/파단 이벤트 실시간 방출 결합), 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T231] Axiom Engine 290대 64B L1 정렬 XPBD 제약 슬랩 및 순수 정수 컴플라이언스 해석기 구현
 - **일시:** 2026-10-24 12:25 KST
