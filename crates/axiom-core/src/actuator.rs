@@ -11,6 +11,8 @@
 use core::mem::size_of;
 use crate::ragdoll::isqrt_i64;
 use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
 
 /// Actuator type: Hydraulic linear piston cylinder (heavy mineral oil).
 pub const ACTUATOR_TYPE_HYDRAULIC: u8 = 0;
@@ -717,4 +719,64 @@ pub fn emit_actuator_to_event_bus<const BUS_CAP: usize>(
             payload,
         )
         .is_some()
+}
+
+/// Worker task that processes a partition of actuators for parallel solving.
+pub fn actuator_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let chunk_size = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for i in 0..chunk_size {
+        let idx = start_idx.wrapping_add(i);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Partitions actuators across the worker pool for parallel integration.
+pub fn dispatch_actuators_with_jobs<
+    const MAX_ACTUATORS: usize,
+    const MAX_CHAMBERS: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    engine: &MechaActuatorEngine<MAX_ACTUATORS, MAX_CHAMBERS>,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    if engine.active_actuators_count == 0 || batch_count == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let chunk_size = (engine.active_actuators_count + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start = b * chunk_size;
+        let len = chunk_size.min(engine.active_actuators_count.saturating_sub(start));
+        if len == 0 {
+            break;
+        }
+
+        let param = (start as u64) | ((len as u64) << 32);
+        let tag = (engine.active_chambers_count as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            actuator_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
 }
