@@ -8,20 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 15:21 KST
-- **감사 대상:** Axiom 330대 64B L1 정렬 난류 슬랩 및 Navier-Stokes 와도 격자 해석기 구현 (T-255, `crates/axiom-core/src/turbulence.rs`, `crates/axiom-core/tests/test_turbulence.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64-Byte L1 정렬 `TurbulenceCellSlab64` & `ShockBoundarySlab64` 메모리 정렬, 40B POD `TurbulenceEventReport` 무손실 직렬화, Steinhoff & Fedkiw 와도 보존 감금력 및 Rankine-Hugoniot SBLI 박리 해석기, 0-Heap `MechaTurbulenceEngine`, 단위 테스트 7종 및 전체 워크스페이스 올패스 검증 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-256 - Axiom 330대 난류 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
-  1. `crates/axiom-core/src/turbulence.rs`:
-     - `turbulence_batch_job` 및 `dispatch_turbulence_with_jobs` (셀/충격파 청크 분할 및 Chase-Lev 워커 풀 분산 스케줄링)
-     - `emit_turbulence_to_event_bus` (`EVENT_TURBULENCE_VORTEX = 0x0330`, `EVENT_SHOCK_BOUNDARY = 0x0331`, `channel::PHYSICS | channel::VFX | channel::AUDIO`)
-  2. `crates/axiom-game/src/network.rs`:
-     - `NetworkMatchDirector`에 `step_turbulence` 및 `step_turbulence_with_jobs` 연계
-  3. `crates/axiom-core/tests/test_turbulence_jobs.rs` 및 `crates/axiom-game/tests/test_turbulence_game_pipeline.rs` 작성 및 `tools/guard.ps1` 검증.
+- **일시:** 2026-10-24 15:28 KST
+- **감사 대상:** Axiom 330대 난류 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-256, `crates/axiom-core/src/turbulence.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_turbulence_jobs.rs`, `crates/axiom-game/tests/test_turbulence_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64-Byte L1 정렬 `dispatch_turbulence_with_jobs` 워커 풀 분할 스케줄링, 40B POD `TurbulenceEventReport` 이벤트 버스 발행 (`EVENT_TURBULENCE_VORTEX = 0x0330`, `EVENT_SHOCK_BOUNDARY = 0x0331`), `NetworkMatchDirector::step_turbulence` 및 `step_turbulence_with_jobs` 파이프라인 연동, 5개 신규 단위/통합 테스트 및 전체 워크스페이스 올패스 검증 완료**
+- **시공팀(Claude Code) 구현 처방전 (T-257 - Axiom 330대 난류 벤치마크 및 WASM 스튜디오 쇼케이스 연동)**:
+  1. `crates/axiom-wasm/src/lib.rs`:
+     - C-ABI 엔드포인트 `axiom_turbulence_bench_burst(iterations: u32, cell_count: u32, shock_count: u32) -> u64` 구현
+     - 4~32 난류 셀 및 1~8 충격파 경계층 슬랩 생성 및 64B L1 정렬 상주
+     - Steinhoff & Fedkiw 와도 감금력 계산, Kolmogorov K41 $k$-$\epsilon$ TKE 감쇠, 초음속 SBLI 박리 판정, 4-워커 잡 디스패치 및 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측
+     - WASM 단위 테스트 24호 추가 (`test_wasm_net_and_gpu_compute_bindings`)
+  2. `crates/axiom-wasm/index.html` 및 `web/index.html`:
+     - 🌪️ **330 Atmospheric Turbulence & Shock (64B Slabs)** 버튼 및 대화형 모달 연동
+     - `runTurbulenceBenchmark()` 구현
+  3. `tools/build_wasm.ps1` 또는 `cargo build --target wasm32-unknown-unknown --release` 빌드 후 최적화 WASM 바이너리 동기화 및 `tools/guard.ps1` 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T256] Axiom 330대 난류 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 15:28 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 하에서 `dispatch_turbulence_with_jobs` Chase-Lev 워커 풀 분산 스케줄링, `emit_turbulence_to_event_bus` 40B 인라인 POD 이벤트 버스 발행 (`EVENT_TURBULENCE_VORTEX = 0x0330`, `EVENT_SHOCK_BOUNDARY = 0x0331`), `NetworkMatchDirector` 시뮬레이션 및 이벤트 발행 결합, 5개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 올패스 승인.
 
 ### [AUDIT-20261024-T255] Axiom 330대 64B L1 정렬 난류 슬랩 및 Navier-Stokes 와도 격자 해석기 구현
 - **일시:** 2026-10-24 15:21 KST
