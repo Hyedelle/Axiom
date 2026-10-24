@@ -8,21 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 17:00 KST
-- **감사 대상:** Axiom 350대 64B L1 정렬 플라즈마 MHD 슬랩 및 맥스웰 유도 기전력 솔버 구현 (T-267, `crates/axiom-core/src/plasma.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_plasma.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `PlasmaCellSlab64`, `MagneticFieldSlab64` (exact 64B 단언 통과), 40B 인라인 POD `PlasmaEventReport` 무손실 라운드트립 직렬화, 자기 압력 $P_B = B^2 / 2513\text{ kPa}$, 로렌츠 힘 벡터 $\mathbf{F}_L = \mathbf{J} \times \mathbf{B}\text{ mN}$, 패러데이 유도 기전력 $\mathcal{E}_{\text{mV}} = -3 \cdot A \cdot \Delta B / 50$, 알벤 파동 전파 속도 $v_A$ 정수 제곱근 솔버, 0-힙 고정 용량 `MechaPlasmaEngine<MAX_CELLS, MAX_FIELDS>`, 64-bit FNV-1a 상태 합의 체크섬, 6개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 100% 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-268 - Axiom 350대 플라즈마 MHD 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
-  1. `crates/axiom-core/src/plasma.rs`:
-     - `dispatch_plasma_with_jobs` 워커 풀 분할 및 잡 할당 검증.
-     - `emit_plasma_to_event_bus` 40B POD 이벤트 발행 검증 (`EVENT_PLASMA_DISCHARGE = 0x0350`, `EVENT_EMP_SHOCK = 0x0351`).
-  2. `crates/axiom-game/src/network.rs`:
-     - `NetworkMatchDirector`에 `step_plasma` 및 `step_plasma_with_jobs` 연계 (16-인 경기장 플라즈마 방전/EMP 쇼크 이벤트 발행).
-  3. `crates/axiom-core/tests/test_plasma_jobs.rs` (3개 잡 테스트) & `crates/axiom-game/tests/test_plasma_game_pipeline.rs` (2개 네트워크 통합 테스트) 작성.
-  4. `tools/guard.ps1` 검증 및 커밋.
+- **일시:** 2026-10-24 17:08 KST
+- **감사 대상:** Axiom 350대 플라즈마 MHD 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-268, `crates/axiom-core/src/plasma.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_plasma_jobs.rs`, `crates/axiom-game/tests/test_plasma_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `dispatch_plasma_with_jobs` 워커 풀 분산 스케줄링, `emit_plasma_to_event_bus` 40B 인라인 POD 이벤트 버스 발행 (`EVENT_PLASMA_DISCHARGE = 0x0350`, `EVENT_EMP_SHOCK = 0x0351`, `channel::PHYSICS | channel::VFX | channel::AUDIO`), `NetworkMatchDirector`에 `step_plasma` 및 `step_plasma_with_jobs` 16인 롤백 매치 디렉터 완벽 통합, 신규 단위/통합 테스트 6종 100% 통과, `tools/guard.ps1` 100% 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-269 - Axiom 350대 플라즈마 MHD 벤치마크 및 WASM 스튜디오 쇼케이스 연동)**:
+  1. `crates/axiom-wasm/src/lib.rs`:
+     - C-ABI 엔드포인트 `axiom_plasma_bench_burst(iterations: u32, cell_count: u32, field_count: u32) -> u64` 추가.
+     - 4~16개 `PlasmaCellSlab64` 및 1~4개 `MagneticFieldSlab64` 생성, MHD 로렌츠 힘 및 패러데이 유도 기전력 연산, 4-워커 잡 디스패치 및 40B 이벤트 버스 발행, 64-bit FNV-1a 상태 합의 체크섬 반환.
+  2. `crates/axiom-wasm/tests/test_wasm_plasma.rs` (또는 기존 WASM 테스트 스위트) 단위 테스트 추가.
+  3. `crates/axiom-wasm/index.html` & `web/index.html`:
+     - ⚡ **350 Plasma MHD & Induction (64B Slabs)** 대화형 쇼케이스 모달 및 캔버스 시각화 연동.
+  4. WASM 릴리즈 바이너리 빌드 및 배포 (`cargo build --target wasm32-unknown-unknown --release -p axiom-wasm`), `tools/guard.ps1` 검증 및 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T268] Axiom 350대 플라즈마 MHD 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 17:08 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** `dispatch_plasma_with_jobs` 워커 풀 분산 스케줄링, 40B POD 이벤트 버스 발행, `NetworkMatchDirector` 연동, 6개 단위/통합 테스트 올패스 (0.00s), `tools/guard.ps1` 승인.
 
 ### [AUDIT-20261024-T267] Axiom 350대 64B L1 정렬 플라즈마 MHD 슬랩 및 맥스웰 유도 기전력 솔버 구현
 - **일시:** 2026-10-24 17:00 KST
