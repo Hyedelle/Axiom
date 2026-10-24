@@ -2022,6 +2022,49 @@
   4. 전체 워크스페이스 버전을 v4.6.0에서 **v4.7.0**으로 공식 판올림하고 `dist/axiom-v4.7.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.7.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-173] Stefan-Boltzmann 흑체 복사 플럭스 및 Padé 유리식 근사 Beer-Lambert 광학 투과율 고정소수점 수식화 (T-260, T-261)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 0-Float 헌법 하에서 슈테판-볼츠만 상수 $\sigma = 5.67 \times 10^{-8}\text{ W/(m}^2\text{K}^4)$를 순수 정수화한 $E = (T/100)^4 \times 567 / 100\text{ W/m}^2$ 공식 수립.
+  2. 부동소수점 지수 감쇠 $e^{-\tau}$ 대신 최대 오차 0.5% 이내의 Padé [1/2] 유리식 근사 $T = \frac{65536^2}{65536 + \tau + \tau^2 / 131072}$ (Q16.16) 채택.
+- **영향:** `crates/axiom-core/src/radiation.rs`, `crates/axiom-core/tests/test_radiation.rs`.
+
+---
+
+### [D-174] 고에너지 입자선 메카 아머 절제(Ablation) 관통 모델 채택 (T-260, T-261)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 고에너지 입자선 발산 각도 $\theta$에 따른 스팟 면적 $A_{\text{spot}} = \pi \cdot r(s)^2$ 및 유효 도달 에너지 $E_{\text{eff}} = E_{\text{beam}} \cdot T(s)$ 산출.
+  2. 티타늄-텅스텐 아머 체적 절제 에너지 $Q_{\text{vol}} = 45\text{ J/mm}^3$ 기준 장갑 관통 깊이 $d = \frac{E_{\text{eff}}}{A_{\text{spot}} \cdot Q_{\text{vol}}}$ mm 도출.
+- **영향:** `crates/axiom-core/src/radiation.rs`.
+
+---
+
+### [D-175] 64B L1 정렬 복사 셀/입자선 슬랩 및 40B POD RadiationEventReport 분산 이벤트 버스 연계 (T-261, T-262)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 구조체 `RadiationCellSlab64` 및 `ParticleBeamSlab64`로 64바이트 L1 캐시 라인 상주 보증.
+  2. 40B 인라인 POD `RadiationEventReport`를 통해 `EVENT_RADIATION_BURST = 0x0340` 및 `EVENT_BEAM_PENETRATION = 0x0341`을 `PHYSICS | VFX | AUDIO` 채널로 방출.
+  3. 0-힙 `MechaRadiationEngine<MAX_CELLS, MAX_BEAMS>` 및 64-bit FNV-1a 상태 합의 체크섬 구현.
+- **영향:** `crates/axiom-core/src/radiation.rs`, `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-176] Mimic The Show 완전한 3D 오버더숄더 백뷰 복싱 전환 & 복사 피폭 결합 및 Axiom v4.8.0 공식 릴리즈 마일스톤 (T-263, T-264, T-265)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `web/index.html` 및 `crates/axiom-wasm/index.html`에 **☢️ 340 Radiative Transfer & Beams (64B Slabs)** 대화형 모달 및 1.46 MB WASM 바이너리 배포.
+  2. 디렉터 지휘에 따라 기존 2.5D 복싱을 완전한 3D 오버더숄더 백뷰(Over-The-Shoulder Third-Person View)로 전면 전환 (카메라 피치 4, 거리 2.4m, 플레이어 전방 응시, 상대 정면 대면, 타격 프레임 퍼밀 비례 동적 포즈 보간, 2D 로프 컬링).
+  3. `mimic-the-show` `DesktopGameView`에 `MechaRadiationEngine<16, 4>` 및 `step_rad_pipeline` 결합 (2.5 kJ 입자선 펄스, F3 HUD 오렌지색(#FB923C) 출력, 미니 레이더, 하단 `[RAD: {}C/{}B]`).
+  4. 전체 워크스페이스 버전을 v4.7.0에서 **v4.8.0**으로 공식 판올림하고 `dist/axiom-v4.8.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.8.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 

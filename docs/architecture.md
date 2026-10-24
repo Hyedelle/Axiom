@@ -2003,6 +2003,75 @@ Axiom Engine 330-시리즈는 초음속 메카 전투 링 및 고에너지 폭�
 9. **상용 게임 Mimic The Show 챔피언십 링 F3 HUD 연동**:
    - `DesktopGameView`의 `step_turb_pipeline`을 통해 KO/넉다운 시 510 m/s 초음속 충격파 및 SBLI 박리 해석을 수행하며, F3 HUD 카드 `Turb: {} Cells | {} SBLI | 64B`, 56x56 미니 레이더 좌측하단(내측) 청백색(#60A5FA) 인디케이터, 하단 `[TURB: {}C/{}S]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 50. Axiom 340대: 광자 복사 수송(Radiative Transfer) & 고에너지 입자선 물리학 엔진 (v4.8.0)
+
+Axiom 340대 과제(T-260 ~ T-265)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 완벽히 수호하며, 고온 플라즈마 방출 광자 복사 수송 방정식(Radiative Transfer Equation, RTE)과 메카 장갑 열절제(Ablation) 관통을 계산하는 **광자 복사 수송 및 고에너지 입자선 피직스 엔진**을 완성했습니다. 아울러 상용 게임 `Mimic The Show`의 복싱 뷰포트를 디렉터 Hyedelle의 지휘에 따라 **완전한 3D 오버더숄더 백뷰(Over-The-Shoulder Third-Person View)** 및 프레임 비례 정밀 관절 애니메이션으로 전면 전환했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 340-Series Radiative Transfer & High-Energy Particle Beam Physics  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (RadiationCell & ParticleBeam)]      │
+│    - RadiationCellSlab64: Exact 64B Slab (center/flux/abs/sca/tau/temp/emis) │
+│    - ParticleBeamSlab64: Exact 64B Slab (origin/dir/energy/wave/div/d_ablate)│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Stefan-Boltzmann Pure Integer Thermal Radiation Emission Model]         │
+│    - Scaling: E = (T/100)^4 * 567 / 100 W/m² (Zero Float T^4 Law)           │
+│    - T >= 1500 K: RAD_FLAG_INCANDESCENT Incandescent Thermal Glow Trigger   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [Padé Rational Approximation Beer-Lambert Optical Transmittance]         │
+│    - Optical Depth Integral: tau = (kappa_abs + kappa_sca) * ds             │
+│    - Transmittance in Q16.16: T = 65536² / (65536 + tau + tau²/131072)     │
+│    - Zero Float Exponential Decay with <0.5% Approximation Error            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [High-Energy Particle Beam Mecha Armor Volumetric Ablation Model]        │
+│    - Spot Area Divergence: r(s) = r0 + s * theta / 1000                     │
+│    - Effective Energy Density: E_eff = E_beam * T(s)                        │
+│    - Titanium Armor Penetration Depth: d = E_eff / (A_spot * Q_vol) mm      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [0-Heap Fixed-Capacity Simulator & 64-Bit Consensus State Hash]          │
+│    - MechaRadiationEngine<MAX_CELLS, MAX_BEAMS>: Zero Dynamic Heap Alloc    │
+│    - Bit-Exact 64-Bit FNV-1a Hash for 16-Peer Distributed Rollback Netcode  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_radiation_with_jobs: Chase-Lev 4-Worker Batch Stealing        │
+│    - EVENT_RADIATION_BURST (0x0340) & EVENT_BEAM_PENETRATION (0x0341)       │
+│    - 40-Byte Packed POD Payload: RadiationEventReport Lossless Serde        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 7. [WASM Studio Showcase & Mimic The Show Full 3D Boxing Viewport]          │
+│    - WebGL/WASM ☢️ 340 Radiative Transfer & Beams (64B Slabs) Modal (1.46MB) │
+│    - Full 3D Over-The-Shoulder Viewport: ELPIS [0, -0.68, 0.35], Target 0   │
+│    - Dynamic Action Frame Pose Permille Interpolation & 2D Rope Culling     │
+│    - F3 HUD Card: "Rad: {} Cells | {} Beams | 64B" (Orange #FB923C)         │
+│    - 56x56 Mini Radar: Center-Bottom Orange Dot & Bottom Bar [RAD: {}C/{}B] │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 50.1 핵심 구조 및 기술적 특성
+1. **0-Float Stefan-Boltzmann 흑체 복사 방출 정수 수식**:
+   - 슈테판-볼츠만 상수 $\sigma = 5.67 \times 10^{-8}\text{ W/(m}^2\text{K}^4)$를 순수 정수 연산으로 변환하여 $E = (T/100)^4 \times 567 / 100\text{ W/m}^2$ 공식을 수립했습니다.
+   - 온도 $T \ge 1,500\text{ K}$ 초과 시 백열 발광(`RAD_FLAG_INCANDESCENT`) 상태로 전이합니다.
+2. **유리식 Padé 근사 Beer-Lambert 광학 투과율**:
+   - 부동소수점 지수 함수 $e^{-\tau}$ 대신 Padé [1/2] 유리식 근사 $T = \frac{65536^2}{65536 + \tau + \tau^2 / 131072}$ ($Q16.16$ 단위계)를 채택하여 최대 오차 0.5% 이내의 고정밀 투과율 감쇠를 부동소수점 없이 달성했습니다.
+3. **고에너지 입자선 메카 아머 체적 절제(Ablation) 관통 모델**:
+   - 빔 발산 각도 $\theta$에 따른 유효 스팟 면적 $A_{\text{spot}} = \pi \cdot r(s)^2$ 및 매질 감쇠를 거친 도달 에너지 $E_{\text{eff}} = E_{\text{beam}} \cdot T(s)$를 산출합니다.
+   - 티타늄-텅스텐 메카 아머의 체적 용융 절제 에너지 $Q_{\text{vol}} = 45\text{ J/mm}^3$를 기준으로 관통 깊이 $d = \frac{E_{\text{eff}}}{A_{\text{spot}} \cdot Q_{\text{vol}}}$ mm를 정밀하게 계산합니다.
+4. **0-Float 64-바이트 L1 캐시 라인 정렬 슬랩 (`RadiationCellSlab64` & `ParticleBeamSlab64`)**:
+   - 두 구조체 모두 `#[repr(C, align(64))]`로 정확히 64바이트 1개 L1 캐시 라인을 점유하여 캐시 미스를 원천 억제합니다.
+5. **40-바이트 인라인 POD 이벤트 서술자 (`RadiationEventReport`)**:
+   - `DeterministicEventBus`의 `payload: [u8; 40]`에 인라인 패킹되며, 무손실 인코딩/디코딩 라운드트립과 GGPO 롤백을 100% 지원합니다.
+6. **0-Heap 고정 용량 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `MechaRadiationEngine<MAX_CELLS, MAX_BEAMS>`는 시뮬레이션 틱 루프에서 힙 동적 할당을 전혀 발생시키지 않으며, 64-bit FNV-1a 해시를 통해 16-인 분산 롤백 넷코드 합의를 보증합니다.
+7. **멀티스레드 잡 시스템 및 WASM 쇼케이스 연동**:
+   - `dispatch_radiation_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기 풀에 N-배치 분산 실행됩니다.
+   - WebGL/WASM 복셀 스튜디오에 **☢️ 340 Radiative Transfer & Beams (64B Slabs)** 모달과 최적화 바이너리(1.46 MB)를 동기화했습니다.
+8. **상용 게임 Mimic The Show 완전한 3D 복싱 오버더숄더 백뷰 전환**:
+   - 디렉터 Hyedelle의 특명을 완수하여 기존 2.5D 사이드 구도를 종결하고, 플레이어 ELPIS를 화면 하단 전방 지향 백뷰(`[0.0, -0.68, 0.35]`, `rot_y = 0`)에, 상대 챔피언을 시야 정면 링 중앙 너머(`[0.0, -0.62, -0.55]`, `rot_y = 128 BAM`)에 배치하는 완전한 3D 오버더숄더 백뷰를 확립했습니다.
+   - 정적 500 퍼밀 포즈를 타격 프레임 퍼밀 비례 `(action.frame * 1000 / action.max_frame)` 동적 보간으로 교체하고, F3 HUD 카드 `Rad: {} Cells | {} Beams | 64B` 오렌지색(#FB923C) 출력, 미니 레이더 및 하단 바 연동을 완결했습니다.
+
+
 
 
 
