@@ -61,6 +61,7 @@ pub mod xpbd_ragdoll;
 pub mod soft_body;
 pub mod actuator;
 pub mod aerodynamics;
+pub mod turbulence;
 
 pub use voxel_fluid::{FluidStepResult, VoxelFluidField16, FLUID_MAX_LEVEL};
 pub use voxel_fluid_simd::{SimdFluidEngine, SimdFluidStepResult};
