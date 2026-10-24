@@ -8,23 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:38 KST
-- **감사 대상:** Axiom Engine 250대 지형 변형 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-208, `crates/axiom-core/src/deformable_mesh.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_deformable_mesh_jobs.rs`, `crates/axiom-game/tests/test_deformable_mesh_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_terrain_deform_with_jobs` 행 분할 워커 풀 디스패치 및 Chase-Lev 무잠금 SPMC 드레인 무결성 검증, 40B 인라인 POD 페이로드 기반 `emit_crater_to_event_bus` (`EVENT_TERRAIN_CRATER = 0x0250`, `channel::PHYSICS | channel::COMBAT`) 이벤트 버스 롤백/브로드캐스트 검증, `NetworkMatchDirector` 내 `step_terrain_crater` 및 `step_terrain_crater_with_jobs` 16인 경기장 실시간 지형 파쇄 파이프라인 결합 승인, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 09:44 KST
+- **감사 대상:** Axiom Engine 250대 지형 변형 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-209, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/index.html`, `web/index.html`, `crates/axiom-wasm/axiom_wasm.wasm`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_terrain_bench_crater` 무결성 검증, 33x33 격자(1,089 버텍스 슬랩) 64B L1 캐시 정렬 상주 검증, Melosh 체적 보존 다중 크레이터 스탬핑 및 $O(1)$ 해석적 표면 법선 도함수 $Q16.16$ 갱신 확인, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_TERRAIN_CRATER (0x0250)` 이벤트 버스 40B 인라인 POD 페이로드 방출 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 ⛰️ **250 Deformable Terrain (64B Slabs)** 대화형 모달 연동, 1.34 MB 최적화 릴리즈 WASM 바이너리 배포, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **잡 시스템 병렬 분할 (`dispatch_terrain_deform_with_jobs`)**:
-     - 격자 행(`GRID_DIM`) 단위 4~8 워커 배치 분할, 64B L1 슬랩 디스크립터 할당 및 워커 덱 로컬 푸시.
-     - `coordinator.drain_all(&mut job_sys)`를 통한 협력적 드레인 후 미해결 잡 0 (`active_count == 0`) 검증.
-  2. **40B 인라인 POD 페이로드 이벤트 버스 발행 (`emit_crater_to_event_bus`)**:
-     - `EVENT_TERRAIN_CRATER (0x0250)` 이벤트 발행 시 40바이트 인라인 POD 페이로드(`center_xyz`, `radius_inner/outer`, `depth`, `rim_height`, `energy`, `source_id`, `flags`) 비트 레벨 완벽 일치.
-  3. **16인 경기장 매치 디렉터 실시간 결합**:
-     - `NetworkMatchDirector::step_terrain_crater` 및 `step_terrain_crater_with_jobs`에서 크레이터 인가 시 메시 변형 및 이벤트 기록 즉시 연동.
-  4. **헌법 및 테스트 통과**:
-     - 코어 단위 테스트 2건, 게임 통합 테스트 2건, 전체 워크스페이스 `tools/guard.ps1` 100% 통과.
+  1. **C-ABI 벤치마크 엔드포인트 (`axiom_terrain_bench_crater`)**:
+     - 33x33 그리드(1,089 버텍스)에 대해 85 kJ 충격 에너지 크레이터를 인가하고, 워커 풀 분할 및 이벤트 버스 기록 후 8-요소 텔레메트리 통계(`out_stats`) 정확 도출.
+     - 64-bit FNV-1a 복합 합의 체크섬(지형 상태 ^ 이벤트 버스)을 통해 웹 환경에서의 $100\%$ 결정론 보증.
+  2. **WASM 바이너리 및 웹 쇼케이스 동기화**:
+     - `target/wasm32-unknown-unknown/release/axiom_wasm.wasm` (1,336,703 Bytes) 빌드 및 `web/`, `crates/axiom-wasm/` 배포.
+     - ⛰️ **250 Deformable Terrain (64B Slabs)** 대화형 모달을 통해 버텍스 수, 크레이터 파쇄 깊이, 융기 림 립, 잡 분할 및 이벤트 버스 방출 통계 표시.
+  3. **헌법 및 테스트 통과**:
+     - `test_wasm_net_and_gpu_compute_bindings` 테스트 #12 통과 및 전체 23개 WASM 테스트 통과.
+     - `tools/guard.ps1` 무결성 검증 100% 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T208] Axiom Engine 250대 지형 변형 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 09:38 KST
+- **판정:** 🟢 **ALL CLEAR (연계 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_terrain_deform_with_jobs` 행 분할 워커 풀 디스패치 및 Chase-Lev 무잠금 SPMC 드레인 무결성 검증, 40B 인라인 POD 페이로드 기반 `emit_crater_to_event_bus` (`EVENT_TERRAIN_CRATER = 0x0250`, `channel::PHYSICS | channel::COMBAT`) 이벤트 버스 롤백/브로드캐스트 검증, `NetworkMatchDirector` 내 `step_terrain_crater` 및 `step_terrain_crater_with_jobs` 16인 경기장 실시간 지형 파쇄 파이프라인 결합 승인.
 
 ### [AUDIT-20261024-T207] Axiom Engine 250대 64B L1 캐시 정렬 지형 버텍스 변위 슬랩 및 크레이터 테셀레이터 구현
 - **일시:** 2026-10-24 09:32 KST

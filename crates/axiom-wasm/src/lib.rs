@@ -5900,6 +5900,80 @@ pub extern "C" fn axiom_ragdoll_bench_pbd(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_terrain_bench_crater(
+    grid_dim: u32,
+    crater_count: u32,
+    impact_energy_j: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::deformable_mesh::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let dim = (grid_dim as usize).clamp(9, 33);
+    let craters_to_apply = (crater_count as usize).clamp(1, 16);
+    let energy = if impact_energy_j > 0 { impact_energy_j as u64 } else { 50_000 };
+
+    let mut grid = Box::new(DeformableMeshGrid::<33, 1089, 32>::new_flat(-8000, -8000, 0, 500));
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    let mut total_deformed_vertices = 0usize;
+    let mut dispatched_jobs = 0usize;
+
+    for i in 0..craters_to_apply {
+        // Multi-threaded job system partition dispatch
+        dispatched_jobs = dispatch_terrain_deform_with_jobs(
+            &grid,
+            4,
+            &mut js,
+            &mut coordinator,
+        );
+        coordinator.drain_all(&mut js);
+
+        let cx = ((i as i32) % 3 - 1) * 1500;
+        let cz = ((i as i32) / 3 - 1) * 1500;
+
+        let crater = CraterSlab64::from_kinetic_impact(
+            cx, 0, cz,
+            energy + (i as u64) * 10_000,
+            2_000,
+            12_000,
+            TERRAIN_MAT_DIRT,
+            (i + 1) as u32,
+            100 + (i as u32),
+        );
+
+        let deformed = grid.apply_crater_displacement(&crater);
+        total_deformed_vertices += deformed;
+
+        let report = TerrainCraterReport::from_crater(&crater);
+        emit_crater_to_event_bus(&report, 100 + (i as u32), &mut bus);
+    }
+
+    let mesh_hash = grid.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = mesh_hash ^ (bus_hash.rotate_left(17));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = (dim * dim) as u32;                 // Total vertices in grid
+            *out_stats.add(1) = grid.crater_count as u32;            // Craters applied
+            *out_stats.add(2) = total_deformed_vertices as u32;      // Vertices displaced
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;
+            *out_stats.add(4) = (combined_hash >> 32) as u32;
+            *out_stats.add(5) = dispatched_jobs as u32;              // Worker partition jobs
+            *out_stats.add(6) = grid.min_elevation_mm.unsigned_abs(); // Excavation bowl depth in mm
+            *out_stats.add(7) = bus.count as u32;                    // Event bus crater events
+        }
+    }
+
+    total_deformed_vertices as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -6941,5 +7015,17 @@ mod tests {
         assert_eq!(ragdoll_stats[5], 4, "4 parallel dispatch jobs");
         assert_eq!(ragdoll_stats[6], 1, "1 limb severed");
         assert!(ragdoll_stats[7] > 0, "Event bus must contain emitted ragdoll impacts");
+
+        // 12. Deformable Terrain Mesh & Crater Tessellation Benchmark (33x33 grid, 3 craters, 60kJ energy)
+        let mut terrain_stats = [0u32; 8];
+        let displaced_vertices = axiom_terrain_bench_crater(33, 3, 60_000, terrain_stats.as_mut_ptr());
+        assert!(displaced_vertices > 0, "Deformable terrain benchmark must displace vertices");
+        assert_eq!(terrain_stats[0], 1089, "1089 grid vertices (33x33)");
+        assert_eq!(terrain_stats[1], 3, "3 craters applied");
+        assert_eq!(terrain_stats[2], displaced_vertices);
+        assert!(terrain_stats[3] != 0 || terrain_stats[4] != 0, "Mesh consensus hash non-zero");
+        assert_eq!(terrain_stats[5], 4, "4 parallel dispatch jobs");
+        assert!(terrain_stats[6] > 0, "Excavation bowl depth > 0");
+        assert_eq!(terrain_stats[7], 3, "Event bus must contain 3 crater events");
     }
 }
