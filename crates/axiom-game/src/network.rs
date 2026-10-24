@@ -38,6 +38,10 @@ use axiom_core::shockwave::{
 use axiom_core::xpbd_ragdoll::{
     dispatch_xpbd_with_jobs, emit_xpbd_to_event_bus, XpbdEventReport, XpbdRagdollEngine,
 };
+use axiom_core::soft_body::{
+    dispatch_soft_body_with_jobs, emit_soft_body_to_event_bus, SoftBodyEngine,
+    SoftBodyEventReport,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1200,6 +1204,40 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_xpbd_with_jobs(engine, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_xpbd(engine, report)
+    }
+
+    /// Advances physical simulation of shape matching deformable soft bodies and emits deform/rupture events.
+    pub fn step_soft_body<const PARTICLES: usize, const CLUSTERS: usize>(
+        &mut self,
+        engine: &mut SoftBodyEngine<PARTICLES, CLUSTERS>,
+        report: Option<&SoftBodyEventReport>,
+    ) -> bool {
+        engine.step_simulation(-9810, 0);
+
+        if let Some(rep) = report {
+            emit_soft_body_to_event_bus(rep, self.current_world.tick, &mut self.event_bus);
+        }
+
+        true
+    }
+
+    /// Advances physical simulation of shape matching deformable soft bodies using worker pool parallel dispatch.
+    pub fn step_soft_body_with_jobs<
+        const PARTICLES: usize,
+        const CLUSTERS: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut SoftBodyEngine<PARTICLES, CLUSTERS>,
+        report: Option<&SoftBodyEventReport>,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_soft_body_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_soft_body(engine, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.
