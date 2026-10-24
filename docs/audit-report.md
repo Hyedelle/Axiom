@@ -8,22 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 10:03 KST
-- **감사 대상:** Axiom Engine 260대 절차적 파괴 음향 합성 & 표면 잔향 필드 연구 (T-212, `docs/audit-report.md`, `axiom-procedural-destruction-audio-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DestructionVoiceSlab64` & `AcousticZoneSlab64` 슬랩 설계 승인, 0-Float 물리적 고체 충격 모달 공명(Modal Resonance) 합성 및 크랙 임펄스 트랜지언트 정수 수학 모델 수립, 250대 지형 5대 재질(`TERRAIN_MAT_DIRT`, `STONE`, `METAL`, `MOLTEN`, `SAND`)별 고유 모달 주파수비/감쇠율/표면 음향 흡수율($\alpha_{abs}$) 규격화 완료, 4개 서로소(Coprime) 정수 FDN 빗살 필터 잔향 필드 수식화 완료, 0-힙 고정 용량 `DestructionAudioEngine<MAX_VOICES, MAX_ZONES>` 아키텍처 승인, 250대 크레이터(`0x0250`) / 240대 래그돌(`0x0241`) / 230대 CCD(`0x0230`) / 200대 JobSystem / 210대 EventBus (`EVENT_AUDIO_DESTRUCTION = 0x0260`) 연계 규격 확정**
+- **일시:** 2026-10-24 10:08 KST
+- **감사 대상:** Axiom Engine 260대 64B L1 캐시 정렬 음향 보이스 슬랩 및 표면 음향 감쇠/잔향 합성기 구현 (T-213, `crates/axiom-core/src/destruction_audio.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_destruction_audio.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `DestructionVoiceSlab64` & `AcousticZoneSlab64` 슬랩 컴파일 타임 검증(`size_of == 64, align_of == 64`), 256-엔트리 정수 사인파 LUT (`SINE_LUT_256`) 및 결정론적 PRNG 노이즈 트랜지언트 버스트 생성기 무결성 검증, 5대 지형 재질(흙, 석재, 금속, 용암, 모래)별 고유 모달 공명 주파수 비/감쇠율/포락선 합성기 `synthesize_destruction_impact_pcm` 무결성 검증, 0-힙 고정 용량 `DestructionAudioEngine` 3D 공간 음향 거리 역제곱 감쇠/스테레오 패닝 및 4개 서로소 정수 FDN 빗살 필터 잔향 필드 검증, 64-bit FNV-1a 결정론적 합의 해시 100% 비트 일치, 5개 전용 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`DestructionVoiceSlab64`, `AcousticZoneSlab64`)**:
-     - `DestructionVoiceSlab64`: 12B 좌표(mm), 12B 속도(mm/s), 4B 충격 에너지, 2B 기본 주파수, 2B 감쇠율, 2B 진폭, 2B 길이, 2B 커서, 1B 재질, 1B 플래그, 2B 리버브 센드, 4B 원인 ID, 4B 틱, 14B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
-     - `AcousticZoneSlab64`: 12B 중심점, 4B 반경, 2B 흡수율, 2B 잔향 감쇠시간, 2B 고주파 감쇠, 2B 초기 반사비, 1B 재질, 1B 플래그, 2B 존 ID, 4B 공기 밀도 인자, 32B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
-  2. **0-Float 물리 모달 공명 및 표면 잔향 수식화**:
-     - 4개 비조화 직교 고유 모드 중첩 및 256-엔트리 정수 사인 LUT (`SINE_LUT_256`) 기반 $O(1)$ 삼각함수 연산.
-     - 4개 서로소 지연 라인($241, 353, 479, 613$ 샘플) 기반 정수 FDN 잔향기 및 재질 흡수율($\alpha_{abs}$ in $Q16.16$) 연동.
-  3. **엔진 파이프라인 결합**:
-     - 250대 크레이터 굴착, 240대 래그돌 관절 파단, 230대 CCD 펀치 타격, 200대 JobSystem (`dispatch_destruction_audio_with_jobs`), 210대 EventBus (`EVENT_AUDIO_DESTRUCTION = 0x0260`) 연계 인터페이스 완비.
+  1. **64B L1 캐시 라인 정렬 슬랩 검증**:
+     - `DestructionVoiceSlab64`: $9 \times 4\text{B(coords/vel/energy/src/tick)} + 6 \times 2\text{B(freq/decay/amp/dur/cursor/send)} + 2 \times 1\text{B(mat/flags)} + 14\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+     - `AcousticZoneSlab64`: $5 \times 4\text{B(center/radius/air)} + 5 \times 2\text{B(abs/rt60/damping/refl/zone)} + 2 \times 1\text{B(mat/flags)} + 32\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+  2. **물리 모달 합성 & 표면 잔향 필드**:
+     - DIRT (85Hz, 감쇠 61000) 및 METAL (850Hz, 감쇠 65200) 재질별 파형 생성 검증.
+     - 청취자 기준 3D 우측 위치(+3000mm X) 음원 인가 시 우측 채널 에너지 우세 패닝 검증.
+     - 4개 서로소 빗살 필터($241, 353, 479, 613$) 잔향 루프의 안정적 16-bit PCM 정수 감쇠 확인.
+  3. **결정론 및 도메인 격리**:
+     - 64-bit FNV-1a 음향 상태 해시가 동일 조건에서 100% 비트 일치 확인.
+     - 전체 워크스페이스 `tools/guard.ps1` 무결성 검증 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T212] Axiom Engine 260대 절차적 파괴 음향 합성 & 표면 잔향 필드 연구
+- **일시:** 2026-10-24 10:03 KST
+- **판정:** 🟢 **ALL CLEAR (연구 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DestructionVoiceSlab64` & `AcousticZoneSlab64` 슬랩 설계 승인, 0-Float 물리적 고체 충격 모달 공명(Modal Resonance) 합성 및 크랙 임펄스 트랜지언트 정수 수학 모델 수립, 250대 지형 5대 재질별 고유 모달 주파수비/감쇠율/표면 음향 흡수율 규격화, 4개 서로소 정수 FDN 빗살 필터 잔향 필드 수식화 완료, 0-힙 고정 용량 `DestructionAudioEngine` 아키텍처 승인.
 
 ### [AUDIT-20261024-v3.9.0] Axiom Engine v3.9.0 250대 절차적 지형 메시 변형 및 크레이터 테셀레이션 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 09:58 KST

@@ -14,6 +14,7 @@ pub mod chunk;
 pub mod cloud_save;
 pub mod combat;
 pub mod deformable_mesh;
+pub mod destruction_audio;
 pub mod dlc;
 pub mod effector;
 pub mod entity;
@@ -101,6 +102,14 @@ pub use deformable_mesh::{
     TERRAIN_MAT_DIRT, TERRAIN_MAT_METAL, TERRAIN_MAT_MOLTEN, TERRAIN_MAT_SAND,
     TERRAIN_MAT_STONE, VERTEX_FLAG_FRACTURED, VERTEX_FLAG_MODIFIED, VERTEX_FLAG_MOLTEN,
     VERTEX_FLAG_PINNED,
+};
+pub use destruction_audio::{
+    deterministic_noise, synthesize_destruction_impact_pcm, AcousticZoneSlab64,
+    DestructionAudioEngine, DestructionVoiceSlab64, AUDIO_MAT_DIRT, AUDIO_MAT_METAL,
+    AUDIO_MAT_MOLTEN, AUDIO_MAT_SAND, AUDIO_MAT_STONE, AUDIO_SAMPLE_RATE_48K,
+    DEFAULT_MAX_ACOUSTIC_ZONES, DEFAULT_MAX_DESTRUCTION_VOICES, EVENT_AUDIO_DESTRUCTION,
+    VOICE_FLAG_ACTIVE, VOICE_FLAG_CRACK_BURST, VOICE_FLAG_HIGH_PRIORITY, VOICE_FLAG_REVERB_TAIL,
+    ZONE_FLAG_ACTIVE, ZONE_FLAG_DAMPED, ZONE_FLAG_ENCLOSED,
 };
 
 pub use audio::{
