@@ -8,27 +8,31 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 16:53 KST
-- **감사 대상:** Axiom 350대 플라즈마 자기유체역학(MHD) & 전자기 유도 필드 물리 연구 (T-266, `docs/audit-report.md`, `axiom-plasma-mhd-and-electromagnetic-induction-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 자기 압력 $P_B = B^2 / (2\mu_0) \approx B_{\text{mT}}^2 / 2513\text{ kPa}$ 정수 변환 확립, 로렌츠 힘 벡터 $\mathbf{F}_L = \mathbf{J} \times \mathbf{B}\text{ mN}$ 및 Z-핀치 구심 압축력 수립, 패러데이 유도 기전력 $\mathcal{E}_{\text{mV}} = -3 \cdot A \cdot \Delta B / 50$ 및 EMP 서지 전압 모델 도출, 알벤 파동 속도 $v_A$ 정수 제곱근 공식화, 64B L1 정렬 `PlasmaCellSlab64`, `MagneticFieldSlab64`, 40B POD `PlasmaEventReport`, 0-힙 고정 용량 `MechaPlasmaEngine<MAX_CELLS, MAX_FIELDS>`, 200대 JobSystem / 210대 EventBus [`EVENT_PLASMA_DISCHARGE = 0x0350`, `EVENT_EMP_SHOCK = 0x0351`] 연계 명세 수립 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-267 - Axiom 350대 64B L1 정렬 플라즈마 MHD 슬랩 및 맥스웰 유도 기전력 솔버 구현)**:
+- **일시:** 2026-10-24 17:00 KST
+- **감사 대상:** Axiom 350대 64B L1 정렬 플라즈마 MHD 슬랩 및 맥스웰 유도 기전력 솔버 구현 (T-267, `crates/axiom-core/src/plasma.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_plasma.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `PlasmaCellSlab64`, `MagneticFieldSlab64` (exact 64B 단언 통과), 40B 인라인 POD `PlasmaEventReport` 무손실 라운드트립 직렬화, 자기 압력 $P_B = B^2 / 2513\text{ kPa}$, 로렌츠 힘 벡터 $\mathbf{F}_L = \mathbf{J} \times \mathbf{B}\text{ mN}$, 패러데이 유도 기전력 $\mathcal{E}_{\text{mV}} = -3 \cdot A \cdot \Delta B / 50$, 알벤 파동 전파 속도 $v_A$ 정수 제곱근 솔버, 0-힙 고정 용량 `MechaPlasmaEngine<MAX_CELLS, MAX_FIELDS>`, 64-bit FNV-1a 상태 합의 체크섬, 6개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 100% 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-268 - Axiom 350대 플라즈마 MHD 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
   1. `crates/axiom-core/src/plasma.rs`:
-     - 상수: `EVENT_PLASMA_DISCHARGE = 0x0350`, `EVENT_EMP_SHOCK = 0x0351`, 플래그(`PLASMA_FLAG_*`, `MAG_FLAG_*`)
-     - 슬랩: `#[repr(C, align(64))]` 구조체 `PlasmaCellSlab64` (exact 64B), `MagneticFieldSlab64` (exact 64B) 선언 및 `size_of == 64`, `align_of == 64` 컴파일 타임 단언.
-     - 40B POD: `#[repr(C)] PlasmaEventReport` 선언 (`size_of == 40`) 및 `encode() -> [u8; 40]`, `decode([u8; 40]) -> Self` 무손실 라운드트립 직렬화.
-     - 물리 함수:
-       * `compute_magnetic_pressure_kpa(b_vector_xyz: [i32; 3]) -> u32` ($B^2 / 2513$)
-       * `compute_mhd_forces(cell: &PlasmaCellSlab64, field: &MagneticFieldSlab64) -> [i32; 3]` ($\mathbf{J} \times \mathbf{B}$)
-       * `compute_induced_emf_mv(loop_area_mm2: u32, delta_b_mt: i32) -> i32` ($-3 \cdot A \cdot \Delta B / 50$)
-       * `compute_alfven_velocity_mms(b_mag_mt: u32, plasma_density_g_m3: u32) -> u32` ($B \cdot 28210 / \text{isqrt}(\rho)$)
-     - 시뮬레이터: `MechaPlasmaEngine<const MAX_CELLS: usize, const MAX_FIELDS: usize>` (0-Heap 고정 크기 슬랩 배열, 셀/필드 등록, `step_simulation`, 64-bit FNV-1a `compute_consensus_hash`).
-  2. `crates/axiom-core/src/lib.rs`: `pub mod plasma;` 등록 및 주요 심볼 re-export.
-  3. `crates/axiom-core/tests/test_plasma.rs`: 6개 이상 정밀 단위 테스트 작성 (슬랩 정렬, 자기 압력, 로렌츠 힘, 유도 기전력, 40B POD 무손실 라운드트립, 엔진 합의 해시).
+     - `dispatch_plasma_with_jobs` 워커 풀 분할 및 잡 할당 검증.
+     - `emit_plasma_to_event_bus` 40B POD 이벤트 발행 검증 (`EVENT_PLASMA_DISCHARGE = 0x0350`, `EVENT_EMP_SHOCK = 0x0351`).
+  2. `crates/axiom-game/src/network.rs`:
+     - `NetworkMatchDirector`에 `step_plasma` 및 `step_plasma_with_jobs` 연계 (16-인 경기장 플라즈마 방전/EMP 쇼크 이벤트 발행).
+  3. `crates/axiom-core/tests/test_plasma_jobs.rs` (3개 잡 테스트) & `crates/axiom-game/tests/test_plasma_game_pipeline.rs` (2개 네트워크 통합 테스트) 작성.
   4. `tools/guard.ps1` 검증 및 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T267] Axiom 350대 64B L1 정렬 플라즈마 MHD 슬랩 및 맥스웰 유도 기전력 솔버 구현
+- **일시:** 2026-10-24 17:00 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** `PlasmaCellSlab64`, `MagneticFieldSlab64` 64B 캐시 정렬 상주, 자기 압력/로렌츠 힘/유도 기전력/알벤 속도 솔버, 40B POD 무손실 직렬화, 6개 단위 테스트 올패스, `tools/guard.ps1` 승인.
+
+### [AUDIT-20261024-T266] Axiom 350대 플라즈마 자기유체역학(MHD) & 전자기 유도 필드 물리 연구
+- **일시:** 2026-10-24 16:53 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 자기 압력, 로렌츠 힘, Z-핀치, 패러데이 유도 기전력, 알벤 파동 전파 0-Float 수식화, 64B L1 슬랩/40B POD/0-힙 엔진 설계 완료.
 
 ### [AUDIT-20261024-T266] Axiom 350대 플라즈마 자기유체역학(MHD) & 전자기 유도 필드 물리 연구
 - **일시:** 2026-10-24 16:53 KST
