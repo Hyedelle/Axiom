@@ -6,16 +6,17 @@
 ---
 
 ## ▶ [CURRENT]
-- [ ] **T-276: Mimic The Show 챔피언십 링 실시간 초전도 부상/마이스너 쉴드 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-
----
-
-## ⏳ [BACKLOG]
 - [ ] **T-277: Axiom 360대 메카 초전도 자기부상 & 마이스너 효과 공식 릴리즈 v4.10.0** (`Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
 
 ---
 
+## ⏳ [BACKLOG]
+- [ ] **T-278: Axiom 370대 포톤-포논 결정 음향광학(Acousto-Optics) & 메타물질 클로킹 물리 연구** (`docs/audit-report.md`, `crates/axiom-core/src/metamaterial.rs`)
+
+---
+
 ## 📜 [COMPLETED]
+- [x] **T-276: Mimic The Show 챔피언십 링 실시간 초전도 부상/마이스너 쉴드 및 F3 HUD 결합** (`mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`, `DesktopGameView` 내 `MechaSuperconductorEngine<16, 4>` [8개 초전도 셀 + 2개 플럭스 피닝 슬랩 64B L1 캐시 슬랩] 및 `step_superconductor_pipeline` 결합 [싱글플레이 파이터 넉다운/피니셔/KO 시 50 kN 플럭스 피닝 고정력 및 퀜치 전이 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `SC: {} Cells | {} Pins | 64B` 텔레메트리 청록색(#22D3EE) 출력 및 56x56 미니 레이더 하단중앙 청록색 인디케이터 점등, 하단 `[SC: {}C/{}P]` 상시 모니터링 연동, 39개 게임 단위/통합 테스트 100% 통과)
 - [x] **T-275: Axiom 360대 초전도 벤치마크 및 WASM 스튜디오 쇼케이스 연동** (`crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`, WASM C-ABI 신규 엔드포인트 `axiom_superconductor_bench_burst` [4~16 초전도 셀 슬랩 및 1~4 플럭스 피닝 슬랩 생성 및 64B L1 캐시 정렬 상주, 마이스너 반발력 $F_{\text{rep}} = B^2 \cdot A / 2513$, 3차원 플럭스 피닝 복원력 $\mathbf{F}_{pin} = -k \Delta \mathbf{x} - c \mathbf{v}$, 퀜치 판정, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_FLUX_PINNING (0x0360)` / `EVENT_SUPERCONDUCT_QUENCH (0x0361)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 계측], 웹 3D 복셀 스튜디오 🧲 **360 Superconductivity & Quantum Levitation (64B Slabs)** 대화형 모달 연동, 1.49 MB 최적화 WASM 바이너리 동기화, 23개 WASM 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-274: Axiom 360대 초전도 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계** (`crates/axiom-core/src/superconductor.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_superconductor_jobs.rs`, `crates/axiom-game/tests/test_superconductor_game_pipeline.rs`, 0-Float 64B L1 정렬 `dispatch_superconductor_with_jobs` [초전도 셀 슬랩 청크 배치 분할 및 Chase-Lev 워커 풀 분산 스케줄링], 0-Heap 이벤트 버스 발행 `emit_superconductor_to_event_bus` [`EVENT_FLUX_PINNING = 0x0360` 및 `EVENT_SUPERCONDUCT_QUENCH = 0x0361`, `channel::PHYSICS | channel::VFX | channel::AUDIO` 채널, 40B 인라인 POD 페이로드 `SuperconductorEventReport`(pos_xyz, force_xyz, flux_or_voltage, temp_k, pin_displacement_mm, crit_ratio_q8, emitter_id, target_id, flags, event_kind)], `SuperconductorEventReport::decode` 무손실 라운드트립 디코더 및 GGPO 롤백 지원, `NetworkMatchDirector::step_superconductor` 및 `step_superconductor_with_jobs` [16-인 경기장 초전도 자기부상 수치 적분 및 퀜치 이벤트 실시간 방출 결합], 6개 신규 단위/통합 테스트 100% 통과, `tools/guard.ps1` 통과)
 - [x] **T-273: Axiom 360대 64B L1 정렬 초전도 플럭스 피닝 슬랩 및 런던 방정식 솔버 구현** (`crates/axiom-core/src/superconductor.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_superconductor.rs`, 0-Float 64B L1 캐시 정렬 초전도체 슬랩 `SuperconductorSlab64` [#[repr(C, align(64))], exact 64B slab, 12B center mm, 12B vel mm/s, 4B temp K, 4B crit_temp K, 4B crit_b_field mT, 4B crit_current mA/mm2, 4B pinning_force N, 1B type, 1B flags, 1B entity_id, 17B reserved], 64B L1 정렬 자속 피닝 슬랩 `FluxPinningSlab64` [#[repr(C, align(64))], exact 64B slab, 12B anchor mm, 4B pinned_flux mWb, 4B stiffness Q16, 4B damping Q16, 4B max_force N, 4B trapped_height mm, 1B target_id, 1B emitter_id, 1B flags, 29B reserved], 40-Byte 인라인 POD 이벤트 서술자 `SuperconductorEventReport` 무손실 라운드트립 직렬화, 마이스너 반발력 정수 계산 $F_{\text{rep,mN}} = B^2 \cdot A / 2513$, 3차원 플럭스 피닝 스프링-댐퍼 복원력 $\mathbf{F}_{pin} = -k_{pin} \Delta \mathbf{x} - c_{pin} \mathbf{v}$, 온도/자장 한계 초과 퀜치 판정 및 복원력 제로화, 0-힙 고정 크기 시뮬레이터 `MechaSuperconductorEngine<MAX_CELLS, MAX_PINS>`, 64-bit FNV-1a 상태 합의 체크섬 `compute_consensus_hash`, 6개 신규 단위 테스트 100% 통과, `tools/guard.ps1` 통과)
