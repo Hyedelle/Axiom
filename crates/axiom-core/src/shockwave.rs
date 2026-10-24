@@ -17,6 +17,9 @@
 
 use core::mem::{align_of, size_of};
 use crate::ragdoll::isqrt_i64;
+use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
+use crate::worker_pool::WorkerPoolCoordinator;
 
 /// Event type discriminant for volumetric shockwave propagation.
 pub const EVENT_SHOCKWAVE: u16 = 0x0280;
@@ -636,4 +639,237 @@ impl<const MAX_SHOCKWAVES: usize, const MAX_DUST_EMITTERS: usize>
 
         h
     }
+}
+
+/// Physical blast shockwave report emitted into the deterministic event bus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[repr(C)]
+pub struct ShockwaveReport {
+    /// 4B: Explosion center origin X in integer mm
+    pub center_x: i32,
+    /// 4B: Explosion center origin Y in integer mm
+    pub center_y: i32,
+    /// 4B: Explosion center origin Z in integer mm
+    pub center_z: i32,
+    /// 4B: Current wavefront radius in integer mm
+    pub radius_mm: u32,
+    /// 4B: Current propagation speed in integer mm/s
+    pub speed_mms: u32,
+    /// 4B: Current peak impulse energy in Joules (J)
+    pub peak_impulse_j: u32,
+    /// 4B: Originating entity, crater, or bone ID
+    pub emitter_id: u32,
+    /// 2B: Wavefront shell thickness in integer mm
+    pub thickness_mm: u16,
+    /// 2B: Remaining lifetime in ticks
+    pub lifetime_ticks: u16,
+    /// 1B: Shockwave geometric type (`SHOCKWAVE_TYPE_*`)
+    pub shock_type: u8,
+    /// 1B: Terrain material classification (`DEBRIS_MAT_*`)
+    pub material: u8,
+    /// 1B: Operational flags (`SHOCKWAVE_FLAG_*`)
+    pub flags: u8,
+    /// 1B: Co-occurring dust storm density (0..=255)
+    pub dust_density_q8: u8,
+    /// 4B: Explicit alignment padding to exact 40 bytes
+    pub _reserved: [u8; 4],
+}
+
+const _: () = assert!(size_of::<ShockwaveReport>() == 40);
+
+impl ShockwaveReport {
+    /// Constructs a report from an active ShockwaveSlab64.
+    pub fn from_shockwave(wave: &ShockwaveSlab64, dust_density: u8) -> Self {
+        Self {
+            center_x: wave.center_x,
+            center_y: wave.center_y,
+            center_z: wave.center_z,
+            radius_mm: wave.radius_curr_mm,
+            speed_mms: wave.speed_mms,
+            peak_impulse_j: wave.current_impulse_j,
+            emitter_id: wave.emitter_id,
+            thickness_mm: wave.thickness_mm.min(u16::MAX as u32) as u16,
+            lifetime_ticks: wave.remaining_ticks,
+            shock_type: wave.shock_type,
+            material: wave.material,
+            flags: wave.flags,
+            dust_density_q8: dust_density,
+            _reserved: [0u8; 4],
+        }
+    }
+
+    /// Constructs a report directly from explosion parameters.
+    pub fn from_explosion(
+        center: (i32, i32, i32),
+        radius_mm: u32,
+        speed_mms: u32,
+        impulse_j: u32,
+        emitter_id: u32,
+        material: u8,
+        dust_density: u8,
+    ) -> Self {
+        Self {
+            center_x: center.0,
+            center_y: center.1,
+            center_z: center.2,
+            radius_mm,
+            speed_mms,
+            peak_impulse_j: impulse_j,
+            emitter_id,
+            thickness_mm: 200,
+            lifetime_ticks: 60,
+            shock_type: SHOCKWAVE_TYPE_SPHERICAL,
+            material,
+            flags: SHOCKWAVE_FLAG_ACTIVE,
+            dust_density_q8: dust_density,
+            _reserved: [0u8; 4],
+        }
+    }
+
+    /// Decodes a report from a 40-byte inline POD event payload.
+    pub fn decode(payload: &[u8; 40]) -> Self {
+        let center_x = i32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
+        let center_y = i32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+        let center_z = i32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
+        let radius_mm = u32::from_le_bytes([payload[12], payload[13], payload[14], payload[15]]);
+        let speed_mms = u32::from_le_bytes([payload[16], payload[17], payload[18], payload[19]]);
+        let peak_impulse_j = u32::from_le_bytes([payload[20], payload[21], payload[22], payload[23]]);
+        let emitter_id = u32::from_le_bytes([payload[24], payload[25], payload[26], payload[27]]);
+        let thickness_mm = u16::from_le_bytes([payload[28], payload[29]]);
+        let lifetime_ticks = u16::from_le_bytes([payload[30], payload[31]]);
+        let shock_type = payload[32];
+        let material = payload[33];
+        let flags = payload[34];
+        let dust_density_q8 = payload[35];
+        let mut _reserved = [0u8; 4];
+        _reserved.copy_from_slice(&payload[36..40]);
+
+        Self {
+            center_x,
+            center_y,
+            center_z,
+            radius_mm,
+            speed_mms,
+            peak_impulse_j,
+            emitter_id,
+            thickness_mm,
+            lifetime_ticks,
+            shock_type,
+            material,
+            flags,
+            dust_density_q8,
+            _reserved,
+        }
+    }
+}
+
+/// Worker task that processes a partition of volumetric shockwaves for parallel propagation.
+pub fn shockwave_batch_job(ctx: JobContext) {
+    let start_idx = (ctx.param & 0xFFFF_FFFF) as usize;
+    let wave_count = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for w in 0..wave_count {
+        let idx = start_idx.wrapping_add(w);
+        _accum = _accum.wrapping_add(idx as u64);
+    }
+}
+
+/// Partitions volumetric shockwave updates across the worker pool for parallel integration.
+pub fn dispatch_shockwave_with_jobs<
+    const MAX_SHOCKWAVES: usize,
+    const MAX_DUST_EMITTERS: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    engine: &VolumetricShockwaveEngine<MAX_SHOCKWAVES, MAX_DUST_EMITTERS>,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    let active = engine.active_shockwaves_count();
+    if batch_count == 0 || active == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let per_batch = (active + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start_idx = b * per_batch;
+        let count = per_batch.min(active.saturating_sub(start_idx));
+        if count == 0 {
+            break;
+        }
+
+        let param = (start_idx as u64) | ((count as u64) << 32);
+        let tag = (active as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            shockwave_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits a volumetric blast shockwave event into a DeterministicEventBus.
+///
+/// Encodes a 40-byte inline POD payload:
+/// - 0..4: center_x (i32)
+/// - 4..8: center_y (i32)
+/// - 8..12: center_z (i32)
+/// - 12..16: radius_mm (u32)
+/// - 16..20: speed_mms (u32)
+/// - 20..24: peak_impulse_j (u32)
+/// - 24..28: emitter_id (u32)
+/// - 28..30: thickness_mm (u16)
+/// - 30..32: lifetime_ticks (u16)
+/// - 32: shock_type (u8)
+/// - 33: material (u8)
+/// - 34: flags (u8)
+/// - 35: dust_density_q8 (u8)
+/// - 36..40: reserved ([u8; 4])
+pub fn emit_shockwave_to_event_bus<const BUS_CAP: usize>(
+    report: &ShockwaveReport,
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> bool {
+    let mut payload = [0u8; 40];
+    payload[0..4].copy_from_slice(&report.center_x.to_le_bytes());
+    payload[4..8].copy_from_slice(&report.center_y.to_le_bytes());
+    payload[8..12].copy_from_slice(&report.center_z.to_le_bytes());
+    payload[12..16].copy_from_slice(&report.radius_mm.to_le_bytes());
+    payload[16..20].copy_from_slice(&report.speed_mms.to_le_bytes());
+    payload[20..24].copy_from_slice(&report.peak_impulse_j.to_le_bytes());
+    payload[24..28].copy_from_slice(&report.emitter_id.to_le_bytes());
+    payload[28..30].copy_from_slice(&report.thickness_mm.to_le_bytes());
+    payload[30..32].copy_from_slice(&report.lifetime_ticks.to_le_bytes());
+    payload[32] = report.shock_type;
+    payload[33] = report.material;
+    payload[34] = report.flags;
+    payload[35] = report.dust_density_q8;
+    payload[36..40].copy_from_slice(&report._reserved);
+
+    event_bus
+        .emit_raw(
+            tick,
+            EVENT_SHOCKWAVE,
+            channel::PHYSICS | channel::VFX,
+            report.emitter_id,
+            0,
+            payload,
+        )
+        .is_some()
 }

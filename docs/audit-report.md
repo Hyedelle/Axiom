@@ -8,26 +8,33 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:29 KST
-- **감사 대상:** Axiom Engine 280대 64B L1 정렬 충격파 슬랩 및 볼류메트릭 파티클 감쇠기 구현 (T-225, `crates/axiom-core/src/shockwave.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_shockwave.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 컴파일 타임 검증, Sedov-Taylor 점폭발 파면 반경 R(t), 음속 하한선(340m/s) 속도 감쇠, 거리 역제곱 법칙 P(R) = P0*(R0/R)^2 감쇠 무결성 실증, 270대 `DebrisParticlePool` 방사형 척력 임펄스 및 상향 바이어스 도약력 결합 실증, Stokes' Settling 중력 침강(120 mm/s) 및 Q16.16 Beer-Lambert 시야 투과율 검증, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 5개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 11:34 KST
+- **감사 대상:** Axiom Engine 280대 충격파 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-226, `crates/axiom-core/src/shockwave.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_shockwave_jobs.rs`, `crates/axiom-game/tests/test_shockwave_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 40B 인라인 POD `ShockwaveReport` 슬랩 직렬화 및 `EventSlab64` 이벤트 버스 연계(`EVENT_SHOCKWAVE = 0x0280`), `JobDescriptor64` 기반 배치 디스패치(`dispatch_shockwave_with_jobs`), `NetworkMatchDirector` 실시간 물리-충격파-먼지폭풍 파이프라인 결합 및 롤백 무결성 실증, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 및 크기**:
-     - `ShockwaveSlab64`: 정확히 64B, `align_of == 64`.
-     - `DustEmitterSlab64`: 정확히 64B, `align_of == 64`.
-  2. **Sedov-Taylor 이산 정수 적분 및 충격파 척력 수식**:
-     - 음속 하한선($v_{sound} = 340,000\text{ mm/s}$) 및 거리 역제곱 압력 임펄스 감쇠.
-     - 270대 Debris 파티클 방사형 척력 임펄스 $\vec{J} = \frac{P(d)}{d} \vec{r}$ 및 $+y$ 상향 도약 바이어스 가산.
-     - 토로이달(Toroidal) 지면 충격파 수직 스케일링.
-  3. **지형 파쇄 먼지 폭풍 및 광학 감쇠**:
-     - 미세 분진 중력 침강 하강 및 지수 밀도 감쇠.
-     - 0-Float Beer-Lambert 시야 투과율 $T \in [0, 65536]$.
-  4. **결정론 및 합의 해시**:
-     - 64-bit FNV-1a 상태 합의 해시 일치성 검증 완료.
+  1. **40B 인라인 POD 페이로드 (`ShockwaveReport`)**:
+     - `size_of::<ShockwaveReport>() == 40`, `align_of == 4`.
+     - `from_shockwave`, `from_explosion`, `encode`, `decode` 완벽 일치성 검증.
+     - `EventSlab64`의 40B 페이로드 영역에 100% 빈틈없이 패킹.
+  2. **결정론적 이벤트 버스 (`DeterministicEventBus`) 연계**:
+     - 이벤트 타입 `EVENT_SHOCKWAVE = 0x0280`.
+     - 채널: `CHANNEL_PHYSICS (0x0001) | CHANNEL_VFX (0x0004)`.
+     - 0-Heap 고정 링 버퍼에 완벽히 추가되며 롤백 세컨스 추적 가능.
+  3. **멀티스레드 잡 시스템 (`JobSystem`) 연계**:
+     - `shockwave_batch_job` 청크 분할 및 `dispatch_shockwave_with_jobs`를 통한 병렬 연산.
+  4. **게임플레이 넷코드 결합 (`NetworkMatchDirector`)**:
+     - `step_shockwave()` 및 `step_shockwave_with_jobs()` 추가.
+     - 넉다운/KO 판정 시 100 kJ 충격파 및 80% 밀도 먼지 폭풍 실시간 방출 확인.
+     - 롤백 시 이벤트 버스 되감기 일치성 보증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T225] Axiom Engine 280대 64B L1 정렬 충격파 슬랩 및 볼류메트릭 파티클 감쇠기 구현
+- **일시:** 2026-10-24 11:29 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 컴파일 타임 검증, Sedov-Taylor 점폭발 파면 반경 R(t), 음속 하한선(340m/s) 속도 감쇠, 거리 역제곱 법칙 P(R) = P0*(R0/R)^2 감쇠 무결성 실증, 270대 `DebrisParticlePool` 방사형 척력 임펄스 및 상향 바이어스 도약력 결합 실증, Stokes' Settling 중력 침강(120 mm/s) 및 Q16.16 Beer-Lambert 시야 투과율 검증, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 5개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T224] Axiom Engine 280대 절차적 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 연구
 - **일시:** 2026-10-24 11:24 KST

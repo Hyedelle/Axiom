@@ -31,6 +31,10 @@ use axiom_core::debris_particle::{
     dispatch_debris_with_jobs, emit_debris_burst_to_event_bus, DebrisBurstReport,
     DebrisParticlePool,
 };
+use axiom_core::shockwave::{
+    dispatch_shockwave_with_jobs, emit_shockwave_to_event_bus, ShockwaveReport,
+    VolumetricShockwaveEngine,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1101,6 +1105,64 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_debris_with_jobs(pool, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_debris_burst(pool, report)
+    }
+
+    /// Evaluates dynamic volumetric shockwave and dust cloud propagation from physical explosions,
+    /// triggering the shockwave in the arena and emitting the event into the event bus.
+    pub fn step_shockwave<const WAVES: usize, const DUST: usize>(
+        &mut self,
+        engine: &mut VolumetricShockwaveEngine<WAVES, DUST>,
+        report: &ShockwaveReport,
+    ) -> bool {
+        let spawned = engine.trigger_shockwave(
+            (report.center_x, report.center_y, report.center_z),
+            report.radius_mm,
+            report.radius_mm.saturating_add(4000),
+            report.speed_mms,
+            report.thickness_mm as u32,
+            report.peak_impulse_j,
+            report.emitter_id,
+            report.material,
+            report.shock_type,
+            self.current_world.tick,
+        ).is_some();
+
+        if spawned {
+            if report.dust_density_q8 > 0 {
+                engine.trigger_dust_cloud(
+                    (report.center_x, report.center_y, report.center_z),
+                    report.radius_mm,
+                    report.radius_mm.saturating_add(3000),
+                    25_000,
+                    report.dust_density_q8 as u16,
+                    report.material,
+                    report.emitter_id,
+                    report.lifetime_ticks,
+                    self.current_world.tick,
+                );
+            }
+            emit_shockwave_to_event_bus(report, self.current_world.tick, &mut self.event_bus);
+        }
+        spawned
+    }
+
+    /// Evaluates dynamic volumetric shockwave updates parallelized across the worker pool using JobSystem.
+    pub fn step_shockwave_with_jobs<
+        const WAVES: usize,
+        const DUST: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut VolumetricShockwaveEngine<WAVES, DUST>,
+        report: &ShockwaveReport,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_shockwave_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_shockwave(engine, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.
