@@ -8,18 +8,23 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 12:48 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 XPBD 메카 파단/소성 변형 및 F3 HUD 결합 (T-234, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `XpbdRagdollEngine<16, 16>` (8개 본 + 7개 제약 64B L1 캐시 슬랩) 상주 무결성 검증, `step_xpbd_pipeline` 실시간 물리-XPBD 래그돌-소성 변형-파단 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 100 kJ 충격 기반 관절 파단 및 소성 변형 해석, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `XPBD: {} Bones | Strain: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙좌측 마젠타(#EC4899) 인디케이터 점등, 하단 컨트롤 바 `[XPBD: {}B/{}S]` 상시 모니터링 연동, 31개 게임 단위/통합 테스트 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-235)**:
-  1. 전체 워크스페이스 `Cargo.toml` 버전 `4.3.0` 판올림.
-  2. `docs/architecture.md` (Section 46: XPBD Mecha Ragdoll Constraints & Elastic Strain Limits) 및 `docs/decisions.md` (ADR [D-153]~[D-156]) 문서화.
-  3. `tools/package.ps1` 버전 갱신 및 실행하여 단일 배포 아카이브 `dist/axiom-v4.3.0-unified-milestone.zip` 패키징.
-  4. `tools/guard.ps1` 검증 및 Git 태그 `v4.3.0` 발행.
+- **일시:** 2026-10-24 12:56 KST
+- **감사 대상:** Axiom 290대 XPBD 메카 래그돌 제약 & 탄성 변형 한계 공식 릴리즈 v4.3.0 (T-235, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-153]~[D-156], `tools/package.ps1`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 전체 워크스페이스 v4.3.0 공식 판올림, 64B L1 캐시 정렬 `XpbdBoneSlab64` & `XpbdConstraintSlab64` 슬랩 메모리 무결성, 40B POD `XpbdEventReport`, Müller & Macklin XPBD 순수 정수 유효 컴플라이언스($\tilde{\alpha} = \alpha / \Delta t^2$) 및 3-단계 금속 탄성 변형 한계 모델(가역 탄성 / 소성 변형 세트 $L_0$ 이동 / 극한 인장 파괴 관절 파단 `sever_joint`), `XpbdRagdollEngine<16, 16>`, `DesktopGameView` step_xpbd_pipeline 결합, F3 HUD(`XPBD: {} Bones | Strain: {}% | 64B`), 56x56 미니 레이더 중앙-좌측 마젠타(#EC4899) 인디케이터, 하단 `[XPBD: {}B/{}S]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.3.0-unified-milestone.zip` (2.29 MB, SHA-256: `F21F45DECF773970520F326FAE3E9FCCD4667AE782AC5E3F084039982C2A7377` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,099,264 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-236)**:
+  1. `crates/axiom-core/src/soft_body.rs` 신규 모듈 설계를 위한 0-Float, 64B L1 캐시 정렬 연성체(Soft Body) 및 셰이프 매칭(Shape Matching, Müller et al. 2005) 물리학 선행 연구 수행.
+  2. 분산 질점 입자(`SoftBodyParticleSlab64`) 및 3D 클러스터(`SoftBodyClusterSlab64`) 구조체 정의.
+  3. 극분해(Polar Decomposition) 대칭 행렬 $S = \sqrt{A^T A}$ 대신 0-Float 정수 반복 직교화(Iterative Orthogonalization) 또는 최적 강체 변환(Optimal Rigid Transformation) 알고리즘 수식화.
+  4. 가역 체적 보존(Volume Conservation via Clausen/Müller Constraint) 수식 도출.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T234] Mimic The Show 챔피언십 링 실시간 XPBD 메카 파단/소성 변형 및 F3 HUD 결합
+- **일시:** 2026-10-24 12:48 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `XpbdRagdollEngine<16, 16>` (8개 본 + 7개 제약 64B L1 캐시 슬랩) 상주 무결성 검증, `step_xpbd_pipeline` 실시간 물리-XPBD 래그돌-소성 변형-파단 파이프라인 결합, 싱글플레이 파이터 KO/넉다운 시 100 kJ 충격 기반 관절 파단 및 소성 변형 해석, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `XPBD: {} Bones | Strain: {}% | 64B` 텔레메트리 출력 및 56x56 미니 레이더 중앙좌측 마젠타(#EC4899) 인디케이터 점등, 하단 컨트롤 바 `[XPBD: {}B/{}S]` 상시 모니터링 연동, 31개 게임 단위/통합 테스트 100% 올패스 승인.
 
 ### [AUDIT-20261024-T233] Axiom 290대 XPBD 래그돌 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 12:43 KST

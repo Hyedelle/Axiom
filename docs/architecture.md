@@ -1696,6 +1696,69 @@ Axiom 280대 과제(T-224 ~ T-229)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - `web/index.html`에 **💥 280 Dust Storm & Shockwaves (64B Slabs)** 모달을 탑재하여 1.38 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_shockwave_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Shockwave: {} Waves | Dust: {}% | 64B`, 56x56 미니 레이더 중앙 황색(#F59E0B) 인디케이터, 하단 `[SHK: {}W]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 45. Axiom 290대: 고정소수점 3D 래그돌 관절 XPBD 솔버 & 탄성 변형 한계 피직스 엔진 (v4.3.0)
+
+Axiom 290대 과제(T-230 ~ T-235)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 엄격히 준수하며, 메카 관절의 시간 간격 독립적 강성(Stiffness) 제어, 라그랑주 승수 기반 반력 측정, 3-단계 금속 탄성 변형(Elastic, Plastic Set, Rupture)을 해석하는 **고정소수점 3D 래그돌 관절 XPBD 솔버(XPBD Ragdoll Solver) 및 탄성 변형 한계(Elastic Strain Limits) 피직스 엔진**을 완성했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 290-Series XPBD Mecha Ragdoll Constraints & Elastic Strain Limits  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (XpbdBoneSlab64 & XpbdConstraint)]   │
+│    - XpbdBoneSlab64: Exact 64B Slab (pos/vel/yaw/pitch/roll/mass/radius)    │
+│    - XpbdConstraintSlab64: Exact 64B Slab (body_a/b/rest_len/compliance/   │
+│      yield_strain/break_strain/current_strain/plastic_rate/fatigue)         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Müller & Macklin Extended Position-Based Dynamics (XPBD) Solver]        │
+│    - Pure Integer Compliance: alpha_tilde = alpha / dt^2 in Q16.16          │
+│    - Lagrange Multiplier Integration: delta_lambda = (-C - a*lam) / (w + a) │
+│    - Substep-Independent Stiffness Consistency                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [3-Phase Metallurgical Elastic/Plastic Strain Dynamic State Machine]     │
+│    - Instantaneous Strain Metric: epsilon = |C(x)| / L0 in Q16.16           │
+│    - 1) Elastic Regime (eps <= eps_yield): 100% Reversible Recovery         │
+│    - 2) Plastic Yield (eps_yield < eps < eps_break): Rest Length L0 Shift   │
+│    - 3) Tensile Rupture (eps >= eps_break): sever_joint & Detached Dynamics │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [0-Heap Fixed-Capacity Simulator & 64-Bit Consensus State Hash]          │
+│    - XpbdRagdollEngine<16, 16>: 0 Heap Allocation in Simulation Loop        │
+│    - Bit-Exact 64-Bit FNV-1a Hash for 16-Peer Distributed Rollback Netcode  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_xpbd_with_jobs: N-Bone Batch Partition via Chase-Lev Stealing │
+│    - EVENT_XPBD_STRAIN (0x0290) & EVENT_XPBD_TEAR (0x0291)                  │
+│    - 40-Byte Packed POD Payload: XpbdEventReport                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [WASM Studio Showcase & Mimic The Show Championship Ring Integration]    │
+│    - WebGL/WASM: 🦾 290 XPBD Ragdoll (64B Slabs) Interactive Modal (1.39 MB) │
+│    - Mimic The Show: step_xpbd_pipeline with F3 HUD Card, Radar & Bar       │
+│    - F3 HUD Card: "XPBD: {} Bones | Strain: {}% | 64B" (Magenta #EC4899)    │
+│    - 56x56 Mini Radar: Center-Left Magenta Indicator & Bar [XPBD: {}B/{}S]  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 45.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 본 슬랩 (`XpbdBoneSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 1개 캐시 라인을 차지하며, 12바이트 3D 위치 mm, 12바이트 선속도 mm/s, 6바이트 요/피치/롤 16-bit BAMS 각도, 6바이트 3축 각속도 BAMS/tick, 4바이트 역질량 $Q16.16$, 2바이트 충돌 반경 mm, 2바이트 세그먼트 길이 mm, 1바이트 부모 본 인덱스, 1바이트 본 식별자, 1바이트 상태 플래그, 1바이트 충돌 그룹, 2바이트 마찰 계수 $Q16.16$, 2바이트 반발 계수 $Q16.16$, 12바이트 정렬 패딩으로 완벽한 메모리 정렬을 달성했습니다.
+2. **0-Float 64-바이트 L1 캐시 라인 정렬 제약 슬랩 (`XpbdConstraintSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트를 차지하며, 1바이트 부모 슬롯, 1바이트 자식 슬롯, 1바이트 제약 종류(Distance/Hinge), 1바이트 플래그, 2바이트 현재 자연 길이 $L_0$ mm, 2바이트 초기 원본 길이 mm, 4바이트 유효 컴플라이언스 $\tilde{\alpha} \in Q16.16$, 4바이트 누적 라그랑주 승수 $\lambda_{acc} \in Q16.16$, 4바이트 항복 변형률 $\epsilon_{yield} \in Q16.16$, 4바이트 파괴 한계 변형률 $\epsilon_{break} \in Q16.16$, 4바이트 현재 변형률 $Q16.16$, 2바이트 소성 유동률 $Q16.16$, 2바이트 최소 회전각 BAMS, 2바이트 최대 회전각 BAMS, 2바이트 댐핑 $Q16.16$, 6바이트 회전축 단위 벡터 $Q1.15$, 2바이트 피로 틱 누적 카운터, 2바이트 최대 피로 한계, 18바이트 패딩으로 직렬화됩니다.
+3. **순수 정수 Müller & Macklin XPBD 컴플라이언스 해석기**:
+   - 시간 종속 유효 컴플라이언스 $\tilde{\alpha} = \alpha / \Delta t^2$를 $Q16.16$ 순수 고정소수점으로 표현하고, 제약 오차 $C(\mathbf{x}) = \|\mathbf{x}_1 - \mathbf{x}_2\| - L_0$에 대한 라그랑주 승수 수정량 $\Delta \lambda = \frac{-C(\mathbf{x}) - \tilde{\alpha} \lambda_{acc}}{w_1 + w_2 + \tilde{\alpha}}$를 정밀 적분하여 서브스텝 시간 간격에 영향받지 않는 절대 불변의 관절 강성을 실현했습니다.
+4. **3-단계 금속 탄성/소성 변형 및 파단 역학 모델**:
+   - 변형률 $\epsilon \le \epsilon_{yield}$ 구간에서는 완전한 탄성 복원을 보장합니다.
+   - $\epsilon_{yield} < \epsilon < \epsilon_{break}$ 구간에서는 영구 변형(Plastic Set)이 발생하여 관절 자연 길이 $L_0$가 $\Delta L_0 = (\epsilon - \epsilon_{yield}) \cdot r_{plastic}$에 따라 영구적으로 이동합니다.
+   - $\epsilon \ge \epsilon_{break}$ 극한 인장력 도달 시 관절이 즉시 파단(`sever_joint`)되어 부모 트리로부터 분리되고 독자적인 탄도 물리 다이나믹스로 전이됩니다.
+5. **0-Heap 고정 크기 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `XpbdRagdollEngine<16, 16>`은 힙 할당을 일체 발생시키지 않으며, 모든 본 위치/속도 및 제약 상태에 대해 64-bit FNV-1a 해시를 계산하여 16-인 P2P 롤백 넷코드 간 100% 무오차 결정론 상태 합의를 보증합니다.
+6. **멀티스레드 잡 시스템 및 분산 이벤트 버스 연계**:
+   - `dispatch_xpbd_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기(Work-Stealing) 풀에 본 슬랩 적분을 병렬 분산합니다.
+   - 40-바이트 인라인 POD 이벤트 서술자 `XpbdEventReport`를 통해 `EVENT_XPBD_STRAIN = 0x0290` 및 `EVENT_XPBD_TEAR = 0x0291` 이벤트를 `DeterministicEventBus`에 발행하여 GGPO 롤백 지원과 VFX/SFX 실시간 방출을 연계했습니다.
+7. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **🦾 290 XPBD Ragdoll (64B Slabs)** 모달을 탑재하여 1.39 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_xpbd_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `XPBD: {} Bones | Strain: {}% | 64B`, 56x56 미니 레이더 중앙-좌측 마젠타(#EC4899) 인디케이터, 하단 `[XPBD: {}B/{}S]` 상시 모니터링을 완비했습니다.
+
 
 
 

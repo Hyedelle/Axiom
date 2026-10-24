@@ -1809,6 +1809,48 @@
   3. 전체 워크스페이스 버전을 v4.1.0에서 **v4.2.0**으로 공식 판올림하고 `dist/axiom-v4.2.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.2.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-153] Müller & Macklin XPBD 순수 정수 mm 및 Q16.16 고정소수점 컴플라이언스 해석 모델 (T-230, T-231)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. Extended Position-Based Dynamics (XPBD) 제약 해석 기법을 0-Float 헌법에 따라 $Q16.16$ 순수 고정소수점 유효 컴플라이언스 $\tilde{\alpha} = \alpha / \Delta t^2$ 모델로 변환.
+  2. 서브스텝 시간 간격 $\Delta t$ 변화와 무관하게 안정적인 강성(Stiffness) 제어 및 라그랑주 승수 누적치 $\Delta \lambda = \frac{-C(\mathbf{x}) - \tilde{\alpha} \lambda_{acc}}{w_1 + w_2 + \tilde{\alpha}}$ 해석 알고리즘 정립.
+- **영향:** `crates/axiom-core/src/xpbd_ragdoll.rs`.
+
+---
+
+### [D-154] 3-단계 금속 탄성 변형 한계(Elastic/Plastic Yield/Tensile Rupture) 및 소성 변형 세트 규격화 (T-230, T-231)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 관절 변형률 $\epsilon = \frac{|C(\mathbf{x})|}{L_0}$을 $Q16.16$ 정밀도로 계측하여, 완전 탄성 복원 ($\epsilon \le \epsilon_{yield}$), 영구 소성 변형 (Plastic Set, $L_0$ 영구 이동, $\epsilon_{yield} < \epsilon < \epsilon_{break}$), 및 인장 파괴 한계 ($\epsilon \ge \epsilon_{break}$) 3단계 물리 상태 머신을 완성.
+  2. 인장 한계 초과 시 관절 파단(`sever_joint`) 및 분리 다이나믹스 활성화.
+- **영향:** `crates/axiom-core/src/xpbd_ragdoll.rs`.
+
+---
+
+### [D-155] 64B L1 캐시 정렬 XpbdBoneSlab64 / XpbdConstraintSlab64, 40B POD XpbdEventReport 및 잡 시스템 분산 (T-230, T-232, T-233)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `XpbdBoneSlab64` 및 `XpbdConstraintSlab64`를 `#[repr(C, align(64))]` 64바이트 L1 캐시 라인 크기로 정렬하여 메모리 대역폭 극대화.
+  2. 40-바이트 인라인 POD `XpbdEventReport` 무손실 라운드트립 직렬화 및 `EVENT_XPBD_STRAIN = 0x0290` / `EVENT_XPBD_TEAR = 0x0291` 이벤트 버스 연계.
+  3. `dispatch_xpbd_with_jobs`를 통해 Chase-Lev 워커 풀 분산 스케줄링 및 WASM C-ABI `axiom_xpbd_bench_burst` 벤치마크 모달 탑재.
+- **영향:** `crates/axiom-core/src/xpbd_ragdoll.rs`, `crates/axiom-wasm/src/lib.rs`.
+
+---
+
+### [D-156] Mimic The Show 챔피언십 링 실시간 XPBD 파단/변형 및 Axiom v4.3.0 공식 릴리즈 마일스톤 (T-234, T-235)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `XpbdRagdollEngine<16, 16>` 및 `step_xpbd_pipeline` 결합.
+  2. 싱글플레이 KO/넉다운 시 100 kJ 외부 충격에 의한 관절 파단 및 소성 변형 해석, F3 HUD 카드(`XPBD: {} Bones | Strain: {}% | 64B`), 56x56 미니 레이더 중앙-좌측 마젠타(#EC4899) 인디케이터, 하단 `[XPBD: {}B/{}S]` 상시 모니터링 연동.
+  3. 전체 워크스페이스 버전을 v4.2.0에서 **v4.3.0**으로 공식 판올림하고 `dist/axiom-v4.3.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.3.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 

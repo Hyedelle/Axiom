@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "axiom-cli"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "axiom-core",
  "axiom-game",
@@ -15,11 +15,11 @@ dependencies = [
 
 [[package]]
 name = "axiom-core"
-version = "4.2.0"
+version = "4.3.0"
 
 [[package]]
 name = "axiom-game"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "axiom-core",
  "axiom-net",
@@ -27,14 +27,14 @@ dependencies = [
 
 [[package]]
 name = "axiom-net"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "axiom-core",
 ]
 
 [[package]]
 name = "axiom-render"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "axiom-core",
  "serde",
@@ -43,14 +43,14 @@ dependencies = [
 
 [[package]]
 name = "axiom-sdk"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "axiom-core",
 ]
 
 [[package]]
 name = "axiom-wasm"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "axiom-core",
  "axiom-game",
