@@ -2152,6 +2152,50 @@
   3. 전체 워크스페이스 버전을 v4.9.0에서 **v4.10.0**으로 공식 판올림하고 `dist/axiom-v4.10.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.10.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-185] 포톤-포논 결정 음향광학 브릴루앙 산란 및 0-Float 광탄성 굴절률 섭동 수식화 (T-278, T-279)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 탄성 음향파 포논 스트레인 $S$, 광탄성 계수 $p$, 기본 굴절률 $n_0$에 의한 굴절률 변조 $\Delta n = -\frac{1}{2} n_0^3 p S$를 순수 정수 비트 시프트 연산 $\Delta n_{\text{q16}} = ((((n_0^3 \cdot p) \gg 16) \cdot S) \gg 17)$로 완전 결정론 구현.
+  2. 음향광학 편향기(AOD) 브래그 회절 각도 공식 $\theta_{B,\text{mrad}} = \frac{\lambda_{\text{nm}} \cdot f_{\text{kHz}}}{2 \cdot v_{s,\text{mms}}}$ 및 256-엔트리 사인 LUT 기반 회절 효율 $\eta$ 정수 근사 모델 채택.
+- **영향:** `crates/axiom-core/src/metamaterial.rs`, `crates/axiom-core/tests/test_metamaterial.rs`.
+
+---
+
+### [D-186] 변환광학(Transformation Optics) 쉘 이방성 유전율 텐서 및 광선 회피 굴절 솔버 (T-278, T-279)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 원통형/구형 메타물질 클로킹 쉘($R_1 \le r \le R_2$) 내부 유전율 텐서 성분 $\epsilon_{r} = \frac{r - R_1}{r}$, $\epsilon_{\theta} = \frac{r}{r - R_1}$을 Q16.16 고정소수점으로 계산.
+  2. 쉘 내부로 입사하는 광선에 대해 접선 방향 회피 가속을 부여하여 코어 영역($r < R_1$)을 바이패스하도록 경로를 굴곡시키는 `compute_cloaking_ray_bend` 알고리즘 구축.
+  3. 은폐 효율을 0~99% 범위의 정수 퍼센티지로 정량화.
+- **영향:** `crates/axiom-core/src/metamaterial.rs`.
+
+---
+
+### [D-187] 64B L1 정렬 AcoustoOpticCellSlab64 & CloakingFieldSlab64 및 40B POD MetamaterialEventReport (T-279, T-280)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 구조체 `AcoustoOpticCellSlab64` 및 `CloakingFieldSlab64`로 정확히 64바이트 L1 캐시 라인 상주 보증.
+  2. 40B 인라인 POD `MetamaterialEventReport`를 통해 `EVENT_OPTICAL_CLOAK = 0x0370` 및 `EVENT_BRILLOUIN_SCATTER = 0x0371`을 `PHYSICS | VFX | AUDIO` 채널로 방출.
+  3. 0-힙 `MechaMetamaterialEngine<MAX_CELLS, MAX_FIELDS>` 및 64-bit FNV-1a 상태 합의 체크섬 구현.
+  4. `dispatch_metamaterial_with_jobs` 및 `NetworkMatchDirector` 연계.
+- **영향:** `crates/axiom-core/src/metamaterial.rs`, `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-188] Mimic The Show 챔피언십 링 실시간 음향광학 클로킹 결합 및 Axiom v4.11.0 공식 릴리즈 마일스톤 (T-281, T-282, T-283)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `web/index.html` 및 `crates/axiom-wasm/index.html`에 **🔮 370 Metamaterial Cloaking (64B Slabs)** 대화형 모달 및 1.50 MB WASM 바이너리 배포.
+  2. `mimic-the-show` `DesktopGameView`에 `MechaMetamaterialEngine<16, 8>` 및 `step_metamaterial_pipeline` 결합 (파이터 KO/넉다운 시 94% 메타물질 클로킹 은폐율 및 광선 굴절 해석, F3 HUD 카드 자수정 보라색(#A855F7) 출력, 미니 레이더 및 하단 `[CLK: {}C/{}F]`).
+  3. 전체 워크스페이스 버전을 v4.10.0에서 **v4.11.0**으로 공식 판올림하고 `dist/axiom-v4.11.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.11.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 

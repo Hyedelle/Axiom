@@ -8,21 +8,26 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 18:29 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 음향광학 클로킹/굴절 쉴드 및 F3 HUD 결합 (T-282, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — `mimic-the-show` `DesktopGameView` 내 `metamaterial_engine: Box<MechaMetamaterialEngine<16, 8>>` 64B L1 캐시 슬랩 결합 완료, `step_metamaterial_pipeline` 60Hz 실시간 브릴루앙 산란/AOD 브래그 편향/변환광학 굴절 및 넉다운 시 94% 메타물질 클로킹 은폐율 상승 수치 적분, F3 HUD 카드 `Cloak: {} Cells | {} Fields | 64B` 자수정 보라색(#A855F7) 렌더링, 56x56 미니 레이더 내부 중앙 좌측 인디케이터 점등, 하단 `[CLK: {}C/{}F]` 카운터 상시 연동, 40개 게임 테스트 올패스 (8.57s), 0 경고**
-- **시공팀(Claude Code) 구현 처방전 (T-283 - Axiom 370대 메카 음향광학 & 메타물질 클로킹 공식 릴리즈 v4.11.0)**:
-  1. `Cargo.toml` 워크스페이스 및 하위 크레이트 버전 `4.10.0` ➔ `4.11.0` 일괄 판올림.
-  2. `tools/package.ps1` 내 `$Version = "4.11.0"` 최신화.
-  3. `docs/architecture.md` 제53장: Axiom 370대 포톤-포논 결정 음향광학 & 메타물질 클로킹 아키텍처 상세 기술.
-  4. `docs/decisions.md` ADR [D-185]~[D-188] 4개 아키텍처 의사결정 기록 추가.
-  5. `tools/package.ps1 -Version "4.11.0"` 빌드 및 `dist/axiom-v4.11.0-unified-milestone.zip` 패키징 & SHA-256 검증.
-  6. 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 최신 릴리즈 바이너리 타겟팅 무결성 검증.
-  7. `tools/guard.ps1` 헌법 가드 통과 후 태그 `v4.11.0` 발행 및 단일 커밋.
+- **일시:** 2026-10-24 18:36 KST
+- **감사 대상:** Axiom 370대 메카 음향광학 & 메타물질 클로킹 공식 릴리즈 v4.11.0 (T-283, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md`, `docs/audit-report.md`, `tools/package.ps1`)
+- **판정:** 🟢 **ALL CLEAR — 전체 워크스페이스 v4.11.0 공식 판올림 완료, 제53장 아키텍처 및 ADR [D-185]~[D-188] 명세 수립, `tools/package.ps1` 빌드 및 `dist/axiom-v4.11.0-unified-milestone.zip` (2.37 MB, SHA-256: `C81F7A57FC5CC98F1001BF5093580109E43C0B1C185646D3C75DA4127C353070`) 패키징 검증, 바탕화면 바로가기 최신 릴리즈 바이너리(1,163,264 B) 타겟팅 무결성 확인, `tools/guard.ps1` 헌법 가드 통과**
+- **시공팀(Claude Code) 구현 처방전 (T-284 - Axiom 380대 메카 상대론적 중력 계량 텐서 & 시공간 곡률 왜곡 물리 연구)**:
+  1. 상대론적 중력장 및 아인슈타인 계량 텐서($g_{\mu\nu} = \eta_{\mu\nu} + h_{\mu\nu}$)의 0-Float 고정소수점 정수 수식화 연구:
+     - 슈바르츠실트 계량(Schwarzschild Metric) 기반 시공간 팽창($g_{00} = -(1 - 2GM/c^2 r)$) 및 공간 수축($g_{rr} = (1 - 2GM/c^2 r)^{-1}$) Q16.16 정수화.
+     - 메카 중력 제어기/워프 드라이브/중력장 왜곡 쉴드에 의한 측지선(Geodesic) 레이저/입자 궤도 편향 계산.
+  2. 64B L1 캐시 라인 정렬 구조체 설계:
+     - `SpacetimeMetricSlab64`: exact 64 bytes (`#[repr(C, align(64))]`).
+     - `GravitationalLensSlab64`: exact 64 bytes (`#[repr(C, align(64))]`).
+  3. 40B 인라인 POD 이벤트 서술자 `RelativityEventReport` 및 0-힙 엔진 `MechaRelativityEngine<MAX_CELLS, MAX_WELLS>` 설계.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v4.11.0] Axiom 370대 메카 음향광학 & 메타물질 클로킹 공식 릴리즈 v4.11.0
+- **일시:** 2026-10-24 18:36 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** v4.11.0 판올림, 제53장 아키텍처 및 ADR [D-185]~[D-188], 2.37 MB 통합 zip (SHA-256 검증), 바로가기 타겟팅(1,163,264 B), `tools/guard.ps1` 승인.
 
 ### [AUDIT-20261024-T282] Mimic The Show 챔피언십 링 실시간 음향광학 클로킹/굴절 쉴드 및 F3 HUD 결합
 - **일시:** 2026-10-24 18:29 KST

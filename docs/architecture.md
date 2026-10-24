@@ -2185,6 +2185,68 @@ Axiom 360대 과제(T-272 ~ T-276)에서는 0-Float in Core, 64-Byte L1 캐시 �
 8. **상용 게임 Mimic The Show 챔피언십 링 결합**:
    - 파이터 넉다운/피니셔 발생 시 50 kN 플럭스 피닝 고정력 및 퀜치 전이 해석을 수행하고, F3 HUD 카드 `SC: {} Cells | {} Pins | 64B` 청록색(#22D3EE) 출력, 미니 레이더 및 하단 바 `[SC: {}C/{}P]` 연동을 완결했습니다.
 
+---
+
+## 53. Axiom 370대: 메카 포톤-포논 결정 음향광학 & 메타물질 클로킹 피직스 엔진 (v4.11.0)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 370-Series Acousto-Optic Brillouin & Metamaterial Cloaking Slabs   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 🔮 AcoustoOpticCellSlab64 (64B L1 Cache-Line Resident POD Slab)             │
+│    - center_xyz: [i32; 3] (12B, mm) | sound_vel_mms: u32 (4B)              │
+│    - acoustic_freq_khz: u32 (4B) | strain_q16: i32 (4B, Phonon S)          │
+│    - delta_n_q16: i32 (4B, Photoelastic dn) | bragg_angle_mrad: u32 (4B)   │
+│    - diffraction_eff_q16: u32 (4B) | laser_wavelength_nm: u16 (2B)         │
+│    - flags: u8 (1B) | entity_id: u8 (1B) | reserved: [u8; 24] (24B)         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 🛡️ CloakingFieldSlab64 (64B L1 Cache-Line Resident POD Slab)                │
+│    - origin_xyz: [i32; 3] (12B, mm) | radius_inner_mm: u32 (4B, R1)        │
+│    - radius_outer_mm: u32 (4B, R2) | radial_permittivity_q16: u32 (4B)     │
+│    - angular_permittivity_q16: u32 (4B) | cloak_efficiency_pct: u16 (2B)   │
+│    - refractive_gradient_q16: i32 (4B) | emitter_id: u8 (1B)               │
+│    - target_id: u8 (1B) | flags: u8 (1B) | reserved: [u8; 27] (27B)         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ⚙️ Metamaterial Solver & Event Pipeline                                      │
+│    - Brillouin Scattering Photoelastic Perturbation:                        │
+│      dn_q16 = ((((n0^3 * p) >> 16) * S) >> 17)                              │
+│    - Acousto-Optic Deflector (AOD) Bragg Angle:                             │
+│      theta_B_mrad = (lambda_nm * f_khz) / (2 * v_s_mms)                     │
+│    - Transformation Optics Shell Permittivity Tensor:                       │
+│      eps_r = (r - R1) / r,  eps_theta = r / (r - R1)                        │
+│    - MechaMetamaterialEngine<MAX_CELLS, MAX_FIELDS>: 0-Heap Simulator       │
+│    - FNV-1a 64-bit Consensus Hash: compute_consensus_hash                   │
+│    - Deterministic Job Dispatch: dispatch_metamaterial_with_jobs            │
+│    - Event Bus Pipeline: EVENT_OPTICAL_CLOAK (0x0370, 40B Inline POD) &     │
+│      EVENT_BRILLOUIN_SCATTER (0x0371, 40B Inline POD Payload)               │
+│    - NetworkMatchDirector: step_metamaterial & step_metamaterial_with_jobs  │
+│      16-Net Pipeline Integration                                            │
+│    - WebGL/WASM Studio: 🔮 370 Metamaterial Cloaking Modal (1.50 MB WASM)   │
+│    - Mimic The Show: Championship Ring Metamaterial Cloaking, 94% Shield,   │
+│      F3 HUD [Cloak: {}C/{}F | 64B] Amethyst Purple (#A855F7) Card & Radar   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 53.1 핵심 구조 및 기술적 특성
+1. **0-Float 브릴루앙 산란 광탄성 굴절률 섭동 수식화**:
+   - 탄성 음향파 포논 스트레인 $S$, 광탄성 계수 $p$, 기본 굴절률 $n_0$에 의한 굴절률 변조 $\Delta n = -\frac{1}{2} n_0^3 p S$를 순수 정수 비트 시프트 연산 $\Delta n_{\text{q16}} = ((((n_0^3 \cdot p) \gg 16) \cdot S) \gg 17)$로 구현하여 오차 0의 완벽한 수치 결정론을 보장합니다.
+2. **음향광학 편향기(AOD) 브래그 회절 각도 및 회절 효율 계측**:
+   - 레이저 파장 $\lambda$, 음향 주파수 $f$, 매질 음속 $v_s$로부터 브래그 각도 $\theta_{B,\text{mrad}} = \frac{\lambda_{\text{nm}} \cdot f_{\text{kHz}}}{2 \cdot v_{s,\text{mms}}}$를 계산하고, 256 엔트리 사인 LUT를 이용해 회절 효율 $\eta = \sin^2\left(\frac{\pi L \Delta n}{\lambda \cos \theta_B}\right)$를 Q16.16 고정소수점으로 산출합니다.
+3. **변환광학(Transformation Optics) 쉘 이방성 유전율 텐서 및 광선 굴절**:
+   - 원통형/구형 메타물질 쉘($R_1 \le r \le R_2$) 내부에서 $\epsilon_{r} = \frac{r - R_1}{r}$, $\epsilon_{\theta} = \frac{r}{r - R_1}$ 유전율 텐서를 Q16.16으로 계산하고, 입사 레이저/센서 광선을 내부 코어($r < R_1$) 영역을 완벽히 우회하도록 굴곡(Ray Bending)시켜 최대 99%의 광학 은폐 효율을 구현합니다.
+4. **0-Float 64-바이트 L1 캐시 라인 정렬 슬랩 (`AcoustoOpticCellSlab64` & `CloakingFieldSlab64`)**:
+   - `#[repr(C, align(64))]` 규격을 적용하여 하드웨어 L1 캐시 라인에 1:1 배치되며, 컴파일 타임 크기 64바이트를 강제 검증(`size_of == 64`)하여 캐시 미스를 원천 억제합니다.
+5. **40-바이트 인라인 POD 이벤트 서술자 (`MetamaterialEventReport`)**:
+   - `DeterministicEventBus`의 `payload: [u8; 40]`에 정확히 부합하며, `EVENT_OPTICAL_CLOAK = 0x0370` 및 `EVENT_BRILLOUIN_SCATTER = 0x0371`로 발행되어 GGPO 롤백 세션과 완전 동기화됩니다.
+6. **0-Heap 고정 용량 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `MechaMetamaterialEngine<MAX_CELLS, MAX_FIELDS>`는 시뮬레이션 루프에서 힙 동적 할당을 전혀 발생시키지 않으며, 64-bit FNV-1a 해시를 통해 16-인 분산 롤백 넷코드 합의를 보증합니다.
+7. **멀티스레드 잡 시스템 및 WASM 쇼케이스 연동**:
+   - `dispatch_metamaterial_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기 풀에 N-배치 분산 실행됩니다.
+   - WebGL/WASM 복셀 스튜디오에 **🔮 370 Metamaterial Cloaking (64B Slabs)** 모달과 최적화 바이너리(1.50 MB)를 배포했습니다.
+8. **상용 게임 Mimic The Show 챔피언십 링 결합**:
+   - 파이터 넉다운/피니셔 발생 시 94% 메타물질 클로킹 은폐율 및 광선 굴절 해석을 수행하고, F3 HUD 카드 `Cloak: {} Cells | {} Fields | 64B` 자수정 보라색(#A855F7) 출력, 미니 레이더 및 하단 바 `[CLK: {}C/{}F]` 연동을 완결했습니다.
+
+
 
 
 
