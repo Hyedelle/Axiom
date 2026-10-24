@@ -8,27 +8,32 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 11:20 KST
-- **감사 대상:** Axiom Engine v4.1.0 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 공식 릴리즈 마일스톤 종합 감사 (T-223, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-145]~[D-148], `tools/package.ps1`, `dist/axiom-v4.1.0-unified-milestone.zip`)
-- **판정:** 🟢 **ALL CLEAR (v4.1.0 공식 승인) — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 컴파일 타임 검증, $g = -9810\text{ mm/s}^2$ (-163 mm/s/tick) 반암시적 오일러 탄도 적분기 및 공기 저항 감쇠 무결성 실증, 바닥(z=0) 반발 탄성 및 쿨롱 마찰 감쇠 충돌 해석 실증, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 기록 실증, 0-힙 고정 용량 `DebrisParticlePool<128>`, 64-bit FNV-1a 결정론 합의 해시 `compute_consensus_hash`, `dispatch_debris_with_jobs` 워커 풀 분할 병렬 디스패치 및 `emit_debris_burst_to_event_bus` 40B 인라인 POD 이벤트 버스 발행(`EVENT_DEBRIS_BURST = 0x0270`), WASM 💥 270 Debris Particles (64B Slabs) 대화형 모달 및 1.36 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_debris_pipeline` 실시간 물리-파티클 결합 및 F3 HUD 카드(Rose-Red `0xFFFB7185`)/미니 레이더 중앙하단 장미색 인디케이터/하단 `[DEB: {}P]` 상시 모니터링 일체화, 상용 배포 패키지 `dist/axiom-v4.1.0-unified-milestone.zip` (2.25 MB, SHA-256 검증 완료), 전체 워크스페이스 v4.1.0 판올림 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 11:24 KST
+- **감사 대상:** Axiom Engine 280대 절차적 지형 파괴 먼지 폭풍 & 볼류메트릭 충격파 연구 (T-224, `docs/audit-report.md`, `axiom-dust-storm-and-volumetric-shockwave-research.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `ShockwaveSlab64` & `DustEmitterSlab64` 슬랩 설계 승인, Sedov-Taylor 점폭발 상사해 이산 정수 적분 모델 (파면 반경 R, 두께 ΔR, 피크 압력 역제곱 감쇠 P(R) = P0*(R0/R)^2) 수립, 270대 파괴 파티클 및 240대 래그돌 방사형 척력 임펄스 및 토로이달 지면 충격파 모드 수식화, 지형 파쇄 먼지 폭풍(Stokes' Settling 중력 침강, Q16.16 시야 소광 투과율) 모델 승인, 0-힙 고정 용량 `VolumetricShockwaveEngine` 아키텍처 승인, 250대 크레이터 / 270대 파괴 파티클 / 200대 JobSystem / 210대 EventBus [`EVENT_SHOCKWAVE = 0x0280`] 연계 아키텍처 명세 수립 완료**
 - **주요 검증 항목:**
-  1. **물리 엔진 무결성**:
-     - 64B L1 캐시 정렬 슬랩 (`DebrisParticleSlab64`, `ParticleContactSlab64`) 100% 정렬.
-     - 심플렉틱 반암시적 오일러 탄도 적분 (중력, 공기 저항, 반발 탄성, 마찰력, 아레나 경계).
-     - 30 mm/s 이하 미소 진동 슬립 모드 전이.
-  2. **병렬 잡 시스템 및 이벤트 버스 파이프라인**:
-     - `dispatch_debris_with_jobs` 4-워커 Chase-Lev SPMC 무잠금 덱 분배.
-     - 40B 인라인 POD `DebrisBurstReport` 및 `EVENT_DEBRIS_BURST = 0x0270` (`channel::PHYSICS | channel::VFX`).
-     - GGPO 롤백 넷코드 시퀀스 되감기(`rollback_to`) 지원.
-  3. **크로스 플랫폼 쇼케이스 및 상용 패키징**:
-     - 1.36 MB 최적화 WASM 바이너리 및 웹 3D 복셀 스튜디오 대화형 벤치마크.
-     - `mimic-the-show` 챔피언십 링 KO 시 32 파티클 방사 비산 및 F3 HUD 텔레메트리 연동.
-     - 단일 배포 아카이브 `dist/axiom-v4.1.0-unified-milestone.zip` (2.25 MB, SHA-256: `5A0672D2C5DAF6310C9E9D9D9AAA6911F6465D110C1E70F78A650A12B2B73730`).
-     - 바탕화면 바로가기 최신 바이너리 타겟팅 및 구동 검증 완료.
+  1. **64B L1 캐시 라인 정렬 슬랩 설계**:
+     - `ShockwaveSlab64`: $11 \times 4\text{B(coords/radii/speed/thick/impulse/emitter/tick)} + 2 \times 2\text{B(ticks)} + 4 \times 1\text{B(type/flags/mat/damp)} + 12\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+     - `DustEmitterSlab64`: $8 \times 4\text{B(coords/radii/speed/emitter/tick)} + 5 \times 2\text{B(density/speed/rate/life/fog)} + 3\text{B(rgb)} + 2 \times 1\text{B(mat/flags)} + 15\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+  2. **Sedov-Taylor 이산 정수 적분 및 충격파 척력 수식**:
+     - 음속 하한선($v_{sound} = 340,000\text{ mm/s}$) 및 거리 역제곱 압력 임펄스 감쇠.
+     - 270대 Debris 파티클 및 240대 Ragdoll 본 방사형 척력 임펄스 $\vec{J} = \frac{P(d)}{d} \vec{r}$.
+     - 지면 충격파 수평 바이어스 토로이달 모드.
+  3. **지형 파쇄 먼지 폭풍 및 광학 감쇠 모델**:
+     - Stokes 침강 속도($-2\text{ mm/tick}$) 및 Q16.16 틱당 밀도 지수 감쇠.
+     - Beer-Lambert 0-Float 1차 근사 시야 투과율 $\text{Transmittance}_{q16} \in [0, 65536]$.
+  4. **서브시스템 및 이벤트 버스 연계**:
+     - 40B 인라인 POD 페이로드 `ShockwaveReport` 기반 `EVENT_SHOCKWAVE = 0x0280` (`channel::PHYSICS | channel::VFX`).
+     - N-배치 워커 풀 분할 잡 `dispatch_shockwave_with_jobs`.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v4.1.0] Axiom Engine v4.1.0 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 11:20 KST
+- **판정:** 🟢 **ALL CLEAR (v4.1.0 공식 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 컴파일 타임 검증, $g = -9810\text{ mm/s}^2$ (-163 mm/s/tick) 반암시적 오일러 탄도 적분기 및 공기 저항 감쇠 무결성 실증, 바닥(z=0) 반발 탄성 및 쿨롱 마찰 감쇠 충돌 해석 실증, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 기록 실증, 0-힙 고정 용량 `DebrisParticlePool<128>`, 64-bit FNV-1a 결정론 합의 해시 `compute_consensus_hash`, `dispatch_debris_with_jobs` 워커 풀 분할 병렬 디스패치 및 `emit_debris_burst_to_event_bus` 40B 인라인 POD 이벤트 버스 발행(`EVENT_DEBRIS_BURST = 0x0270`), WASM 💥 270 Debris Particles (64B Slabs) 대화형 모달 및 1.36 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_debris_pipeline` 실시간 물리-파티클 결합 및 F3 HUD 카드(Rose-Red `0xFFFB7185`)/미니 레이더 중앙하단 장미색 인디케이터/하단 `[DEB: {}P]` 상시 모니터링 일체화, 상용 배포 패키지 `dist/axiom-v4.1.0-unified-milestone.zip` (2.25 MB, SHA-256 검증 완료), 전체 워크스페이스 v4.1.0 판올림 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T222] Mimic The Show 챔피언십 링 실시간 파괴 파티클 비산 및 F3 HUD 결합
 - **일시:** 2026-10-24 11:13 KST
