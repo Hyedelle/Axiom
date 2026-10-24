@@ -8,25 +8,29 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:26 KST
-- **감사 대상:** Axiom Engine 250대 절차적 파괴 지형 메시 변형 및 충격 크레이터 테셀레이션 연구 (T-206, `docs/audit-report.md`, `axiom-deformable-terrain-and-crater-tessellation-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 설계 승인, Melosh 충격 역학 기반 해석적 체적 보존 수식($V_{rim} = (1 - \alpha) V_{excavated}$) 및 림 높이($H_{rim}$) 유도 완료, $O(1)$ 해석적 표면 법선 도함수($\partial Y / \partial x$) 수식화 완료, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid<GRID_DIM, MAX_CRATERS>` 아키텍처 승인, 240대 래그돌 바디슬램 / 230대 Swept CCD / 160대 `VoxelShardPool` / 200대 JobSystem / 210대 EventBus (`EVENT_TERRAIN_CRATER = 0x0250`) 연계 규격 확정**
+- **일시:** 2026-10-24 09:32 KST
+- **감사 대상:** Axiom Engine 250대 64B L1 캐시 정렬 지형 버텍스 변위 슬랩 및 크레이터 테셀레이터 구현 (T-207, `crates/axiom-core/src/deformable_mesh.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_deformable_mesh.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 컴파일 타임 검증(`size_of == 64, align_of == 64`), Melosh 충격 역학 기반 순수 정수 체적 보존 융기 림 립($H_{rim}$) 연산 무결성 검증, 인접 버텍스 순회 없는 $O(1)$ 해석적 표면 법선 도함수($\partial Y / \partial x$) 및 $Q16.16$ 정규화 검증, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid<GRID_DIM, TOTAL_VERTICES, MAX_CRATERS>` 바운딩 엘리베이션 및 더티 렉트 갱신 검증, 64-bit FNV-1a 결정론적 합의 해시 100% 비트 일치, 5개 전용 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`TerrainVertexSlab64`, `CraterSlab64`)**:
-     - `TerrainVertexSlab64`: 12B 베이스 좌표(mm), 12B 변위(mm), 12B 표면 법선($Q16.16$), 1B 재질, 1B 플래그, 2B 소성 응력, 2B 크레이터 횟수, 2B 온도, 4B 틱, 16B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
-     - `CraterSlab64`: 12B 중심 좌표(mm), 4B 내부 반경($R_{in}$), 4B 외곽 반경($R_{out}$), 4B 굴착 깊이, 4B 융기 림 높이, 4B 역적, 8B 운동에너지(J), 4B 틱, 4B 원인 ID, 2B 파편 방출비($\alpha$), 1B 재질, 1B 플래그, 12B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
-  2. **해석적 체적 보존 및 표면 법선 수식화**:
-     - 굴착 보울 체적 $V_{excavated} = \frac{\pi}{2} D_{depth} R_{in}^2$ 및 융기 림 체적 $V_{rim} = \frac{2\pi}{3} H_{rim} (R_{out}^2 - R_{in}^2)$ 일치.
-     - 림 높이 $H_{rim} = \frac{3}{4} (1 - \alpha) \cdot D_{depth} \cdot \frac{R_{in}^2}{R_{out}^2 - R_{in}^2}$의 순수 정수 $Q16.16$ 연산 도출.
-     - $\partial Y / \partial x = 2 D_{depth} x / R_{in}^2$ 해석적 미분을 통한 $O(1)$ 표면 법선 벡터 무할당 실시간 갱신.
-  3. **0-Heap Flat Array Topology**:
-     - 컴파일 타임 크기 격자 `DeformableMeshGrid<GRID_DIM, MAX_CRATERS>`의 메모리 캐시 상주형 평탄 배열 구조 설계.
-  4. **엔진 파이프라인 결합**:
-     - 240 래그돌 바디슬램 충격, 230 Swept CCD 고속 펀치 타격, 160 `VoxelShardPool` 탄도 파편 방출, 200 JobSystem (`dispatch_terrain_deform_with_jobs`), 210 EventBus (`EVENT_TERRAIN_CRATER = 0x0250`) 연계 인터페이스 완비.
+  1. **64B L1 캐시 라인 정렬 슬랩 검증**:
+     - `TerrainVertexSlab64`: $12\text{B(base)} + 12\text{B(disp)} + 12\text{B(normal)} + 1\text{B(mat)} + 1\text{B(flags)} + 2\text{B(stress)} + 2\text{B(crater\_count)} + 2\text{B(temp)} + 4\text{B(tick)} + 16\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+     - `CraterSlab64`: $12\text{B(center)} + 4\text{B(R\_in)} + 4\text{B(R\_out)} + 4\text{B(depth)} + 4\text{B(rim\_height)} + 4\text{B(impulse)} + 8\text{B(energy)} + 4\text{B(tick)} + 4\text{B(src)} + 2\text{B(ejecta)} + 1\text{B(mat)} + 1\text{B(flags)} + 12\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+  2. **Melosh 체적 보존 & 해석적 법선 그래디언트**:
+     - 정수 세제곱근 `icbrt_u64` $0 \sim 10^{12}$ 정밀성 검증.
+     - 50 kJ 바디슬램 크레이터 생성 시 $H_{rim} > 0$ 융기 림 립이 굴착 보울 체적과 $Q16.16$ 보존 비율에 일치.
+     - 중심점 버텍스 $-300\text{mm}$ 완전 굴착, 외곽 림 $+20\text{mm}$ 융기, 법선 벡터 길이 $65536 \pm 2$ 정규화 확인.
+  3. **결정론 및 도메인 격리**:
+     - 64-bit FNV-1a 메시 해시가 동일 파라미터에서 100% 비트 일치, $1\text{mm}$ 깊이 변화 시 즉각 다른 해시 산출 확인.
+     - 전체 워크스페이스 `tools/guard.ps1` 무결성 검증 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T206] Axiom Engine 250대 절차적 파괴 지형 메시 변형 및 충격 크레이터 테셀레이션 연구
+- **일시:** 2026-10-24 09:26 KST
+- **판정:** 🟢 **ALL CLEAR (설계 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 설계 승인, Melosh 충격 역학 기반 해석적 체적 보존 수식 및 림 높이($H_{rim}$) 유도, $O(1)$ 해석적 표면 법선 도함수 수식화, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid` 아키텍처 승인.
 
 ### [AUDIT-20261024-v3.8.0] Axiom Engine v3.8.0 240대 절차적 모듈러 메카 래그돌 & IK 물리 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 09:21 KST
