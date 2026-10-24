@@ -8,27 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:21 KST
-- **감사 대상:** Axiom Engine v3.8.0 240대 절차적 모듈러 메카 래그돌 & IK 물리 공식 릴리즈 마일스톤 종합 감사 (T-205, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-133]~[D-136], `tools/package.ps1`)
-- **판정:** 🟢 **ALL CLEAR (v3.8.0 공식 승인) — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` 슬랩 설계 및 Position-Based Dynamics (PBD) 순수 정수 제약 조건 완화, 폐형식(Closed-form) $O(1)$ Two-Bone IK 해석적 해법기, 관절 파단 사체 분리(`sever_joint`), `dispatch_ragdoll_with_jobs` 워커 풀 분할 및 `emit_ragdoll_impacts_to_event_bus` (`EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241`), WASM 🦾 240 Mecha Ragdoll (64B Slabs) 대화형 모달 및 1.33 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_ragdoll_pipeline`, F3 HUD 카드 및 레이더 사체 분리 오렌지 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.8.0-unified-milestone.zip` (2.22 MB, SHA-256 검증 완료), 전체 워크스페이스 v3.8.0 판올림 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 09:26 KST
+- **감사 대상:** Axiom Engine 250대 절차적 파괴 지형 메시 변형 및 충격 크레이터 테셀레이션 연구 (T-206, `docs/audit-report.md`, `axiom-deformable-terrain-and-crater-tessellation-research.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 설계 승인, Melosh 충격 역학 기반 해석적 체적 보존 수식($V_{rim} = (1 - \alpha) V_{excavated}$) 및 림 높이($H_{rim}$) 유도 완료, $O(1)$ 해석적 표면 법선 도함수($\partial Y / \partial x$) 수식화 완료, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid<GRID_DIM, MAX_CRATERS>` 아키텍처 승인, 240대 래그돌 바디슬램 / 230대 Swept CCD / 160대 `VoxelShardPool` / 200대 JobSystem / 210대 EventBus (`EVENT_TERRAIN_CRATER = 0x0250`) 연계 규격 확정**
 - **주요 검증 항목:**
-  1. **0-Float 64B L1 캐시 정렬 본/조인트 슬랩**:
-     - `RagdollBoneSlab64` (24B 좌표/선속도, 12B BAMS 방위각/각속도, 4B 역질량, 4B 반경/길이, 4B 식별자, 4B 마찰/반발 계수, 12B 패딩 = 정확히 64B 무패딩 슬랩)
-     - `RagdollJointSlab64` (4B 본/타입/절단, 10B 기준길이/각도한계/강성/감쇠/목표각, 4B 토크, 12B 주축, 4B 파단한계, 2B 플래그, 26B 패딩 = 정확히 64B 무패딩 슬랩)
-  2. **PBD 순수 정수 제약 완화 및 폐형식 Two-Bone IK**:
-     - 정수 mm 거리 편차 $C = d - L_0$ 역질량 가중치 변위 보정, $u16\text{::MAX}$ 강성 1.0 완전 강체 매핑.
-     - 코사인 법칙 및 Pole Vector 기하 투영을 통한 $O(1)$ 상수 시간 어깨-팔꿈치-손목 관절 위치 해석 및 사정거리 초과 시 최대 도달 거리($L_1 + L_2 - 2$) 클램핑.
-  3. **사체 분리 및 독립 비산**:
-     - 피니셔 및 관절 파단 시 `sever_joint`를 통해 관절을 즉시 절단하고 자식 본에 `RAGDOLL_BONE_FLAG_SEVERED` 설정 후 제약 루프에서 영구 분리 비산.
-  4. **잡 시스템 및 이벤트 버스 결합**:
-     - Chase-Lev 워커 풀 $N$-배치 분할 병렬 PBD 연산 및 `EVENT_RAGDOLL_IMPACT (0x0240)` / `EVENT_RAGDOLL_SEVER (0x0241)` 40B 인라인 POD 페이로드 방출.
-  5. **상용 배포 패키지 및 데스크톱 검증**:
-     - `dist/axiom-v3.8.0-unified-milestone.zip` (2.22 MB, SHA-256: `8D6E43AD0D3322CAB3F0F3E60EE92A940F2BCBD138694637646BCDB3B353B9CF`).
-     - 바탕화면 바로가기(`C:\Users\willy\Desktop\Mimic The Show.lnk`) 최신 릴리즈 바이너리(09:17:15) 타겟팅 검증 완료.
+  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`TerrainVertexSlab64`, `CraterSlab64`)**:
+     - `TerrainVertexSlab64`: 12B 베이스 좌표(mm), 12B 변위(mm), 12B 표면 법선($Q16.16$), 1B 재질, 1B 플래그, 2B 소성 응력, 2B 크레이터 횟수, 2B 온도, 4B 틱, 16B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
+     - `CraterSlab64`: 12B 중심 좌표(mm), 4B 내부 반경($R_{in}$), 4B 외곽 반경($R_{out}$), 4B 굴착 깊이, 4B 융기 림 높이, 4B 역적, 8B 운동에너지(J), 4B 틱, 4B 원인 ID, 2B 파편 방출비($\alpha$), 1B 재질, 1B 플래그, 12B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
+  2. **해석적 체적 보존 및 표면 법선 수식화**:
+     - 굴착 보울 체적 $V_{excavated} = \frac{\pi}{2} D_{depth} R_{in}^2$ 및 융기 림 체적 $V_{rim} = \frac{2\pi}{3} H_{rim} (R_{out}^2 - R_{in}^2)$ 일치.
+     - 림 높이 $H_{rim} = \frac{3}{4} (1 - \alpha) \cdot D_{depth} \cdot \frac{R_{in}^2}{R_{out}^2 - R_{in}^2}$의 순수 정수 $Q16.16$ 연산 도출.
+     - $\partial Y / \partial x = 2 D_{depth} x / R_{in}^2$ 해석적 미분을 통한 $O(1)$ 표면 법선 벡터 무할당 실시간 갱신.
+  3. **0-Heap Flat Array Topology**:
+     - 컴파일 타임 크기 격자 `DeformableMeshGrid<GRID_DIM, MAX_CRATERS>`의 메모리 캐시 상주형 평탄 배열 구조 설계.
+  4. **엔진 파이프라인 결합**:
+     - 240 래그돌 바디슬램 충격, 230 Swept CCD 고속 펀치 타격, 160 `VoxelShardPool` 탄도 파편 방출, 200 JobSystem (`dispatch_terrain_deform_with_jobs`), 210 EventBus (`EVENT_TERRAIN_CRATER = 0x0250`) 연계 인터페이스 완비.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v3.8.0] Axiom Engine v3.8.0 240대 절차적 모듈러 메카 래그돌 & IK 물리 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 09:21 KST
+- **판정:** 🟢 **ALL CLEAR (v3.8.0 공식 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `RagdollBoneSlab64` & `RagdollJointSlab64` 슬랩 설계 및 Position-Based Dynamics (PBD) 순수 정수 제약 조건 완화, 폐형식(Closed-form) $O(1)$ Two-Bone IK 해석적 해법기, 관절 파단 사체 분리(`sever_joint`), `dispatch_ragdoll_with_jobs` 워커 풀 분할 및 `emit_ragdoll_impacts_to_event_bus` (`EVENT_RAGDOLL_IMPACT = 0x0240`, `EVENT_RAGDOLL_SEVER = 0x0241`), WASM 🦾 240 Mecha Ragdoll (64B Slabs) 대화형 모달 및 1.33 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_ragdoll_pipeline`, F3 HUD 카드 및 레이더 사체 분리 오렌지 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.8.0-unified-milestone.zip` (2.22 MB, SHA-256 검증 완료), 전체 워크스페이스 v3.8.0 판올림 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T204] Mimic The Show 챔피언십 링 메카 래그돌 다운/사체 분리 및 F3 HUD 결합
 - **일시:** 2026-10-24 09:14 KST
