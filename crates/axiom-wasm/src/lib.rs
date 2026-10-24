@@ -6916,6 +6916,119 @@ pub extern "C" fn axiom_radiation_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_plasma_bench_burst(
+    cell_count: u32,
+    field_count: u32,
+    current_density_ma: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::plasma::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let cells_to_spawn = (cell_count as usize).clamp(1, 16);
+    let fields_to_spawn = (field_count as usize).clamp(1, 4);
+    let current_ma = if current_density_ma > 0 { current_density_ma } else { 15_000 };
+
+    let mut engine = Box::new(MechaPlasmaEngine::<16, 4>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    for c in 0..cells_to_spawn {
+        let cell = PlasmaCellSlab64::new(
+            c as u8,
+            [c as i32 * 400, 0, 0],
+            [current_ma as i32, (c as i32 * 500), 0],
+            10_000 + (c as u32 * 1_000),
+        );
+        engine.register_cell(cell);
+    }
+
+    let mut total_spawned_fields = 0;
+    for f in 0..fields_to_spawn {
+        let field = MagneticFieldSlab64::new(
+            (f + 1) as u8,
+            [0, 0, f as i32 * 200],
+            [0, 0, 500 + (f as i32 * 200)],
+            1500,
+        );
+        if engine.register_field(field).is_some() {
+            total_spawned_fields += 1;
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_plasma_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for 10 ticks
+    let mut total_discharges = 0;
+    for _ in 0..10 {
+        let (discharges, _fields) = engine.step_simulation(101, 1200);
+        total_discharges += discharges;
+    }
+
+    // Emit representative plasma event
+    if engine.active_cells_count > 0 {
+        let report = PlasmaEventReport {
+            pos_xyz: engine.cells[0].center_xyz,
+            force_or_b_xyz: [100, 200, 0],
+            pressure_or_voltage: engine.cells[0].magnetic_pressure_kpa,
+            temp_or_alfven: engine.cells[0].electron_temp_k,
+            current_or_flux: current_ma as u16,
+            beta_or_cell_id: engine.cells[0].cell_id as u16,
+            emitter_id: engine.cells[0].cell_id,
+            target_id: 0,
+            flags: engine.cells[0].flags,
+            event_kind: PLASMA_EVENT_KIND_DISCHARGE,
+        };
+        emit_plasma_to_event_bus(&report, 100, &mut bus);
+    }
+
+    if engine.active_fields_count > 0 {
+        let report = PlasmaEventReport {
+            pos_xyz: engine.fields[0].origin_xyz,
+            force_or_b_xyz: engine.fields[0].b_vector_xyz,
+            pressure_or_voltage: engine.fields[0].induced_emf_mv.abs() as u32,
+            temp_or_alfven: engine.fields[0].alfven_velocity_mms,
+            current_or_flux: engine.fields[0].b_flux_total_mwb as u16,
+            beta_or_cell_id: engine.fields[0].emitter_id as u16,
+            emitter_id: engine.fields[0].emitter_id,
+            target_id: engine.fields[0].target_id,
+            flags: engine.fields[0].flags | MAG_FLAG_PULSED_EMP,
+            event_kind: PLASMA_EVENT_KIND_EMP,
+        };
+        emit_plasma_to_event_bus(&report, 101, &mut bus);
+    }
+
+    let plasma_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = plasma_hash ^ (bus_hash.rotate_left(31));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 16;                                      // Capacity cells (16)
+            *out_stats.add(1) = engine.active_cells_count as u32;        // Active cells count
+            *out_stats.add(2) = engine.active_fields_count as u32;       // Active fields count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;    // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;            // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                  // Worker partition jobs
+            *out_stats.add(6) = engine.cells[0].magnetic_pressure_kpa;   // Magnetic pressure in kPa
+            *out_stats.add(7) = total_discharges as u32;                 // Total discharge steps
+        }
+    }
+
+    total_spawned_fields as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -8066,5 +8179,16 @@ mod tests {
         assert!(rad_stats[3] != 0 || rad_stats[4] != 0, "Radiation consensus hash non-zero");
         assert_eq!(rad_stats[5], 4, "4 parallel dispatch jobs");
         assert!(rad_stats[6] > 0, "Penetration depth must be positive");
+
+        // 22. Plasma MHD & Electromagnetic Induction Benchmark (8 cells, 2 fields, 15000 mA/mm2)
+        let mut plasma_stats = [0u32; 8];
+        let spawned_fields = axiom_plasma_bench_burst(8, 2, 15_000, plasma_stats.as_mut_ptr());
+        assert_eq!(spawned_fields, 2, "Plasma benchmark must spawn 2 fields");
+        assert_eq!(plasma_stats[0], 16, "16 plasma cell slabs capacity");
+        assert_eq!(plasma_stats[1], 8, "8 plasma cells active");
+        assert_eq!(plasma_stats[2], 2, "2 magnetic fields active");
+        assert!(plasma_stats[3] != 0 || plasma_stats[4] != 0, "Plasma consensus hash non-zero");
+        assert_eq!(plasma_stats[5], 4, "4 parallel dispatch jobs");
+        assert!(plasma_stats[6] > 0, "Magnetic pressure must be positive");
     }
 }
