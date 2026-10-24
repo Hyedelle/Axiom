@@ -8,24 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:51 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 지형 크레이터 파쇄 및 F3 HUD 결합 (T-210, `C:\Dreamhub\Game\mimic-the-show\src\view.rs`, `C:\Dreamhub\Game\mimic-the-show\tests\test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `DeformableMeshGrid<33, 1089, 32>` (1,089개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_terrain_pipeline` 실시간 지형 파쇄 파이프라인 결합, 싱글플레이 파이터 넉다운 및 KO 시 65 kJ 운동에너지 기반 Melosh 체적 보존 충격 크레이터 자동 생성(`CraterSlab64::from_kinetic_impact`) 및 링 바닥 버텍스 굴착/융기 테셀레이션 검증, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Terrain: {} Craters | -{}mm | 64B` 텔레메트리 출력 및 56x56 미니 레이더 좌하단 보라색 인디케이터 점등, 하단 컨트롤 바 `[TER: {}C]` 상시 모니터링 연동, 27개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 09:58 KST
+- **감사 대상:** Axiom Engine v3.9.0 250대 절차적 지형 메시 변형 및 크레이터 테셀레이션 공식 릴리즈 마일스톤 종합 감사 (T-211, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-137]~[D-140], `tools/package.ps1`, `dist/axiom-v3.9.0-unified-milestone.zip`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 컴파일 타임 검증, Melosh 충격 역학 기반 순수 정수 체적 보존 융기 림 립($H_{rim}$) 연산 및 $O(1)$ 해석적 표면 법선 그래디언트($\partial Y / \partial x$) 무결성 검증, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid<33, 1089, 32>` L1 캐시 상주형 평탄 배열, `dispatch_terrain_deform_with_jobs` 워커 풀 행 분할 병렬 디스패치 및 `emit_crater_to_event_bus` 40B 인라인 POD 이벤트 버스 발행(`EVENT_TERRAIN_CRATER = 0x0250`), WASM ⛰️ 250 Deformable Terrain (64B Slabs) 대화형 모달 및 1.34 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_terrain_pipeline` 파이터 KO 실시간 크레이터 테셀레이션 및 F3 HUD 카드/미니 레이더 보라색 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.9.0-unified-milestone.zip` (2.23 MB, SHA-256 검증 완료), 전체 워크스페이스 v3.9.0 판올림 및 헌법 가드 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **실시간 지형 크레이터 파이프라인 (`step_terrain_pipeline`)**:
-     - 플레이어/상대 메카 KO 시 1회 체적 보존 테셀레이션 스탬프 인가(`apply_crater_displacement`), 프레임 렌더링 루프 중복 스탬프 원천 방어.
-     - 40B 인라인 POD 페이로드(`center_xyz`, `depth`, `rim_height`, `energy`, `source_id`, `flags`) 기반 국소 이벤트 버스 방출.
-  2. **F3 HUD 및 미니 레이더 시각화**:
-     - F3 오버레이 카드 내 보라색(`0xFFA855F7`) 지형 텔레메트리 라인 표출.
-     - 56x56 미니 레이더 좌측 하단 보라색 인디케이터 점등.
-     - 하단 컨트롤 스트립 `[TER: {}C]` 상시 모니터링 연동.
-  3. **헌법 및 테스트 통과**:
-     - `mimic-the-show` 전역 27개 단위/통합 테스트 100% 통과.
-     - 엔진 코어 `tools/guard.ps1` 무결성 검증 100% 통과.
+  1. **Axiom Core 헌법 무결성**:
+     - `TerrainVertexSlab64`: $12\text{B(base)} + 12\text{B(disp)} + 12\text{B(normal)} + 1\text{B(mat)} + 1\text{B(flags)} + 2\text{B(stress)} + 2\text{B(crater)} + 2\text{B(temp)} + 4\text{B(tick)} + 16\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+     - `CraterSlab64`: $12\text{B(center)} + 4\text{B(R\_in)} + 4\text{B(R\_out)} + 4\text{B(depth)} + 4\text{B(rim)} + 4\text{B(impulse)} + 8\text{B(energy)} + 4\text{B(tick)} + 4\text{B(src)} + 2\text{B(ejecta)} + 1\text{B(mat)} + 1\text{B(flags)} + 12\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+     - 0-Float, 100% 정수 mm 및 Q16.16 고정소수점 연산.
+  2. **상용 배포 아카이브 및 바이너리 검증**:
+     - `dist/axiom-v3.9.0-unified-milestone/bin/mimic-the-show.exe` (1.01 MB), `axiom.exe` (0.91 MB).
+     - `dist/axiom-v3.9.0-unified-milestone.zip` (2.23 MB, SHA-256: `3D9E828F7787F17ADD2962C47598F658662D9AEE9DE10680E87ED8C9EBB38020`).
+  3. **바탕화면 바로가기 최신화 검증**:
+     - `C:\Users\willy\Desktop\Mimic The Show.lnk` 정상 타겟팅 확인 (`True`).
+  4. **헌법 및 테스트 통과**:
+     - 워크스페이스 전역 테스트 및 `tools/guard.ps1` 100% 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T210] Mimic The Show 챔피언십 링 실시간 지형 크레이터 파쇄 및 F3 HUD 결합
+- **일시:** 2026-10-24 09:51 KST
+- **판정:** 🟢 **ALL CLEAR (결합 승인)**
+- **검증:** 0-Float 헌법 무결성, `DesktopGameView` 내 `DeformableMeshGrid<33, 1089, 32>` (1,089개 64B L1 캐시 슬랩) 상주 무결성 검증, `step_terrain_pipeline` 실시간 지형 파쇄 파이프라인 결합, 싱글플레이 파이터 넉다운 및 KO 시 65 kJ 운동에너지 기반 Melosh 체적 보존 충격 크레이터 자동 생성 및 링 바닥 버텍스 굴착/융기 테셀레이션, 40B 인라인 POD 페이로드 국소 이벤트 버스 방출, F3 HUD 카드 `Terrain: {} Craters | -{}mm | 64B` 텔레메트리 출력 및 56x56 미니 레이더 좌하단 보라색 인디케이터 점등, 하단 컨트롤 바 `[TER: {}C]` 상시 모니터링 연동, 27개 게임 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T209] Axiom Engine 250대 지형 변형 벤치마크 및 WASM 스튜디오 쇼케이스 연동
 - **일시:** 2026-10-24 09:44 KST

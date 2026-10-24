@@ -1646,6 +1646,50 @@
   3. 전체 워크스페이스 버전을 v3.7.0에서 **v3.8.0**으로 공식 판올림하고 `dist/axiom-v3.8.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.8.0` 발행.
 - **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
 
+---
+
+### [D-137] 0-Float 64B L1 캐시 정렬 지형 버텍스 슬랩 및 크레이터 서술자 아키텍처 (T-206, T-207)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `TerrainVertexSlab64`: 정확히 64바이트 L1 캐시 라인 점유 (`size_of == 64, align_of == 64`). 12B 정수 mm 기본 좌표, 12B 누적 동적 변위, 12B $Q16.16$ 표면 법선, 1B 지형 재질, 1B 상태 플래그, 2B 소성 응력, 2B 크레이터 횟수, 2B 온도, 4B 타임스탬프, 16B 패딩의 무패딩 슬랩 설계 승인.
+  2. `CraterSlab64`: 정확히 64바이트 L1 캐시 라인 점유 (`size_of == 64, align_of == 64`). 12B 중심점, 4B 내부 반경($R_{in}$), 4B 외곽 반경($R_{out}$), 4B 굴착 깊이($D_{depth}$), 4B 융기 림 높이($H_{rim}$), 4B 역적, 8B 운동에너지(J), 4B 틱, 4B 원인 ID, 2B 탄도 파편 방출비($\alpha$), 1B 재질, 1B 플래그, 12B 패딩 직렬화.
+  3. 부동소수점(`f32/f64`) 원천 배제, 순수 정수 mm 및 Q16.16 고정소수점 연산 보장.
+- **영향:** `crates/axiom-core/src/deformable_mesh.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_deformable_mesh.rs`.
+
+---
+
+### [D-138] Melosh 충격 역학 기반 순수 정수 체적 보존 및 O(1) 해석적 표면 법선 도함수 (T-207)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. Melosh 충격 에너지 스케일링: 정수 세제곱근 `icbrt_u64`를 통해 반경 $R_{in} = \mathrm{icbrt}(E) \times 15$ 및 깊이 $D_{depth} = R_{in} / 3$ 산출.
+  2. 엄밀한 체적 보존 ($V_{rim} = (1 - \alpha) V_{excavated}$): 포물면 굴착 보울 체적과 2차 대칭 융기 림 체적의 기하학적 일치식을 통해 림 립의 높이 $H_{rim} = \frac{3(1-\alpha)}{4} D_{depth} \frac{R_{in}^2}{R_{out}^2 - R_{in}^2}$을 순수 정수 $Q16.16$으로 도출.
+  3. $O(1)$ 해석적 표면 법선 도함수: 인접 버텍스 이웃 순회나 제곱근 연산 루프 없이 $\partial Y / \partial x = 2 D x / R_{in}^2$ 폐형식 그래디언트를 단독 계산하여 $Q16.16$ 단위 법선 벡터 즉각 갱신.
+- **영향:** `crates/axiom-core/src/deformable_mesh.rs`.
+
+---
+
+### [D-139] 행 분할 잡 시스템 병렬 테셀레이션 및 40-바이트 인라인 POD 이벤트 버스 파이프라인 (T-208)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `dispatch_terrain_deform_with_jobs`: 격자 버텍스 행(`GRID_DIM`)을 4~8 워커 배치로 분할하여 Chase-Lev 무잠금 SPMC 덱에 큐잉하고 병렬 테셀레이션 수행.
+  2. `emit_crater_to_event_bus`: 크레이터 변형 이벤트를 `EVENT_TERRAIN_CRATER = 0x0250` 및 `channel::PHYSICS | channel::COMBAT` 채널로 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드로 방출.
+  3. `NetworkMatchDirector` 내 `step_terrain_crater` 및 `step_terrain_crater_with_jobs`를 구축하여 16-인 배틀로얄 경기장 실시간 지형 파쇄 파이프라인 일체화.
+- **영향:** `crates/axiom-core/src/deformable_mesh.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_deformable_mesh_jobs.rs`, `crates/axiom-game/tests/test_deformable_mesh_game_pipeline.rs`.
+
+---
+
+### [D-140] WASM 지형 벤치마크, Mimic The Show 챔피언십 링 결합 및 공식 릴리즈 v3.9.0 (T-209, T-210, T-211)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. WASM C-ABI 신규 엔드포인트 `axiom_terrain_bench_crater` 및 웹 3D 복셀 스튜디오 ⛰️ **250 Deformable Terrain (64B Slabs)** 대화형 모달 배포 (1.34 MB WASM).
+  2. `mimic-the-show` 인게임 데스크톱 뷰 `DesktopGameView`에 `step_terrain_pipeline` 탑재, 싱글플레이 파이터 넉다운/KO 시 Melosh 체적 보존 65 kJ 충격 크레이터 자동 생성 및 링 바닥 굴착/융기 테셀레이션, 40B 인라인 POD 이벤트 버스 방출, F3 HUD 카드(`Terrain: {} Craters | -{}mm | 64B`), 56x56 미니 레이더 보라색 인디케이터, 하단 `[TER: {}C]` 연동.
+  3. 전체 워크스페이스 버전을 v3.8.0에서 **v3.9.0**으로 공식 판올림하고 `dist/axiom-v3.9.0-unified-milestone.zip` 패키징 및 Git 태그 `v3.9.0` 발행.
+- **영향:** `crates/axiom-wasm`, `web/`, `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`.
+
 
 
 

@@ -1451,6 +1451,65 @@ Axiom 240대 과제(T-200 ~ T-205)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - `web/index.html`에 **🦾 240 Mecha Ragdoll (64B Slabs)** 모달을 탑재하여 1.33 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_ragdoll_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Ragdoll: {} Bones | {} Sev | 64B`, 56x56 미니 레이더 사체 분리 오렌지 인디케이터, 하단 `[RAG: {}B/{}S]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 41. Axiom 250대: 절차적 파괴 지형 메시 변형 및 충격 크레이터 테셀레이션 피직스 엔진 (v3.9.0)
+
+Axiom 250대 과제(T-206 ~ T-211)에서는 0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열 헌법을 완벽히 수호하며, 헤비급 메카의 바디슬램, 넉다운 낙하 충격, 고에너지 투사체 착탄 시 링 지면의 물리적 굴착 보울(Excavation Bowl)과 외곽 융기 림 립(Upheaval Rim Lip)을 실시간으로 테셀레이션하는 **절차적 파괴 지형 메시 변형(Procedural Deformable Terrain Mesh)** 및 **충격 크레이터 테셀레이션(Impact Crater Tessellation)** 피직스 엔진을 구축했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    Axiom 250-Series Deformable Terrain Mesh & Crater Tessellation Physics   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Slabs (TerrainVertexSlab64 & CraterSlab64)]│
+│    - TerrainVertexSlab64: Natural 64B Layout (12B base, 12B disp, 12B norm)  │
+│    - CraterSlab64: Natural 64B Layout (12B center, 8B radii, 8B depth/rim)  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [Melosh Impact Scaling & Analytical Volume-Conserving Upheaval Rim]      │
+│    - Excavation Depth D and Inner/Outer Radii (R_in, R_out = 1.5 * R_in)    │
+│    - Exact Balance: V_rim = (1 - alpha_ejecta) * V_excavated                │
+│    - H_rim = (3/4) * (1 - alpha) * D * R_in^2 / (R_out^2 - R_in^2)          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [O(1) Analytical Surface Normal Vector Calculation (Zero Neighbor Reads)]│
+│    - Bowl Gradient: dY/dx = 2 * D * dx / R_in^2 (Closed-form Derivative)    │
+│    - Rim Gradient: dY/dx = -d_delta * dx / dist (Quadratic Profile Slope)   │
+│    - Fixed-Point Normalization: Q16.16 Unit Vector without Dynamic Memory   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [0-Heap Flat Array Topology & Consensus Hash Checksum]                   │
+│    - DeformableMeshGrid<GRID_DIM, TOTAL_VERTICES, MAX_CRATERS> (Flat Cache) │
+│    - Bounding Elevation Extrema & Dirty Rectangle CPU-GPU Sync Tracking     │
+│    - 64-Bit FNV-1a Bit-Exact Multi-Node Network Consensus State Hash        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 5. [Multithreaded Job System & Deterministic Event Bus Pipeline]            │
+│    - dispatch_terrain_deform_with_jobs: Row-Slice 4-Worker Chase-Lev Deque  │
+│    - emit_crater_to_event_bus: EVENT_TERRAIN_CRATER (0x0250) 40B POD Payload│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 6. [WASM Interactive Studio & Mimic The Show Ring Integration]              │
+│    - WebGL/WASM: ⛰️ 250 Deformable Terrain (64B Slabs) Interactive Modal    │
+│    - Mimic The Show: DesktopGameView step_terrain_pipeline (Single & 16-Net)│
+│    - F3 HUD Card: "Terrain: {} Craters | -{}mm | 64B" & Mini Radar Indicator│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 41.1 핵심 구조 및 기술적 특성
+1. **0-Float 64-바이트 L1 캐시 라인 정렬 지형 버텍스 슬랩 (`TerrainVertexSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트 L1 캐시 라인을 점유하며, 12바이트 기본 정수 mm 좌표, 12바이트 누적 동적 변위 벡터, 12바이트 $Q16.16$ 표면 법선 벡터, 1바이트 지형 재질, 1바이트 상태 플래그, 2바이트 소성 변형 응력, 2바이트 크레이터 카운터, 2바이트 표면 온도, 4바이트 틱 타임스탬프, 16바이트 정렬 패딩으로 구성된 완전 무패딩 슬랩을 구현했습니다.
+2. **0-Float 64-바이트 L1 캐시 라인 정렬 크레이터 서술자 (`CraterSlab64`)**:
+   - `#[repr(C, align(64))]` 구조체로 정확히 64바이트를 점유하며, 12바이트 충격 중심점, 4바이트 내부 굴착 반경($R_{in}$), 4바이트 외곽 융기 반경($R_{out}$), 4바이트 중심 최대 굴착 깊이($D_{depth}$), 4바이트 융기 림 최대 높이($H_{rim}$), 4바이트 역적, 8바이트 운동에너지(J), 4바이트 틱, 4바이트 원인 ID, 2바이트 탄도 파편 방출비($\alpha$), 1바이트 타겟 재질, 1바이트 플래그, 12바이트 패딩으로 직렬화됩니다.
+3. **Melosh 충격 역학 기반 순수 정수 체적 보존 ($H_{rim}$)**:
+   - 포물면 굴착 보울의 체적 $V_{excavated} = \frac{\pi}{2} D_{depth} R_{in}^2$과 2차 대칭 융기 림의 체적 $V_{rim} = \frac{2\pi}{3} H_{rim} (R_{out}^2 - R_{in}^2)$을 엄밀히 일치시켜 순수 정수 $Q16.16$ 보존 비율에 따라 림 립의 높이 $H_{rim}$을 해석적으로 계산합니다.
+4. **인접 버텍스 탐색 없는 $O(1)$ 해석적 표면 법선 그래디언트**:
+   - 굴착 분화구 내부와 융기 림의 2차 포물선 함수를 직교 미분하여 $\partial Y / \partial x = 2 D x / R_{in}^2$를 즉각 도출함으로써, 렌더링/물리 연산 시 인접 버텍스 이웃 순회나 동적 메모리 조회 없이 각 버텍스 슬랩이 독립적으로 완벽한 단위 법선 벡터를 $Q16.16$으로 갱신합니다.
+5. **0-힙 플랫 격자 및 64-bit FNV-1a 결정론 합의 검증**:
+   - `DeformableMeshGrid<GRID_DIM, TOTAL_VERTICES, MAX_CRATERS>`는 컴파일 타임 파라미터로 L1 캐시 상주형 평탄 배열을 형성하며, 64-bit FNV-1a 체크섬 함수 `compute_consensus_hash`를 통해 16-인 롤백 넷코드 환경에서 $1\text{mm}$의 변형도 비트 단위로 동일함을 검증합니다.
+6. **멀티스레드 잡 시스템 및 분산 이벤트 버스 결합**:
+   - `dispatch_terrain_deform_with_jobs`를 통해 격자 행 단위로 4~8 워커 풀 Chase-Lev 무잠금 덱에 분산 스케줄링하여 병렬 테셀레이션을 수행합니다.
+   - 크레이터 파쇄 이벤트는 `EVENT_TERRAIN_CRATER = 0x0250` 및 `channel::PHYSICS | channel::COMBAT` 채널로 `DeterministicEventBus`에 40-바이트 인라인 POD 페이로드로 방출됩니다.
+7. **WASM 쇼케이스 및 상용 게임 뷰 연동**:
+   - `web/index.html`에 **⛰️ 250 Deformable Terrain (64B Slabs)** 모달을 탑재하여 1.34 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
+   - `mimic-the-show`의 `DesktopGameView`에 `step_terrain_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Terrain: {} Craters | -{}mm | 64B`, 56x56 미니 레이더 보라색 인디케이터, 하단 `[TER: {}C]` 상시 모니터링을 완비했습니다.
+
+
 
 
 
