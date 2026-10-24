@@ -1979,6 +1979,49 @@
   3. 전체 워크스페이스 버전을 v4.5.0에서 **v4.6.0**으로 공식 판올림하고 `dist/axiom-v4.6.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.6.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-169] Kolmogorov K41 $k$-$\epsilon$ 난류 에너지 캐스케이드 및 Boussinesq 와점성 고정소수점 수식화 (T-254, T-255)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 0-Float 헌법 하에서 난류 운동 에너지(TKE) $k$ 및 Kolmogorov 소산율 $\epsilon$의 60Hz 이산 적분 모델 수립 ($P_k = \frac{\nu_t \cdot \omega^2}{10^6}$).
+  2. Boussinesq 가설 기반 와점성 $\nu_t = C_\mu \frac{k^2}{\epsilon}$ ($C_\mu \approx 0.09 = 5,898$ in Q16.16) 계산을 통해 소용돌이 에너지 소산 및 속도 요동 감쇠 구현.
+- **영향:** `crates/axiom-core/src/turbulence.rs`, `crates/axiom-core/tests/test_turbulence.rs`.
+
+---
+
+### [D-170] Steinhoff & Fedkiw 3D 이산 와도 보존 감금력 모델 채택 (T-254, T-255)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. Coarse 그리드 수치 점성에 의한 소용돌이 소산 현상을 원천 방지하기 위해 Steinhoff & Fedkiw 인공 감금력 $\mathbf{F}_{vc} = \epsilon_{vc}(\mathbf{N} \times \vec{\omega})$ 정수 벡터 연산 구현.
+  2. 와도 크기 $|\vec{\omega}| > 500\text{ mrad/s}$ 시 `TURB_FLAG_VORTEX_CORE` 비트 플래그 설정 및 지속적 와류 보존.
+- **영향:** `crates/axiom-core/src/turbulence.rs`.
+
+---
+
+### [D-171] 랭킨-위고니오 초음속 충격파 압력 점프 및 $P_2/P_1 \ge 1.20$ 충격파 경계층 박리(SBLI) 버페팅 규격화 (T-254, T-255, T-256)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 음속 $c_{\text{sound}} = 340,000\text{ mm/s}$ 기준 마하수 $M$ 계산 및 Rankine-Hugoniot 정수 압력 점프 $\frac{P_2}{P_1} = 1 + \frac{7}{6}(M^2 - 1)$ 수식화.
+  2. $\frac{P_2}{P_1} \ge 1.20$ (Q16.16 78,643) 임계값 초과 시 충격파 경계층 박리(`SHOCK_BL_SEPARATED`) 및 고주파수 기계적 버페팅(`SHOCK_BL_BUFFETING`) 진동력 유도.
+  3. 64B L1 정렬 `TurbulenceCellSlab64`, `ShockBoundarySlab64` 및 40B POD `TurbulenceEventReport` (`EVENT_TURBULENCE_VORTEX = 0x0330`, `EVENT_SHOCK_BOUNDARY = 0x0331`) 분산 이벤트 버스 파이프라인 연계.
+- **영향:** `crates/axiom-core/src/turbulence.rs`, `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-172] Mimic The Show 챔피언십 링 실시간 대기 난류 결합 및 Axiom v4.7.0 공식 릴리즈 마일스톤 (T-257, T-258, T-259)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `web/index.html` 및 `crates/axiom-wasm/index.html`에 **🌪️ 330 Atmospheric Turbulence & Shock (64B Slabs)** 대화형 모달 및 1.45 MB WASM 바이너리 배포.
+  2. `mimic-the-show` `DesktopGameView`에 `MechaTurbulenceEngine<16, 4>` 및 `step_turb_pipeline` 결합.
+  3. 싱글플레이 KO/넉다운 시 510 m/s 초음속 충격파 및 SBLI 박리 해석, F3 HUD 카드(`Turb: {} Cells | {} SBLI | 64B`), 56x56 미니 레이더 좌측하단(내측) 청백색(#60A5FA) 인디케이터 점등, 하단 `[TURB: {}C/{}S]` 상시 모니터링 연동.
+  4. 전체 워크스페이스 버전을 v4.6.0에서 **v4.7.0**으로 공식 판올림하고 `dist/axiom-v4.7.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.7.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 

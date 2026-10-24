@@ -1958,6 +1958,51 @@ Axiom 320대 과제(T-248 ~ T-253)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - `web/index.html`에 **💨 320 Aerodynamics & VIV (64B Slabs)** 모달을 탑재하여 1.43 MB WASM 바이너리 상에서 실시간 벤치마크를 시각화했습니다.
    - `mimic-the-show`의 `DesktopGameView`에 `step_aero_pipeline`을 탑재하여 싱글플레이 파이터 넉다운/KO 및 16-인 배틀로얄 경기장에서 F3 HUD 카드 `Aero: {} Bodies | {} N | 64B`, 56x56 미니 레이더 좌측상단(내측) 하늘색(#38BDF8) 인디케이터, 하단 `[AERO: {}B/{}C]` 상시 모니터링을 완비했습니다.
 
+---
+
+## 49. Axiom 330대: 입자 기반 대기 난류(Turbulence) & 압축성 충격파 경계층(SBLI) 피직스 엔진 (v4.7.0)
+
+Axiom Engine 330-시리즈는 초음속 메카 전투 링 및 고에너지 폭발 환경에서 발생하는 난류 소용돌이 에너지 캐스케이드와 천음속/초음속 압축성 충격파 경계층 상호작용(Shock Boundary Layer Interaction, SBLI)을 순수 정수/고정소수점(0-Float) 헌법 하에서 해석하는 물리 엔진입니다.
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│         Axiom 330-Series: Navier-Stokes Turbulence & SBLI Pipeline       │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 1. Kolmogorov K41 k-ε Cascade: P_k = ν_t * ω^2 / 10^6, ν_t = C_μ * k^2/ε │
+│ 2. Steinhoff & Fedkiw Vorticity Confinement: F_vc = ε_vc * (N x ω)       │
+│ 3. Rankine-Hugoniot Compressible Shock Jump: P2/P1 = 1 + (7/6)*(M^2 - 1) │
+│ 4. SBLI Shock Detachment & High-Frequency Buffeting (P2/P1 >= 1.20)      │
+│ 5. 64B Slabs: TurbulenceCellSlab64 & ShockBoundarySlab64 (#[repr(C, 64)])│
+│ 6. 40B Compact POD: TurbulenceEventReport (0x0330 Vortex / 0x0331 SBLI)  │
+│ 7. Chase-Lev Multithreaded JobSystem & Deterministic EventBus Dispatch   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### 49.1 핵심 구조 및 기술적 특성
+1. **0-Float Kolmogorov K41 $k$-$\epsilon$ 난류 에너지 캐스케이드 모델**:
+   - 0-Float 정수 단위계 하에서 난류 운동 에너지(TKE) $k$와 소산율 $\epsilon$의 이산 적분을 60Hz 단위로 계산합니다.
+   - Boussinesq 가설에 기초한 와점성(Eddy Viscosity) $\nu_t = C_\mu \frac{k^2}{\epsilon}$ ($C_\mu \approx 0.09 = 5,898$ in Q16.16)를 실시간 갱신합니다.
+2. **Steinhoff & Fedkiw 3D 이산 와도 보존 감금력 (Vorticity Confinement)**:
+   - 거친 게임 격자(Coarse Grid) 상에서 수치 점성에 의해 소용돌이가 조기 소산되는 결함을 방지하기 위해 인공 감금력 $\mathbf{F}_{vc} = \epsilon_{vc}(\mathbf{N} \times \vec{\omega})$을 계산합니다.
+   - 와도 크기 $|\vec{\omega}| > 500\text{ mrad/s}$ 초과 시 `TURB_FLAG_VORTEX_CORE`를 트리거하여 강한 소용돌이 코어를 유지합니다.
+3. **랭킨-위고니오(Rankine-Hugoniot) 초음속 충격파 압력 점프 및 마하수 계산**:
+   - 상온 음속 $c_{\text{sound}} = 340,000\text{ mm/s}$ (340 m/s) 기준 마하수 $M = \frac{v}{c_{\text{sound}}}$ (Q16.16)를 도출합니다.
+   - $M > 1.0$ (초음속 영역) 진입 시 Rankine-Hugoniot 압력 점프비 $\frac{P_2}{P_1} = 1 + \frac{7}{6}(M^2 - 1)$를 정수 이산 계산합니다.
+4. **충격파 경계층 박리(SBLI) 및 고주파수 버페팅(Buffeting) 요동**:
+   - 압력 점프비 $\frac{P_2}{P_1} \ge 1.20$ (Q16.16에서 78,643) 초과 시 경계층 박리(`SHOCK_BL_SEPARATED`)와 고주파수 버페팅 진동력(`SHOCK_BL_BUFFETING`)을 발생시킵니다.
+   - 박리 분리 거리 $\delta_{\text{sep}} = \delta \cdot \frac{M - 1}{0.5}$ mm와 충격 임펄스 $F_{\text{buffet}} = F_{\text{peak}} \cdot \frac{P_2/P_1 - 1}{1.0}$ N을 도출합니다.
+5. **0-Float 64-바이트 L1 캐시 라인 정렬 슬랩 (`TurbulenceCellSlab64` & `ShockBoundarySlab64`)**:
+   - 두 구조체 모두 `#[repr(C, align(64))]`로 선언되어 정확히 64바이트 1개 L1 캐시 라인을 점유합니다.
+6. **40-바이트 인라인 POD 이벤트 서술자 (`TurbulenceEventReport`)**:
+   - `DeterministicEventBus`의 `payload: [u8; 40]`에 무손실 인라인 직렬화/역직렬화되며, `EVENT_TURBULENCE_VORTEX = 0x0330` 및 `EVENT_SHOCK_BOUNDARY = 0x0331` 이벤트를 `PHYSICS | VFX | AUDIO` 채널로 동시 브로드캐스트합니다.
+7. **0-Heap 고정 용량 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `MechaTurbulenceEngine<MAX_CELLS, MAX_SHOCKS>`는 힙 동적 할당 없이 플랫 슬랩 배열 상에서 시뮬레이션을 전개하며, 64-bit FNV-1a 해시를 통해 완벽한 결정론 합의를 보증합니다.
+8. **멀티스레드 잡 시스템 및 WASM 쇼케이스 연계**:
+   - `dispatch_turbulence_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기 풀에 배치 분산합니다.
+   - WebGL/WASM 3D 스튜디오에 **🌪️ 330 Atmospheric Turbulence & Shock (64B Slabs)** 모달을 배치하여 실시간 웹 시연을 지원합니다.
+9. **상용 게임 Mimic The Show 챔피언십 링 F3 HUD 연동**:
+   - `DesktopGameView`의 `step_turb_pipeline`을 통해 KO/넉다운 시 510 m/s 초음속 충격파 및 SBLI 박리 해석을 수행하며, F3 HUD 카드 `Turb: {} Cells | {} SBLI | 64B`, 56x56 미니 레이더 좌측하단(내측) 청백색(#60A5FA) 인디케이터, 하단 `[TURB: {}C/{}S]` 상시 모니터링을 완비했습니다.
+
 
 
 

@@ -8,21 +8,21 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 15:45 KST
-- **감사 대상:** Mimic The Show 챔피언십 링 실시간 메카 대기 난류 와류 이펙트 및 F3 HUD 결합 (T-258, `mimic-the-show/src/view.rs`, `mimic-the-show/tests/test_mimic_game.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, `DesktopGameView` 내 `step_turb_pipeline` [KO/넉다운 시 510 m/s 초음속 충격파 및 Rankine-Hugoniot SBLI 박리 해석, 40B 인라인 POD 이벤트 방출], F3 HUD 카드 `Turb: {} Cells | {} SBLI | 64B` 텔레메트리 청백색(#60A5FA) 출력 및 56x56 미니 레이더 좌측하단(내측) 청백색 인디케이터 점등, 하단 `[TURB: {}C/{}S]` 상시 모니터링 연동, 35개 게임 단위/통합 테스트 및 전체 워크스페이스 올패스 검증 완료**
-- **시공팀(Claude Code) 구현 처방전 (T-259 - Axiom 330대 메카 대기 난류 & 충격파 경계층 시뮬레이션 공식 릴리즈 v4.7.0)**:
-  1. `Cargo.toml` 및 `tools/package.ps1` 버전 번호 `4.7.0`으로 공식 판올림.
-  2. `docs/architecture.md` 50장 (메카 대기 난류 와도 보존 & 압축성 SBLI 충격파 물리 엔진) 추가.
-  3. `docs/decisions.md` ADR [D-169]~[D-172] (난류 및 충격파 경계층 아키텍처 결정 기록) 추가.
-  4. `tools/package.ps1 -Version "4.7.0"` 패키징 파이프라인 가동:
-     - `dist/axiom-v4.7.0-unified-milestone.zip` 생성 및 SHA-256 해시 계측
-     - 바탕화면 바로가기 최신 릴리즈 바이너리 연동 검증
-  5. `tools/guard.ps1` 전체 워크스페이스 100% 무결성 검증 후 Git 태그 `v4.7.0` 발행 및 클린 커밋.
+- **일시:** 2026-10-24 15:53 KST
+- **감사 대상:** Axiom Engine v4.7.0 330대 메카 대기 난류 & 충격파 경계층 시뮬레이션 공식 릴리즈 마일스톤 종합 감사 (T-259, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-169]~[D-172], `tools/package.ps1`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 전체 워크스페이스 v4.7.0 공식 판올림, 64B L1 캐시 정렬 `TurbulenceCellSlab64` & `ShockBoundarySlab64` 슬랩 메모리 무결성, 40B POD `TurbulenceEventReport`, Steinhoff & Fedkiw 와도 감금력 및 Rankine-Hugoniot 마하 1.50 초음속 SBLI 박리 해석, 0-힙 고정 크기 `MechaTurbulenceEngine<16, 4>`, `DesktopGameView` step_turb_pipeline 결합, F3 HUD(`Turb: {} Cells | {} SBLI | 64B`), 56x56 미니 레이더 좌측하단(내측) 청백색(#60A5FA) 인디케이터, 하단 `[TURB: {}C/{}S]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.7.0-unified-milestone.zip` (2.33 MB, SHA-256: `283D3109D6C3B64AC9F58E1A7A2C569F9BBD5FB9DA1A2E4131D4C56D5A072A24` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,134,080 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-260 - Axiom 340대 광자 복사 수송 & 고에너지 입자선 물리학 연구)**:
+  1. 관제탑 연구 서브에이전트 소환하여 광자 복사 수송(Radiative Transfer Equation, RTE), 몬테카를로 입자선 추적(Monte Carlo Photon Packets), 광학적 깊이 $\tau$, 비어-람베르트 감쇠, 0-Float 순수 정수 $Q16.16$ 복사 플럭스 해석 모델 선행 연구.
+  2. 64B L1 정렬 복사 셀 슬랩 `RadiationCellSlab64` 및 입자선 슬랩 `ParticleBeamSlab64` 설계.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v4.7.0] Axiom Engine v4.7.0 330대 메카 대기 난류 & 충격파 경계층 시뮬레이션 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 15:53 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 전체 워크스페이스 v4.7.0 공식 판올림, 64B L1 캐시 정렬 `TurbulenceCellSlab64` & `ShockBoundarySlab64` 슬랩 메모리 무결성, 40B POD `TurbulenceEventReport`, Steinhoff & Fedkiw 와도 감금력 및 Rankine-Hugoniot 마하 1.50 초음속 SBLI 박리 해석, 0-힙 고정 크기 `MechaTurbulenceEngine<16, 4>`, `DesktopGameView` step_turb_pipeline 결합, F3 HUD(`Turb: {} Cells | {} SBLI | 64B`), 56x56 미니 레이더 좌측하단(내측) 청백색(#60A5FA) 인디케이터, 하단 `[TURB: {}C/{}S]` 상시 모니터링 연동, 단일 상용 배포 아카이브 `dist/axiom-v4.7.0-unified-milestone.zip` (2.33 MB, SHA-256: `283D3109D6C3B64AC9F58E1A7A2C569F9BBD5FB9DA1A2E4131D4C56D5A072A24` 검증), 바탕화면 바로가기 최신 바이너리 타겟팅(1,134,080 B) 검증 완료, `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T258] Mimic The Show 챔피언십 링 실시간 메카 대기 난류 와류 이펙트 및 F3 HUD 결합
 - **일시:** 2026-10-24 15:45 KST
