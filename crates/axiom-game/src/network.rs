@@ -66,6 +66,10 @@ use axiom_core::superconductor::{
     dispatch_superconductor_with_jobs, emit_superconductor_to_event_bus,
     MechaSuperconductorEngine, SuperconductorEventReport,
 };
+use axiom_core::metamaterial::{
+    dispatch_metamaterial_with_jobs, emit_metamaterial_to_event_bus,
+    MechaMetamaterialEngine, MetamaterialEventReport,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1476,6 +1480,42 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_superconductor_with_jobs(engine, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_superconductor(engine, ambient_b_field_mt, report)
+    }
+
+    /// Advances physical simulation of metamaterial acousto-optics & cloaking within the network match frame.
+    pub fn step_metamaterial<const CELLS: usize, const FIELDS: usize>(
+        &mut self,
+        engine: &mut MechaMetamaterialEngine<CELLS, FIELDS>,
+        dt_ticks: u32,
+        report: Option<&MetamaterialEventReport>,
+    ) -> bool {
+        engine.step_simulation(dt_ticks);
+
+        if let Some(rep) = report {
+            emit_metamaterial_to_event_bus(rep, self.current_world.tick, &mut self.event_bus);
+        }
+
+        true
+    }
+
+    /// Advances physical simulation of metamaterial acousto-optics & cloaking using worker pool parallel dispatch.
+    pub fn step_metamaterial_with_jobs<
+        const CELLS: usize,
+        const FIELDS: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut MechaMetamaterialEngine<CELLS, FIELDS>,
+        dt_ticks: u32,
+        report: Option<&MetamaterialEventReport>,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_metamaterial_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_metamaterial(engine, dt_ticks, report)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.

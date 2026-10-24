@@ -497,6 +497,11 @@ impl<const MAX_CELLS: usize, const MAX_FIELDS: usize>
         }
     }
 
+    #[inline(always)]
+    pub fn register_cell(&mut self, cell: AcoustoOpticCellSlab64) -> Option<usize> {
+        self.add_cell(cell)
+    }
+
     pub fn add_field(&mut self, field: CloakingFieldSlab64) -> Option<usize> {
         if self.active_fields_count < MAX_FIELDS {
             let idx = self.active_fields_count;
@@ -506,6 +511,11 @@ impl<const MAX_CELLS: usize, const MAX_FIELDS: usize>
         } else {
             None
         }
+    }
+
+    #[inline(always)]
+    pub fn register_field(&mut self, field: CloakingFieldSlab64) -> Option<usize> {
+        self.add_field(field)
     }
 
     pub fn step_simulation(&mut self, dt_ticks: u32) -> (usize, usize) {

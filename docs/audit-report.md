@@ -8,24 +8,30 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 18:10 KST
-- **감사 대상:** Axiom 370대 64B L1 정렬 음향광학 셀 슬랩 및 브릴루앙 산란 솔버 구현 (T-279, `crates/axiom-core/src/metamaterial.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_metamaterial.rs`)
-- **판정:** 🟢 **ALL CLEAR — `AcoustoOpticCellSlab64`, `CloakingFieldSlab64` 정확히 64B L1 캐시 라인 정렬 단언 통과, 40B POD `MetamaterialEventReport` 라운드트립 직렬화 통과, 브릴루앙 산란 및 AOD 브래그 편향각 계산, 변환광학 쉘 유전율 및 광선 회피 굴절 검증, 0-힙 `MechaMetamaterialEngine<16, 8>` 64-bit FNV-1a 상태 합의 체크섬 검증, 6개 단위 테스트 올패스 (0.01s), 0 경고**
-- **시공팀(Claude Code) 구현 처방전 (T-280 - Axiom 370대 메타물질 클로킹 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계)**:
-  1. `crates/axiom-core/src/metamaterial.rs` 내 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계:
-     - `metamaterial_batch_job(ctx: JobContext)` 및 `dispatch_metamaterial_with_jobs`: Chase-Lev 워크 스틸링 워커 풀 분할 병렬 처리.
-     - `emit_metamaterial_to_event_bus`: `EVENT_OPTICAL_CLOAK (0x0370)` 및 `EVENT_BRILLOUIN_SCATTER (0x0371)` 40B POD 무할당 발행 (`channel::PHYSICS | channel::VFX | channel::AUDIO`).
-  2. `crates/axiom-game/src/network.rs` `NetworkMatchDirector` 연계:
-     - `metamaterial_engine: Box<MechaMetamaterialEngine<16, 8>>` 필드 추가.
-     - `step_metamaterial(...)` 및 `step_metamaterial_with_jobs(...)` 시뮬레이션 파이프라인 메서드 추가.
-  3. 테스트 검증:
-     - `crates/axiom-core/tests/test_metamaterial_jobs.rs` (4개 잡 시스템 및 이벤트 버스 단위 테스트).
-     - `crates/axiom-game/tests/test_metamaterial_game_pipeline.rs` (2개 네트워크 매치 디렉터 게임 파이프라인 통합 테스트).
-  4. `tools/guard.ps1` 무결성 검증 통과 후 단일 커밋.
+- **일시:** 2026-10-24 18:15 KST
+- **감사 대상:** Axiom 370대 메타물질 클로킹 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-280, `crates/axiom-core/src/metamaterial.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_metamaterial_jobs.rs`, `crates/axiom-game/tests/test_metamaterial_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — `dispatch_metamaterial_with_jobs` 4-워커 풀 Chase-Lev 분할 병렬 스케줄링 검증, `emit_metamaterial_to_event_bus` 40B POD `EVENT_OPTICAL_CLOAK (0x0370)` 및 `EVENT_BRILLOUIN_SCATTER (0x0371)` 무손실 발행 검증, `NetworkMatchDirector` `step_metamaterial` 및 `step_metamaterial_with_jobs` 프레임 록스텝 연계 완비, 6개 단위/통합 테스트 올패스 (0.00s), 0 경고**
+- **시공팀(Claude Code) 구현 처방전 (T-281 - Axiom 370대 메타물질 벤치마크 및 WASM 스튜디오 쇼케이스 연동)**:
+  1. `crates/axiom-wasm/src/lib.rs` WASM C-ABI 신규 엔드포인트 구현:
+     - `axiom_metamaterial_bench_burst(iterations: u32, cells_count: u32, fields_count: u32) -> u64`:
+       - 64B L1 캐시 정렬 `AcoustoOpticCellSlab64` 및 `CloakingFieldSlab64` 배치 생성.
+       - 브릴루앙 산란 굴절률 섭동 $\Delta n$, AOD 브래그 편향 $\theta_B$, 변환광학 유전율 텐서 및 광선 굴절 시뮬레이션.
+       - 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_OPTICAL_CLOAK` / `EVENT_BRILLOUIN_SCATTER` 이벤트 버스 연계.
+       - 64-bit FNV-1a 상태 합의 체크섬 반환.
+  2. `crates/axiom-wasm/tests/test_wasm.rs` 단위 테스트 24 추가 및 통과.
+  3. `crates/axiom-wasm/index.html` 및 `web/index.html` 웹 3D 쇼케이스 UI 연동:
+     - 🔮 **370 Metamaterial Cloaking (64B Slabs)** 대화형 버튼 및 벤치마크 모달 추가.
+  4. WASM 릴리즈 컴파일 및 동기화 (`web/` 및 `crates/axiom-wasm/`).
+  5. `tools/guard.ps1` 검증 통과 후 단일 커밋.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T280] Axiom 370대 메타물질 클로킹 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 18:15 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** Chase-Lev 잡 디스패치, 40B POD 이벤트 버스 발행, `NetworkMatchDirector` 프레임 동기화, 6개 단위/통합 테스트 올패스 (0.00s), 0 경고.
 
 ### [AUDIT-20261024-T279] Axiom 370대 64B L1 정렬 음향광학 셀 슬랩 및 브릴루앙 산란 솔버 구현
 - **일시:** 2026-10-24 18:10 KST
