@@ -13,6 +13,7 @@ pub mod ccd;
 pub mod chunk;
 pub mod cloud_save;
 pub mod combat;
+pub mod debris_particle;
 pub mod deformable_mesh;
 pub mod destruction_audio;
 pub mod dlc;
@@ -102,6 +103,14 @@ pub use deformable_mesh::{
     TERRAIN_MAT_DIRT, TERRAIN_MAT_METAL, TERRAIN_MAT_MOLTEN, TERRAIN_MAT_SAND,
     TERRAIN_MAT_STONE, VERTEX_FLAG_FRACTURED, VERTEX_FLAG_MODIFIED, VERTEX_FLAG_MOLTEN,
     VERTEX_FLAG_PINNED,
+};
+pub use debris_particle::{
+    DebrisParticlePool, DebrisParticleSlab64, ParticleContactSlab64, CONTACT_TYPE_ENTITY,
+    CONTACT_TYPE_FLOOR, CONTACT_TYPE_TERRAIN, CONTACT_TYPE_WALL, DEBRIS_FLAG_ACTIVE,
+    DEBRIS_FLAG_BOUNCED, DEBRIS_FLAG_CRITICAL, DEBRIS_FLAG_GROUNDED, DEBRIS_FLAG_SLEEPING,
+    DEBRIS_MAT_DIRT, DEBRIS_MAT_METAL, DEBRIS_MAT_MOLTEN, DEBRIS_MAT_SAND, DEBRIS_MAT_SPARK,
+    DEBRIS_MAT_STONE, DEFAULT_MAX_DEBRIS_PARTICLES, EVENT_DEBRIS_BURST, GRAVITY_MMS2,
+    GRAVITY_PER_TICK_MMS,
 };
 pub use destruction_audio::{
     destruction_audio_batch_job, deterministic_noise, dispatch_destruction_audio_with_jobs,

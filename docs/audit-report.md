@@ -8,24 +8,28 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 10:45 KST
-- **감사 대상:** Axiom Engine 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 연구 (T-218, `docs/audit-report.md`, `axiom-debris-particle-and-collision-impulse-research.md`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 설계 승인, $g = -9810\text{ mm/s}^2$ 및 반암시적 오일러(Symplectic Semi-Implicit Euler) 탄도 적분 수학 모델 수립, 탄성 반발 계수($e$) 및 표면 마찰 계수($\mu$) 기반 충돌 임펄스 에너지($\Delta E$) 정수 연산 규격화, 0-힙 고정 용량 `DebrisParticlePool<MAX_PARTICLES>` 아키텍처 승인, 250대 크레이터 / 240대 래그돌 절단 / 230대 CCD / 200대 JobSystem / 210대 EventBus [`EVENT_DEBRIS_BURST = 0x0270`] 연계 아키텍처 명세 수립 완료**
+- **일시:** 2026-10-24 10:50 KST
+- **감사 대상:** Axiom Engine 270대 64B L1 정렬 파괴 파티클 슬랩 및 충돌 임펄스 적분기 구현 (T-219, `crates/axiom-core/src/debris_particle.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_debris_particle.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 컴파일 타임 검증, $g = -9810\text{ mm/s}^2$ (-163 mm/s/tick) 반암시적 오일러 탄도 적분기 및 공기 저항 감쇠 무결성 실증, 바닥(z=0) 반발 탄성 계수($e$) 및 마찰 감쇠 계수($\mu$) 충돌 임펄스 해석 실증, 반경 3000mm 원형 아레나 외곽 벽 충돌 반사 및 법선 임펄스 기록 실증, 수명 만료 자동 비활성화 및 0-힙 고정 용량 풀 재활용 검증, 64-bit FNV-1a 상태 합의 체크섬 일치성 검증, 5개 신규 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 설계**:
-     - `DebrisParticleSlab64`: $6 \times 4\text{B(coords/vel)} + 2 \times 4\text{B(mass/emitter)} + 3 \times 2\text{B(BAMS angles)} + 3 \times 2\text{B(ang\_vel)} + 5 \times 2\text{B(e/mu/size/life/max\_life)} + 3 \times 1\text{B(mat/flags/bounces)} + 7\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-     - `ParticleContactSlab64`: $6 \times 4\text{B(contact/normal)} + 8\text{B(energy\_j)} + 4 \times 4\text{B(impulse/id/src/tick)} + 2 \times 2\text{B(speed/penetration)} + 4 \times 1\text{B(sur\_mat/part\_mat/flags/type)} + 8\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
+  1. **64B L1 캐시 라인 정렬 및 크기**:
+     - `DebrisParticleSlab64`: 정확히 64B, `align_of == 64`.
+     - `ParticleContactSlab64`: 정확히 64B, `align_of == 64`.
   2. **반암시적 오일러 적분 및 반발 임펄스 수식**:
      - 정수 중력 가속도($-163\text{ mm/s/tick}$) 및 공기 저항 감쇠율($k_{drag} \approx 0.995$) 적분.
-     - 법선 속도 반발($v_y' = -v_y \cdot e / 65536$) 및 접선 마찰 감쇠($v_{xz}' = v_{xz} \cdot \mu / 65536$).
+     - 바닥 충돌 시 법선 속도 반발($v_z' = -v_z \cdot e / 65536$) 및 접선 마찰 감쇠($v_{xy}' = v_{xy} \cdot \mu / 65536$).
      - 미소 진동 슬립(Sleep) 전이 조건 확립.
-  3. **서브시스템 및 이벤트 버스 연계**:
-     - 40B 인라인 POD 페이로드 기반 `EVENT_DEBRIS_BURST = 0x0270` (`channel::PHYSICS | channel::VFX`).
-     - N-배치 워커 풀 분할 잡 `dispatch_debris_with_jobs`.
+  3. **결정론 및 합의 해시**:
+     - 동일 시드 PRNG 분산 시 100% 동일한 상태 및 64-bit FNV-1a 해시 생성 검증.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T218] Axiom Engine 270대 물리 기반 파괴 파티클 비산 & 충돌 임펄스 연구
+- **일시:** 2026-10-24 10:45 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DebrisParticleSlab64` & `ParticleContactSlab64` 슬랩 설계 승인, $g = -9810\text{ mm/s}^2$ 및 반암시적 오일러(Symplectic Semi-Implicit Euler) 탄도 적분 수학 모델 수립, 탄성 반발 계수($e$) 및 표면 마찰 계수($\mu$) 기반 충돌 임펄스 에너지($\Delta E$) 정수 연산 규격화, 0-힙 고정 용량 `DebrisParticlePool<MAX_PARTICLES>` 아키텍처 승인, 250대 크레이터 / 240대 래그돌 절단 / 230대 CCD / 200대 JobSystem / 210대 EventBus [`EVENT_DEBRIS_BURST = 0x0270`] 연계 아키텍처 명세 수립 완료.
 
 ### [AUDIT-20261024-v4.0.0] Axiom Engine v4.0.0 260대 절차적 파괴 음향 합성 & 표면 잔향 필드 공식 릴리즈 마일스톤 종합 감사
 - **일시:** 2026-10-24 10:40 KST
