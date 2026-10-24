@@ -8,25 +8,27 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 09:58 KST
-- **감사 대상:** Axiom Engine v3.9.0 250대 절차적 지형 메시 변형 및 크레이터 테셀레이션 공식 릴리즈 마일스톤 종합 감사 (T-211, `Cargo.toml`, `docs/architecture.md`, `docs/decisions.md` [D-137]~[D-140], `tools/package.ps1`, `dist/axiom-v3.9.0-unified-milestone.zip`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 컴파일 타임 검증, Melosh 충격 역학 기반 순수 정수 체적 보존 융기 림 립($H_{rim}$) 연산 및 $O(1)$ 해석적 표면 법선 그래디언트($\partial Y / \partial x$) 무결성 검증, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid<33, 1089, 32>` L1 캐시 상주형 평탄 배열, `dispatch_terrain_deform_with_jobs` 워커 풀 행 분할 병렬 디스패치 및 `emit_crater_to_event_bus` 40B 인라인 POD 이벤트 버스 발행(`EVENT_TERRAIN_CRATER = 0x0250`), WASM ⛰️ 250 Deformable Terrain (64B Slabs) 대화형 모달 및 1.34 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_terrain_pipeline` 파이터 KO 실시간 크레이터 테셀레이션 및 F3 HUD 카드/미니 레이더 보라색 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.9.0-unified-milestone.zip` (2.23 MB, SHA-256 검증 완료), 전체 워크스페이스 v3.9.0 판올림 및 헌법 가드 100% 올패스 승인**
+- **일시:** 2026-10-24 10:03 KST
+- **감사 대상:** Axiom Engine 260대 절차적 파괴 음향 합성 & 표면 잔향 필드 연구 (T-212, `docs/audit-report.md`, `axiom-procedural-destruction-audio-research.md`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 정렬 `DestructionVoiceSlab64` & `AcousticZoneSlab64` 슬랩 설계 승인, 0-Float 물리적 고체 충격 모달 공명(Modal Resonance) 합성 및 크랙 임펄스 트랜지언트 정수 수학 모델 수립, 250대 지형 5대 재질(`TERRAIN_MAT_DIRT`, `STONE`, `METAL`, `MOLTEN`, `SAND`)별 고유 모달 주파수비/감쇠율/표면 음향 흡수율($\alpha_{abs}$) 규격화 완료, 4개 서로소(Coprime) 정수 FDN 빗살 필터 잔향 필드 수식화 완료, 0-힙 고정 용량 `DestructionAudioEngine<MAX_VOICES, MAX_ZONES>` 아키텍처 승인, 250대 크레이터(`0x0250`) / 240대 래그돌(`0x0241`) / 230대 CCD(`0x0230`) / 200대 JobSystem / 210대 EventBus (`EVENT_AUDIO_DESTRUCTION = 0x0260`) 연계 규격 확정**
 - **주요 검증 항목:**
-  1. **Axiom Core 헌법 무결성**:
-     - `TerrainVertexSlab64`: $12\text{B(base)} + 12\text{B(disp)} + 12\text{B(normal)} + 1\text{B(mat)} + 1\text{B(flags)} + 2\text{B(stress)} + 2\text{B(crater)} + 2\text{B(temp)} + 4\text{B(tick)} + 16\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-     - `CraterSlab64`: $12\text{B(center)} + 4\text{B(R\_in)} + 4\text{B(R\_out)} + 4\text{B(depth)} + 4\text{B(rim)} + 4\text{B(impulse)} + 8\text{B(energy)} + 4\text{B(tick)} + 4\text{B(src)} + 2\text{B(ejecta)} + 1\text{B(mat)} + 1\text{B(flags)} + 12\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-     - 0-Float, 100% 정수 mm 및 Q16.16 고정소수점 연산.
-  2. **상용 배포 아카이브 및 바이너리 검증**:
-     - `dist/axiom-v3.9.0-unified-milestone/bin/mimic-the-show.exe` (1.01 MB), `axiom.exe` (0.91 MB).
-     - `dist/axiom-v3.9.0-unified-milestone.zip` (2.23 MB, SHA-256: `3D9E828F7787F17ADD2962C47598F658662D9AEE9DE10680E87ED8C9EBB38020`).
-  3. **바탕화면 바로가기 최신화 검증**:
-     - `C:\Users\willy\Desktop\Mimic The Show.lnk` 정상 타겟팅 확인 (`True`).
-  4. **헌법 및 테스트 통과**:
-     - 워크스페이스 전역 테스트 및 `tools/guard.ps1` 100% 통과.
+  1. **64B L1 캐시 라인 정렬 슬랩 구조체 (`DestructionVoiceSlab64`, `AcousticZoneSlab64`)**:
+     - `DestructionVoiceSlab64`: 12B 좌표(mm), 12B 속도(mm/s), 4B 충격 에너지, 2B 기본 주파수, 2B 감쇠율, 2B 진폭, 2B 길이, 2B 커서, 1B 재질, 1B 플래그, 2B 리버브 센드, 4B 원인 ID, 4B 틱, 14B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
+     - `AcousticZoneSlab64`: 12B 중심점, 4B 반경, 2B 흡수율, 2B 잔향 감쇠시간, 2B 고주파 감쇠, 2B 초기 반사비, 1B 재질, 1B 플래그, 2B 존 ID, 4B 공기 밀도 인자, 32B 패딩 = 정확히 64B 자연 정렬 슬랩 (`size_of == 64, align_of == 64`).
+  2. **0-Float 물리 모달 공명 및 표면 잔향 수식화**:
+     - 4개 비조화 직교 고유 모드 중첩 및 256-엔트리 정수 사인 LUT (`SINE_LUT_256`) 기반 $O(1)$ 삼각함수 연산.
+     - 4개 서로소 지연 라인($241, 353, 479, 613$ 샘플) 기반 정수 FDN 잔향기 및 재질 흡수율($\alpha_{abs}$ in $Q16.16$) 연동.
+  3. **엔진 파이프라인 결합**:
+     - 250대 크레이터 굴착, 240대 래그돌 관절 파단, 230대 CCD 펀치 타격, 200대 JobSystem (`dispatch_destruction_audio_with_jobs`), 210대 EventBus (`EVENT_AUDIO_DESTRUCTION = 0x0260`) 연계 인터페이스 완비.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-v3.9.0] Axiom Engine v3.9.0 250대 절차적 지형 메시 변형 및 크레이터 테셀레이션 공식 릴리즈 마일스톤 종합 감사
+- **일시:** 2026-10-24 09:58 KST
+- **판정:** 🟢 **ALL CLEAR (v3.9.0 공식 승인)**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `TerrainVertexSlab64` & `CraterSlab64` 슬랩 컴파일 타임 검증, Melosh 충격 역학 기반 순수 정수 체적 보존 융기 림 립($H_{rim}$) 연산 및 $O(1)$ 해석적 표면 법선 그래디언트($\partial Y / \partial x$) 무결성 검증, 0-힙 고정 용량 플랫 격자 `DeformableMeshGrid<33, 1089, 32>` L1 캐시 상주형 평탄 배열, `dispatch_terrain_deform_with_jobs` 워커 풀 행 분할 병렬 디스패치 및 `emit_crater_to_event_bus` 40B 인라인 POD 이벤트 버스 발행(`EVENT_TERRAIN_CRATER = 0x0250`), WASM ⛰️ 250 Deformable Terrain (64B Slabs) 대화형 모달 및 1.34 MB 바이너리 배포, `mimic-the-show` `DesktopGameView` `step_terrain_pipeline` 파이터 KO 실시간 크레이터 테셀레이션 및 F3 HUD 카드/미니 레이더 보라색 인디케이터 일체화, 상용 배포 패키지 `dist/axiom-v3.9.0-unified-milestone.zip` (2.23 MB, SHA-256 검증 완료), 전체 워크스페이스 v3.9.0 판올림 및 헌법 가드 100% 올패스 승인.
 
 ### [AUDIT-20261024-T210] Mimic The Show 챔피언십 링 실시간 지형 크레이터 파쇄 및 F3 HUD 결합
 - **일시:** 2026-10-24 09:51 KST
