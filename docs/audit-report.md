@@ -8,18 +8,25 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 13:14 KST
-- **감사 대상:** Axiom 300대 연성체 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-238, `crates/axiom-core/src/soft_body.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_soft_body_jobs.rs`, `crates/axiom-game/tests/test_soft_body_game_pipeline.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_soft_body_with_jobs` (연성체 클러스터 청크 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_soft_body_to_event_bus` (`EVENT_SOFT_BODY_DEFORM = 0x0300`, `channel::PHYSICS | channel::VFX | channel::AUDIO`, 40B 인라인 POD 페이로드 `SoftBodyEventReport`) 무결성 실증, `NetworkMatchDirector::step_soft_body` 및 `step_soft_body_with_jobs` (16-인 배틀로얄 경기장 연성체 변형 및 이벤트 실시간 방출 결합), 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
-- **시공팀(Claude Code) 구현 처방전 (T-239)**:
-  1. `crates/axiom-wasm/src/lib.rs` 내 C-ABI 엔드포인트 `axiom_soft_body_bench_burst(cluster_count: u32, particles_per_cluster: u32, deform_force_n: u32, out_stats: *mut u32) -> u32` 구현.
-  2. 1~8 연성체 클러스터 및 8~64 입자 슬랩 생성, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_SOFT_BODY_DEFORM (0x0300)` 이벤트 버스 연계 계측, 64-bit FNV-1a 상태 합의 체크섬.
-  3. `crates/axiom-wasm/index.html` 및 `web/index.html` 내 🧩 **300 Soft Body (64B Slabs)** 대화형 버튼 및 텔레메트리 모달 연동.
-  4. WASM 릴리즈 컴파일 및 동기화.
+- **일시:** 2026-10-24 13:21 KST
+- **감사 대상:** Axiom 300대 연성체 벤치마크 및 WASM 스튜디오 쇼케이스 연동 (T-239, `crates/axiom-wasm/src/lib.rs`, `crates/axiom-wasm/axiom_wasm.wasm`, `crates/axiom-wasm/index.html`, `web/index.html`, `web/axiom-wasm.wasm`, `web/axiom_wasm.wasm`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, C-ABI 엔드포인트 `axiom_soft_body_bench_burst` 무결성 검증, 64B L1 캐시 정렬 `SoftBodyParticleSlab64` & `SoftBodyClusterSlab64` 슬랩 메모리 상주 검증, Horn's Method 4x4 N 행렬 웜스타트 거듭제곱 최적 회전 정합 및 Clausen/Müller 가역 체적 보존/소성 항복 계측, 4-워커 Chase-Lev 잡 디스패치 및 `EVENT_SOFT_BODY_DEFORM (0x0300)` 이벤트 버스 연계, 64-bit FNV-1a 상태 합의 체크섬 계측, 웹 3D 복셀 스튜디오 🧩 300 Soft Body (64B Slabs) 대화형 모달 연동, 1.41 MB 최적화 릴리즈 WASM 바이너리 동기화, 23개 WASM 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **시공팀(Claude Code) 구현 처방전 (T-240)**:
+  1. `mimic-the-show/src/view.rs` 내 `DesktopGameView`에 `soft_body_engine: Box<SoftBodyEngine<64, 8>>` 임베딩 (8 클러스터 + 64 입자 64B L1 캐시 정렬 슬랩).
+  2. `step_soft_body_pipeline(&mut self) -> (usize, usize)` 구현: 싱글플레이 파이터 넉다운/KO 또는 강타격 시 75 kN 외력에 의한 연성체 아머 변형 및 체적 보존 복원 해석, 40B 인라인 POD 이벤트 버스 방출 (`EVENT_SOFT_BODY_DEFORM = 0x0300`).
+  3. F3 HUD 진단 카드: `SoftBody: {} Clusters | {}% Def | 64B` 텔레메트리 보라색(`0xFFA855F7`) 렌더링.
+  4. 56x56 미니 레이더: 중앙-우측 `(radar_cx + 18, radar_cy - 4)` 좌표에 보라색(`0xFFA855F7`) 연성체 변형 인디케이터 점등.
+  5. 하단 프롬프트 바: `[SFT: {}C/{}P]` 실시간 클러스터/입자 변형 상태 상시 모니터링 연동.
+  6. `mimic-the-show/tests/test_mimic_game.rs` 내 `test_view_soft_body_knockdown_and_hud_telemetry` 통합 테스트 작성 및 전체 32개 테스트 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T238] Axiom 300대 연성체 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계
+- **일시:** 2026-10-24 13:14 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 정렬 `dispatch_soft_body_with_jobs` (연성체 클러스터 청크 분할 및 Chase-Lev 워커 풀 분산 스케줄링) 무결성 검증, 0-Heap 이벤트 버스 발행 `emit_soft_body_to_event_bus` (`EVENT_SOFT_BODY_DEFORM = 0x0300`, `channel::PHYSICS | channel::VFX | channel::AUDIO`, 40B 인라인 POD 페이로드 `SoftBodyEventReport`) 무결성 실증, `NetworkMatchDirector::step_soft_body` 및 `step_soft_body_with_jobs` (16-인 배틀로얄 경기장 연성체 변형 및 이벤트 실시간 방출 결합), 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T237] Axiom 300대 64B L1 캐시 정렬 연성체 입자/클러스터 슬랩 및 가역 체적 보존 솔버 구현
 - **일시:** 2026-10-24 13:08 KST

@@ -6359,6 +6359,116 @@ pub extern "C" fn axiom_xpbd_bench_burst(
 }
 
 #[no_mangle]
+pub extern "C" fn axiom_soft_body_bench_burst(
+    cluster_count: u32,
+    particles_per_cluster: u32,
+    deform_force_n: u32,
+    out_stats: *mut u32,
+) -> u32 {
+    use axiom_core::soft_body::*;
+    use axiom_core::event_bus::DeterministicEventBus;
+    use axiom_core::job_system::JobSystem;
+    use axiom_core::worker_pool::WorkerPoolCoordinator;
+
+    let clusters_to_spawn = (cluster_count as usize).clamp(1, 8);
+    let pts_per_cl = (particles_per_cluster as usize).clamp(2, 8);
+    let force = if deform_force_n > 0 { deform_force_n } else { 50_000 };
+
+    let mut engine = Box::new(SoftBodyEngine::<64, 8>::new());
+    let mut bus = Box::new(DeterministicEventBus::<256>::new());
+    let mut js = Box::new(JobSystem::<256>::new());
+    let mut coordinator = Box::new(WorkerPoolCoordinator::<8, 256>::new(4));
+
+    let offsets_8 = [
+        (-100, -100, -100), (100, -100, -100), (-100, 100, -100), (100, 100, -100),
+        (-100, -100, 100), (100, -100, 100), (-100, 100, 100), (100, 100, 100),
+    ];
+
+    let mut total_spawned_particles = 0;
+    for c in 0..clusters_to_spawn {
+        let center = (c as i32 * 600 - ((clusters_to_spawn as i32 - 1) * 300), 1500, 0);
+        let start_offset = total_spawned_particles as u16;
+
+        let cluster = SoftBodyClusterSlab64::new(
+            center,
+            start_offset,
+            pts_per_cl as u16,
+            32768, // 0.5 shape stiffness
+            32768, // 0.5 volume stiffness
+            1_000_000,
+            c as u8,
+        );
+        engine.add_cluster(cluster);
+
+        for p in 0..pts_per_cl {
+            let off = offsets_8[p % 8];
+            let pos = (center.0 + off.0, center.1 + off.1, center.2 + off.2);
+            let mut part = SoftBodyParticleSlab64::new(
+                pos,
+                off,
+                65536,
+                25,
+                c as u16,
+                SOFT_MAT_RUBBER,
+            );
+            // Apply deformation impulse to last particle in each cluster
+            if p == pts_per_cl - 1 {
+                part.vel_x = (force / 10).min(5000) as i32;
+                part.vel_y = -((force / 20).min(2500) as i32);
+            }
+            if engine.add_particle(part).is_some() {
+                total_spawned_particles += 1;
+            }
+        }
+    }
+
+    // Parallel JobSystem dispatch
+    let dispatched_jobs = dispatch_soft_body_with_jobs(
+        &engine,
+        4,
+        &mut js,
+        &mut coordinator,
+    );
+    coordinator.drain_all(&mut js);
+
+    // Step simulation for 10 ticks
+    for _ in 0..10 {
+        engine.step_simulation(-9810, 0);
+    }
+
+    // Emit representative deformation event
+    let report = SoftBodyEventReport {
+        entity_id: 1,
+        cluster_id: 0,
+        flags: if engine.total_ruptures > 0 { 1 } else { 0 },
+        max_strain_q16: engine.particles[0].stress_q16 as u32,
+        volume_ratio_q16: 65536,
+        centroid_pos_xyz: [engine.clusters[0].center_x, engine.clusters[0].center_y, engine.clusters[0].center_z],
+        deform_impulse_xyz: [engine.particles[pts_per_cl - 1].vel_x, engine.particles[pts_per_cl - 1].vel_y, 0],
+    };
+    emit_soft_body_to_event_bus(&report, 100, &mut bus);
+
+    let sb_hash = engine.compute_consensus_hash();
+    let bus_hash = bus.compute_consensus_hash();
+    let combined_hash = sb_hash ^ (bus_hash.rotate_left(29));
+
+    if !out_stats.is_null() {
+        unsafe {
+            *out_stats.add(0) = 8;                                        // Capacity clusters (8)
+            *out_stats.add(1) = engine.active_clusters_count as u32;      // Active clusters count
+            *out_stats.add(2) = engine.active_particles_count as u32;     // Active particles count
+            *out_stats.add(3) = (combined_hash & 0xFFFF_FFFF) as u32;     // Low 32-bit consensus hash
+            *out_stats.add(4) = (combined_hash >> 32) as u32;             // High 32-bit consensus hash
+            *out_stats.add(5) = dispatched_jobs as u32;                   // Worker partition jobs
+            *out_stats.add(6) = engine.total_deformations;                // Total deformation events
+            *out_stats.add(7) = engine.total_ruptures;                    // Total ruptured particles
+        }
+    }
+
+    total_spawned_particles as u32
+}
+
+#[no_mangle]
 pub extern "C" fn axiom_gpu_bench_compute(
     width: u32,
     height: u32,
@@ -7457,5 +7567,15 @@ mod tests {
         assert_eq!(xpbd_stats[2], 7, "7 constraints active");
         assert!(xpbd_stats[3] != 0 || xpbd_stats[4] != 0, "XPBD consensus hash non-zero");
         assert_eq!(xpbd_stats[5], 4, "4 parallel dispatch jobs");
+
+        // 17. 3D Shape Matching Soft Body & Reversible Volume Conservation Benchmark (4 clusters, 4 particles/cluster, 60kN force)
+        let mut sb_stats = [0u32; 8];
+        let spawned_pts = axiom_soft_body_bench_burst(4, 4, 60_000, sb_stats.as_mut_ptr());
+        assert_eq!(spawned_pts, 16, "Soft body benchmark must spawn 16 particles (4 clusters * 4 particles)");
+        assert_eq!(sb_stats[0], 8, "8 cluster slabs capacity");
+        assert_eq!(sb_stats[1], 4, "4 clusters active");
+        assert_eq!(sb_stats[2], 16, "16 particles active");
+        assert!(sb_stats[3] != 0 || sb_stats[4] != 0, "Soft body consensus hash non-zero");
+        assert_eq!(sb_stats[5], 4, "4 parallel dispatch jobs");
     }
 }
