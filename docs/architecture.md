@@ -2071,6 +2071,68 @@ Axiom 340대 과제(T-260 ~ T-265)에서는 0-Float in Core, 64-Byte L1 캐시 �
    - 디렉터 Hyedelle의 특명을 완수하여 기존 2.5D 사이드 구도를 종결하고, 플레이어 ELPIS를 화면 하단 전방 지향 백뷰(`[0.0, -0.68, 0.35]`, `rot_y = 0`)에, 상대 챔피언을 시야 정면 링 중앙 너머(`[0.0, -0.62, -0.55]`, `rot_y = 128 BAM`)에 배치하는 완전한 3D 오버더숄더 백뷰를 확립했습니다.
    - 정적 500 퍼밀 포즈를 타격 프레임 퍼밀 비례 `(action.frame * 1000 / action.max_frame)` 동적 보간으로 교체하고, F3 HUD 카드 `Rad: {} Cells | {} Beams | 64B` 오렌지색(#FB923C) 출력, 미니 레이더 및 하단 바 연동을 완결했습니다.
 
+---
+
+## 51. Axiom 350대: 메카 플라즈마 자기유체역학 & 전자기 유도 필드 시뮬레이션 (v4.9.0)
+
+Axiom 350대 과제(T-266 ~ T-271)에서는 엔진의 핵심 헌법(0-Float in Core, 64-Byte L1 캐시 라인 정렬, 0-힙 고정 용량 플랫 배열)을 엄격히 준수하며, 메카 플라즈마 아크 방전, Z-Pinch 자기 압착, 로렌츠 기진력, 알벤 파동 전파 및 맥스웰-패러데이 전자기 유도 기전력(Induced EMF) 쇼크를 완벽히 해석하는 **플라즈마 자기유체역학(MHD) & 전자기 유도 물리 엔진(`axiom-core::plasma`)**을 구축했습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│       Axiom 350-Series Plasma MHD & Electromagnetic Induction Architecture  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. [0-Float 64B L1 Cache Aligned Plasma Cell Slab (PlasmaCellSlab64)]       │
+│    - #[repr(C, align(64))] Exact 64-Byte Slab (1 Cacheline = 1 Plasma Cell) │
+│    - center_xyz(12B) + vel_xyz(12B) + current_density_xyz(12B in mA/mm²)    │
+│    - conductivity_sigma_q16(4B) + electron_temp_k(4B) + plasma_beta_q16(4B) │
+│    - magnetic_pressure_kpa(4B) + cell_id(1B) + flags(1B) + pad(10B)         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. [0-Float 64B L1 Cache Aligned Magnetic Field Slab (MagneticFieldSlab64)] │
+│    - #[repr(C, align(64))] Exact 64-Byte Slab (1 Cacheline = 1 B-Field)     │
+│    - origin_xyz(12B) + b_vector_xyz(12B in mT) + b_flux_total_mwb(4B)       │
+│    - induced_emf_mv(4B in mV) + field_radius_mm(4B) + decay_rate_q16(4B)    │
+│    - alfven_velocity_mms(4B) + emitter_id(1B) + target_id(1B) + flags(1B)   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. [Integer MHD Solvers & Maxwell-Faraday Induction Laws]                   │
+│    - Magnetic Pressure: P_B = B² / 2513 kPa (0-Float, error < 0.03%)        │
+│    - Lorentz Force: F_L = J × B mN (exact integer scaling in 100mm cell)    │
+│    - Faraday Induced EMF: E_mV = -3 * A * dB / 50 mV (Rate of Flux Change)  │
+│    - Alfvén Wave Speed: v_A = (B_mT * 28210) / max(1, isqrt(rho)) mm/s      │
+│    - Plasma Beta Ratio: beta = (P_gas * 65536) / P_B (Q16.16)               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. [Job System Parallel Dispatch & 40B Deterministic Event Bus Pipeline]     │
+│    - dispatch_plasma_with_jobs: N-Worker Work-Stealing Batch Scheduling     │
+│    - emit_plasma_to_event_bus: EVENT_PLASMA_DISCHARGE (0x0350) &            │
+│      EVENT_EMP_SHOCK (0x0351, 40B Inline POD Payload PlasmaEventReport)     │
+│    - NetworkMatchDirector: step_plasma & step_plasma_with_jobs 16-Net Sync  │
+│    - WebGL/WASM Studio: ⚡ 350 Plasma MHD & Induction Interactive Modal     │
+│    - Mimic The Show: Championship Ring Plasma Discharge, Knockdown EMP,     │
+│      F3 HUD [Plasma: {}C/{}F | 64B] Purple Telemetry (#C084FC) Card         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 51.1 핵심 구조 및 기술적 특성
+1. **0-Float 정밀 자기 압력 솔버 ($P_B = B^2 / 2513\text{ kPa}$)**:
+   - 물리 법칙 $P_B = \frac{B^2}{2\mu_0}$에서 진공 투자율 $\mu_0 = 4\pi \times 10^{-7}\text{ H/m}$를 적용할 때, $B$를 $\text{mT}$, $P_B$를 $\text{kPa}$로 정규화하면 분모 계수가 정확히 $2513.274$가 도출됩니다. 순수 정수 제수 $2513$을 적용하여 오차 $0.03\%$ 이내의 고정밀 자기 압력을 부동소수점 없이 달성했습니다.
+2. **로렌츠 힘 벡터 단위계 일치 ($\mathbf{F}_L = \mathbf{J} \times \mathbf{B}\text{ mN}$)**:
+   - 전류 밀도 $\mathbf{J}$ ($\text{mA/mm}^2 = 10^3\text{ A/m}^2$)와 자속 밀도 $\mathbf{B}$ ($\text{mT} = 10^{-3}\text{ T}$)의 외적은 단위 체적당 $1.0\text{ N/m}^3$의 힘 밀도를 나타냅니다. $100\text{ mm}$ 단위 셀 체적($10^{-3}\text{ m}^3$)을 곱하면 외적 성분이 곧바로 밀리뉴턴($\text{mN}$) 단위계와 $1:1$ 정수 일치합니다.
+3. **패러데이 유도 기전력(Induced EMF) EMP 쇼크 솔버**:
+   - 패러데이 유도 법칙 $\mathcal{E} = -\frac{d\Phi_B}{dt} = -A \cdot \frac{\Delta B}{\Delta t}$에서 60Hz 틱($\Delta t = 1/60\text{ s}$) 및 $100\text{ mm}$ 루프 면적을 정수화하여 $\mathcal{E}_{\text{mV}} = -\frac{3 \cdot A \cdot \Delta B}{50}\text{ mV}$ 공식을 도출했습니다. 고속 자장 변동 시 최대 수십 킬로볼트의 유도 전압 스파이크를 시뮬레이션합니다.
+4. **알벤 파동(Alfvén Wave) 정수 전파 속도**:
+   - 자기유체 파동 속도 $v_A = \frac{B}{\sqrt{\mu_0 \rho}}$를 정수화하여 $v_A = \frac{B_{\text{mT}} \cdot 28,210}{\max(1, \text{isqrt}(\rho))}\text{ mm/s}$ 솔버를 구축했습니다.
+5. **0-Float 64-바이트 L1 캐시 라인 정렬 슬랩 (`PlasmaCellSlab64` & `MagneticFieldSlab64`)**:
+   - 두 구조체 모두 `#[repr(C, align(64))]`로 컴파일 타임 크기 64바이트를 강제 검증(`size_of == 64`)하여 캐시 라인 미스를 원천 억제합니다.
+6. **40-바이트 인라인 POD 이벤트 서술자 (`PlasmaEventReport`)**:
+   - `DeterministicEventBus`의 `payload: [u8; 40]`에 정확히 부합하며, `EVENT_PLASMA_DISCHARGE = 0x0350` 및 `EVENT_EMP_SHOCK = 0x0351`로 발행되어 GGPO 롤백 세션과 완전 동기화됩니다.
+7. **0-Heap 고정 용량 시뮬레이터 및 64-bit 합의 체크섬**:
+   - `MechaPlasmaEngine<MAX_CELLS, MAX_FIELDS>`는 시뮬레이션 루프에서 힙 동적 할당을 전혀 발생시키지 않으며, 64-bit FNV-1a 해시를 통해 16-인 분산 롤백 넷코드 합의를 보증합니다.
+8. **멀티스레드 잡 시스템 및 WASM 쇼케이스 연동**:
+   - `dispatch_plasma_with_jobs`를 통해 Chase-Lev 무잠금 작업 훔치기 풀에 N-배치 분산 실행됩니다.
+   - WebGL/WASM 복셀 스튜디오에 **⚡ 350 Plasma MHD & Induction (64B Slabs)** 모달과 최적화 바이너리(1.48 MB)를 배포했습니다.
+9. **상용 게임 Mimic The Show 챔피언십 링 결합**:
+   - 파이터 넉다운/KO 또는 고속 스트라이크 타격 시 15 A/mm² 플라즈마 아크 방전 및 Z-Pinch 자기 압착/EMP 쇼크 45 kV 유도 기전력 해석을 수행하고, F3 HUD 카드 `Plasma: {} Cells | {} Fields | 64B` 보라색(#C084FC) 출력, 미니 레이더 및 하단 바 `[PLAS: {}C/{}F]` 연동을 완결했습니다.
+
+
 
 
 

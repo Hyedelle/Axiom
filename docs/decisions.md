@@ -2065,6 +2065,49 @@
   4. 전체 워크스페이스 버전을 v4.7.0에서 **v4.8.0**으로 공식 판올림하고 `dist/axiom-v4.8.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.8.0` 발행.
 - **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
 
+---
+
+### [D-177] 0-Float 고정소수점 자기 압력 (P_B = B^2 / 2513 kPa) 및 로렌츠 힘 벡터 (F_L = J x B mN) 물리 정량화 (T-266)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 자기 압력 $P_B = \frac{B^2}{2\mu_0}$를 진공 투자율 $\mu_0 = 4\pi \times 10^{-7}\text{ H/m}$ 적용 하에 정수화하여 $P_{B,\text{kPa}} = \frac{B_{\text{mT}}^2}{2513}\text{ kPa}$ (오차 < 0.03%) 공식을 확립.
+  2. 전류 밀도 $J$ ($\text{mA/mm}^2$)와 자속 밀도 $B$ ($\text{mT}$)의 외적 성분이 $100\text{ mm}$ 복셀 체적에서 밀리뉴턴($\text{mN}$) 단위계와 정확히 $1:1$ 일치함을 증명하고 이를 순수 정수 $\mathbf{F}_L = \mathbf{J} \times \mathbf{B}\text{ mN}$ 벡터 산출식으로 채택.
+- **영향:** `crates/axiom-core/src/plasma.rs`, `axiom-plasma-mhd-and-electromagnetic-induction-research.md`.
+
+---
+
+### [D-178] 맥스웰-패러데이 유도 기전력 (E_mV = -3*A*dB/50) 및 알벤 파동 속도 (v_A) 정수 제곱근 해석 (T-266, T-267)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. 60Hz 이산 틱($\Delta t = 1/60\text{ s}$) 하에서 패러데이 유도 법칙 $\mathcal{E} = -\frac{d\Phi_B}{dt}$를 $\mathcal{E}_{\text{mV}} = -\frac{3 \cdot A \cdot \Delta B}{50}\text{ mV}$로 정수화하여 EMP 쇼크 전압 스파이크 해석.
+  2. 알벤 파동 전파 속도 $v_A = \frac{B}{\sqrt{\mu_0 \rho}}$를 정수 제곱근 함수(`isqrt_u64`)를 적용하여 $v_A = \frac{B_{\text{mT}} \cdot 28,210}{\max(1, \text{isqrt}(\rho))}\text{ mm/s}$로 정밀 해석.
+- **영향:** `crates/axiom-core/src/plasma.rs`.
+
+---
+
+### [D-179] 64B L1 정렬 PlasmaCellSlab64 & MagneticFieldSlab64 및 40B POD PlasmaEventReport (T-267, T-268)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `#[repr(C, align(64))]` 구조체 `PlasmaCellSlab64` 및 `MagneticFieldSlab64`로 64바이트 L1 캐시 라인 상주 보증.
+  2. 40B 인라인 POD `PlasmaEventReport`를 통해 `EVENT_PLASMA_DISCHARGE = 0x0350` 및 `EVENT_EMP_SHOCK = 0x0351`을 `PHYSICS | VFX | AUDIO` 채널로 방출.
+  3. 0-힙 `MechaPlasmaEngine<MAX_CELLS, MAX_FIELDS>` 및 64-bit FNV-1a 상태 합의 체크섬 구현.
+  4. `dispatch_plasma_with_jobs` 및 `NetworkMatchDirector` 연계.
+- **영향:** `crates/axiom-core/src/plasma.rs`, `crates/axiom-game/src/network.rs`.
+
+---
+
+### [D-180] Mimic The Show 챔피언십 링 실시간 플라즈마 방전/EMP 쇼크 피폭 결합 및 Axiom v4.9.0 공식 릴리즈 마일스톤 (T-269, T-270, T-271)
+- **날짜:** 2026-10-24
+- **결정권자:** Hyedelle (디렉터)
+- **내용:**
+  1. `web/index.html` 및 `crates/axiom-wasm/index.html`에 **⚡ 350 Plasma MHD & Induction (64B Slabs)** 대화형 모달 및 1.48 MB WASM 바이너리 배포.
+  2. `mimic-the-show` `DesktopGameView`에 `MechaPlasmaEngine<16, 4>` 및 `step_plasma_pipeline` 결합 (파이터 KO/넉다운 시 15 A/mm² 아크 방전 및 45 kV EMP 쇼크 유도 기전력 해석, F3 HUD 카드 보라색(#C084FC) 출력, 미니 레이더 및 하단 `[PLAS: {}C/{}F]`).
+  3. 전체 워크스페이스 버전을 v4.8.0에서 **v4.9.0**으로 공식 판올림하고 `dist/axiom-v4.9.0-unified-milestone.zip` 패키징 및 Git 태그 `v4.9.0` 발행.
+- **영향:** `mimic-the-show/src/view.rs`, `Cargo.toml`, `tools/package.ps1`, `docs/architecture.md`, `docs/decisions.md`.
+
 
 
 
