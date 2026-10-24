@@ -23,6 +23,10 @@ use axiom_core::deformable_mesh::{
     dispatch_terrain_deform_with_jobs, emit_crater_to_event_bus, CraterSlab64, DeformableMeshGrid,
     TerrainCraterReport,
 };
+use axiom_core::destruction_audio::{
+    dispatch_destruction_audio_with_jobs, emit_destruction_audio_to_event_bus,
+    DestructionAudioEngine, DestructionAudioReport, DestructionVoiceSlab64,
+};
 use axiom_net::{
     DistributedRollbackSession, NetError, NetPacket64, DEFAULT_NET_BUFFER_FRAMES, MAX_PEERS,
 };
@@ -1017,6 +1021,40 @@ impl<const BUFFER_FRAMES: usize> NetworkMatchDirector<BUFFER_FRAMES> {
         dispatch_terrain_deform_with_jobs(grid, 4, job_system, coordinator);
         coordinator.drain_all(job_system);
         self.step_terrain_crater(grid, crater)
+    }
+
+    /// Evaluates dynamic procedural destruction audio synthesis for physical impacts and explosions,
+    /// synthesizing the audio voice in the acoustic environment and emitting the event to the event bus.
+    pub fn step_destruction_audio<const VOICES: usize, const ZONES: usize>(
+        &mut self,
+        engine: &mut DestructionAudioEngine<VOICES, ZONES>,
+        voice: &DestructionVoiceSlab64,
+    ) -> bool {
+        let spawned = engine.spawn_destruction_voice(*voice);
+        if spawned {
+            let report = DestructionAudioReport::from_voice(voice);
+            emit_destruction_audio_to_event_bus(&report, self.current_world.tick, &mut self.event_bus);
+        }
+        spawned
+    }
+
+    /// Evaluates dynamic procedural destruction audio synthesis parallelized across the worker pool using JobSystem.
+    pub fn step_destruction_audio_with_jobs<
+        const VOICES: usize,
+        const ZONES: usize,
+        const SYS_CAP: usize,
+        const MAX_WORKERS: usize,
+        const DEQUE_CAP: usize,
+    >(
+        &mut self,
+        engine: &mut DestructionAudioEngine<VOICES, ZONES>,
+        voice: &DestructionVoiceSlab64,
+        job_system: &mut axiom_core::job_system::JobSystem<SYS_CAP>,
+        coordinator: &mut axiom_core::worker_pool::WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+    ) -> bool {
+        dispatch_destruction_audio_with_jobs(engine, 4, job_system, coordinator);
+        coordinator.drain_all(job_system);
+        self.step_destruction_audio(engine, voice)
     }
 
     /// Ingests a remote wire packet and executes physical state rollback if divergent.

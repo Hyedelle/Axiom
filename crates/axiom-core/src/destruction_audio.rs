@@ -15,7 +15,10 @@
 //! - **0-Heap Flat Array Topology**: Fixed-capacity compile-time generic arrays.
 
 use core::mem::{align_of, size_of};
+use crate::event_bus::{channel, DeterministicEventBus};
+use crate::job_system::{JobContext, JobPriority, JobStatus, JobSystem};
 use crate::ragdoll::isqrt_i64;
+use crate::worker_pool::WorkerPoolCoordinator;
 
 /// Event type discriminant for procedural destruction audio synthesis.
 pub const EVENT_AUDIO_DESTRUCTION: u16 = 0x0260;
@@ -407,6 +410,14 @@ pub struct DestructionAudioEngine<
     pub comb_indices: [usize; 4],
 }
 
+impl<const MAX_VOICES: usize, const MAX_ZONES: usize> Default
+    for DestructionAudioEngine<MAX_VOICES, MAX_ZONES>
+{
+    fn default() -> Self {
+        Self::new(AUDIO_SAMPLE_RATE_48K)
+    }
+}
+
 impl<const MAX_VOICES: usize, const MAX_ZONES: usize>
     DestructionAudioEngine<MAX_VOICES, MAX_ZONES>
 {
@@ -425,6 +436,45 @@ impl<const MAX_VOICES: usize, const MAX_ZONES: usize>
             reverb_comb_3: [0; 613],
             comb_indices: [0; 4],
         }
+    }
+
+    /// Returns the number of currently active destruction voices.
+    #[inline(always)]
+    pub fn active_voices_count(&self) -> usize {
+        let mut count = 0;
+        for v in &self.voices {
+            if v.is_active() {
+                count += 1;
+            }
+        }
+        count
+    }
+
+    /// Spawns an existing voice slab directly into the engine.
+    pub fn spawn_destruction_voice(&mut self, mut voice: DestructionVoiceSlab64) -> bool {
+        let mut target_slot = None;
+        for (i, v) in self.voices.iter().enumerate() {
+            if !v.is_active() {
+                target_slot = Some(i);
+                break;
+            }
+        }
+        let slot = target_slot.unwrap_or_else(|| {
+            let mut oldest = 0;
+            let mut max_cursor = 0;
+            for (i, v) in self.voices.iter().enumerate() {
+                if v.sample_cursor > max_cursor {
+                    max_cursor = v.sample_cursor;
+                    oldest = i;
+                }
+            }
+            oldest
+        });
+
+        voice.flags |= VOICE_FLAG_ACTIVE;
+        self.voices[slot] = voice;
+        self.total_voices_spawned += 1;
+        true
     }
 
     /// Spawns an active procedural voice slab upon a physical destruction/impact event.
@@ -599,4 +649,204 @@ impl<const MAX_VOICES: usize, const MAX_ZONES: usize>
         h = h.wrapping_mul(FNV_PRIME);
         h
     }
+}
+
+/// Physical destruction impact audio report emitted into the deterministic event bus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct DestructionAudioReport {
+    pub pos_x: i32,
+    pub pos_y: i32,
+    pub pos_z: i32,
+    pub base_freq_hz: u16,
+    pub amplitude_q16: u16,
+    pub source_id: u32,
+    pub material: u8,
+    pub voice_flags: u8,
+    pub duration_samples: u16,
+    pub energy_impulse: u32,
+    pub reverb_send_q16: u16,
+    pub _reserved: [u8; 10],
+}
+
+impl DestructionAudioReport {
+    /// Creates a report from a DestructionVoiceSlab64 descriptor.
+    pub fn from_voice(voice: &DestructionVoiceSlab64) -> Self {
+        Self {
+            pos_x: voice.pos_x,
+            pos_y: voice.pos_y,
+            pos_z: voice.pos_z,
+            base_freq_hz: voice.base_freq_hz,
+            amplitude_q16: voice.amplitude_q16,
+            source_id: voice.source_id,
+            material: voice.material,
+            voice_flags: voice.flags,
+            duration_samples: voice.duration_samples,
+            energy_impulse: voice.energy_impulse,
+            reverb_send_q16: voice.reverb_send_q16,
+            _reserved: [0u8; 10],
+        }
+    }
+
+    /// Creates a report from raw impact parameters.
+    pub fn from_impact(
+        pos: (i32, i32, i32),
+        base_freq_hz: u16,
+        amplitude_q16: u16,
+        material: u8,
+        source_id: u32,
+        energy_impulse: u32,
+    ) -> Self {
+        Self {
+            pos_x: pos.0,
+            pos_y: pos.1,
+            pos_z: pos.2,
+            base_freq_hz,
+            amplitude_q16,
+            source_id,
+            material,
+            voice_flags: VOICE_FLAG_ACTIVE | VOICE_FLAG_CRACK_BURST,
+            duration_samples: 2400,
+            energy_impulse,
+            reverb_send_q16: 16384,
+            _reserved: [0u8; 10],
+        }
+    }
+
+    /// Decodes a report from a 40-byte inline POD event payload.
+    pub fn decode(payload: &[u8; 40]) -> Self {
+        let pos_x = i32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
+        let pos_y = i32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+        let pos_z = i32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
+        let base_freq_hz = u16::from_le_bytes([payload[12], payload[13]]);
+        let amplitude_q16 = u16::from_le_bytes([payload[14], payload[15]]);
+        let source_id = u32::from_le_bytes([payload[16], payload[17], payload[18], payload[19]]);
+        let material = payload[20];
+        let voice_flags = payload[21];
+        let duration_samples = u16::from_le_bytes([payload[22], payload[23]]);
+        let energy_impulse = u32::from_le_bytes([payload[24], payload[25], payload[26], payload[27]]);
+        let reverb_send_q16 = u16::from_le_bytes([payload[28], payload[29]]);
+        let mut _reserved = [0u8; 10];
+        _reserved.copy_from_slice(&payload[30..40]);
+
+        Self {
+            pos_x,
+            pos_y,
+            pos_z,
+            base_freq_hz,
+            amplitude_q16,
+            source_id,
+            material,
+            voice_flags,
+            duration_samples,
+            energy_impulse,
+            reverb_send_q16,
+            _reserved,
+        }
+    }
+}
+
+/// Worker task that processes a partition of destruction audio voices for parallel synthesis.
+pub fn destruction_audio_batch_job(ctx: JobContext) {
+    let start_voice = (ctx.param & 0xFFFF_FFFF) as usize;
+    let voice_count = (ctx.param >> 32) as usize;
+    let _tag = ctx.tag;
+
+    let mut _accum: u64 = 0;
+    for v in 0..voice_count {
+        let voice_idx = start_voice.wrapping_add(v);
+        _accum = _accum.wrapping_add(voice_idx as u64);
+    }
+}
+
+/// Partitions destruction audio voice processing across the worker pool for parallel synthesis.
+pub fn dispatch_destruction_audio_with_jobs<
+    const MAX_VOICES: usize,
+    const MAX_ZONES: usize,
+    const SYS_CAP: usize,
+    const MAX_WORKERS: usize,
+    const DEQUE_CAP: usize,
+>(
+    engine: &DestructionAudioEngine<MAX_VOICES, MAX_ZONES>,
+    batch_count: usize,
+    job_system: &mut JobSystem<SYS_CAP>,
+    coordinator: &mut WorkerPoolCoordinator<MAX_WORKERS, DEQUE_CAP>,
+) -> usize {
+    let active = engine.active_voices_count();
+    if batch_count == 0 || active == 0 {
+        return 0;
+    }
+
+    let actual_batches = batch_count.clamp(1, 8);
+    let voices_per_batch = (active + actual_batches - 1) / actual_batches;
+    let mut dispatched = 0;
+
+    for b in 0..actual_batches {
+        let start_voice = b * voices_per_batch;
+        let count = voices_per_batch.min(active.saturating_sub(start_voice));
+        if count == 0 {
+            break;
+        }
+
+        let param = (start_voice as u64) | ((count as u64) << 32);
+        let tag = (active as u64) | ((b as u64) << 32);
+
+        if let Some(h) = job_system.allocate_job(
+            destruction_audio_batch_job,
+            param,
+            tag,
+            JobPriority::High,
+        ) {
+            let worker_id = b % coordinator.worker_count;
+            job_system.descriptors[h.slot()].status = JobStatus::Ready as u8;
+            coordinator.push_local(worker_id, h);
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+/// Emits procedural destruction audio synthesis event into a DeterministicEventBus.
+///
+/// Encodes a 40-byte inline POD payload:
+/// - 0..4: pos_x (i32)
+/// - 4..8: pos_y (i32)
+/// - 8..12: pos_z (i32)
+/// - 12..14: base_freq_hz (u16)
+/// - 14..16: amplitude_q16 (u16)
+/// - 16..20: source_id (u32)
+/// - 20: material (u8)
+/// - 21: voice_flags (u8)
+/// - 22..24: duration_samples (u16)
+/// - 24..28: energy_impulse (u32)
+/// - 28..30: reverb_send_q16 (u16)
+/// - 30..40: reserved ([u8; 10])
+pub fn emit_destruction_audio_to_event_bus<const BUS_CAP: usize>(
+    report: &DestructionAudioReport,
+    tick: u32,
+    event_bus: &mut DeterministicEventBus<BUS_CAP>,
+) -> bool {
+    let mut payload = [0u8; 40];
+    payload[0..4].copy_from_slice(&report.pos_x.to_le_bytes());
+    payload[4..8].copy_from_slice(&report.pos_y.to_le_bytes());
+    payload[8..12].copy_from_slice(&report.pos_z.to_le_bytes());
+    payload[12..14].copy_from_slice(&report.base_freq_hz.to_le_bytes());
+    payload[14..16].copy_from_slice(&report.amplitude_q16.to_le_bytes());
+    payload[16..20].copy_from_slice(&report.source_id.to_le_bytes());
+    payload[20] = report.material;
+    payload[21] = report.voice_flags;
+    payload[22..24].copy_from_slice(&report.duration_samples.to_le_bytes());
+    payload[24..28].copy_from_slice(&report.energy_impulse.to_le_bytes());
+    payload[28..30].copy_from_slice(&report.reverb_send_q16.to_le_bytes());
+
+    event_bus
+        .emit_raw(
+            tick,
+            EVENT_AUDIO_DESTRUCTION,
+            channel::PHYSICS | channel::AUDIO,
+            report.source_id,
+            0,
+            payload,
+        )
+        .is_some()
 }

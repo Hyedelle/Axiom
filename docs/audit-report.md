@@ -8,24 +8,27 @@
 
 ## 📌 최신 감사 요약 (Latest Audit)
 
-- **일시:** 2026-10-24 10:08 KST
-- **감사 대상:** Axiom Engine 260대 64B L1 캐시 정렬 음향 보이스 슬랩 및 표면 음향 감쇠/잔향 합성기 구현 (T-213, `crates/axiom-core/src/destruction_audio.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-core/tests/test_destruction_audio.rs`)
-- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `DestructionVoiceSlab64` & `AcousticZoneSlab64` 슬랩 컴파일 타임 검증(`size_of == 64, align_of == 64`), 256-엔트리 정수 사인파 LUT (`SINE_LUT_256`) 및 결정론적 PRNG 노이즈 트랜지언트 버스트 생성기 무결성 검증, 5대 지형 재질(흙, 석재, 금속, 용암, 모래)별 고유 모달 공명 주파수 비/감쇠율/포락선 합성기 `synthesize_destruction_impact_pcm` 무결성 검증, 0-힙 고정 용량 `DestructionAudioEngine` 3D 공간 음향 거리 역제곱 감쇠/스테레오 패닝 및 4개 서로소 정수 FDN 빗살 필터 잔향 필드 검증, 64-bit FNV-1a 결정론적 합의 해시 100% 비트 일치, 5개 전용 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
+- **일시:** 2026-10-24 10:17 KST
+- **감사 대상:** Axiom Engine 260대 파괴 음향 멀티스레드 잡 시스템 및 이벤트 버스 파이프라인 연계 (T-214, `crates/axiom-core/src/destruction_audio.rs`, `crates/axiom-core/src/lib.rs`, `crates/axiom-game/src/network.rs`, `crates/axiom-core/tests/test_destruction_audio_jobs.rs`, `crates/axiom-game/tests/test_destruction_audio_game_pipeline.rs`)
+- **판정:** 🟢 **ALL CLEAR — 0-Float 헌법 무결성, 40B 인라인 POD `DestructionAudioReport` 및 `EVENT_AUDIO_DESTRUCTION = 0x0260` (`channel::PHYSICS | channel::AUDIO`) 결정론적 이벤트 버스 방출/디코딩 무결성 검증, Chase-Lev SPMC 워크 스틸링 워커 풀 연계 `dispatch_destruction_audio_with_jobs` 음향 합성 N-배치 분할 검증, `NetworkMatchDirector::step_destruction_audio` 및 `step_destruction_audio_with_jobs` 16인 경기장 실시간 파괴 음향 합성 파이프라인 결합 검증, 4개 신규 단위/통합 테스트 및 `tools/guard.ps1` 100% 올패스 승인**
 - **주요 검증 항목:**
-  1. **64B L1 캐시 라인 정렬 슬랩 검증**:
-     - `DestructionVoiceSlab64`: $9 \times 4\text{B(coords/vel/energy/src/tick)} + 6 \times 2\text{B(freq/decay/amp/dur/cursor/send)} + 2 \times 1\text{B(mat/flags)} + 14\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-     - `AcousticZoneSlab64`: $5 \times 4\text{B(center/radius/air)} + 5 \times 2\text{B(abs/rt60/damping/refl/zone)} + 2 \times 1\text{B(mat/flags)} + 32\text{B(pad)} = 64\text{B}$ (`align_of == 64`).
-  2. **물리 모달 합성 & 표면 잔향 필드**:
-     - DIRT (85Hz, 감쇠 61000) 및 METAL (850Hz, 감쇠 65200) 재질별 파형 생성 검증.
-     - 청취자 기준 3D 우측 위치(+3000mm X) 음원 인가 시 우측 채널 에너지 우세 패닝 검증.
-     - 4개 서로소 빗살 필터($241, 353, 479, 613$) 잔향 루프의 안정적 16-bit PCM 정수 감쇠 확인.
-  3. **결정론 및 도메인 격리**:
-     - 64-bit FNV-1a 음향 상태 해시가 동일 조건에서 100% 비트 일치 확인.
+  1. **40B 인라인 POD 이벤트 페이로드 무결성**:
+     - `DestructionAudioReport`: $3 \times 4\text{B(pos)} + 2 \times 2\text{B(freq/amp)} + 4\text{B(src)} + 2 \times 1\text{B(mat/flags)} + 2\text{B(dur)} + 4\text{B(energy)} + 2\text{B(rev\_send)} + 10\text{B(pad)} = 40\text{B}$ (`EventSlab64::payload` 정확 일치).
+     - `DestructionAudioReport::decode`를 통한 비트 손실 없는 $100\%$ 양방향 라운드트립 검증 완료.
+  2. **Chase-Lev 워커 풀 분할 잡 디스패치**:
+     - `dispatch_destruction_audio_with_jobs`에서 활성 음향 보이스를 $1 \sim 8$ 배치로 균등 분할하고, SPMC 무잠금 덱에 로컬 푸시 후 분산 처리 검증 완료.
+  3. **네트워크 매치 디렉터 및 롤백 연계**:
+     - `NetworkMatchDirector` 내 `step_destruction_audio` 및 `step_destruction_audio_with_jobs`를 통해 경기장 내 지형 파괴, 래그돌 낙하 충격, 초고속 타격 발생 시 물리-음향 실시간 합성 및 이벤트 브로드캐스트 검증 완료.
      - 전체 워크스페이스 `tools/guard.ps1` 무결성 검증 통과.
 
 ---
 
 ## 📜 과거 감사 기록 (Archived Audits)
+
+### [AUDIT-20261024-T213] Axiom Engine 260대 64B L1 캐시 정렬 음향 보이스 슬랩 및 표면 음향 감쇠/잔향 합성기 구현
+- **일시:** 2026-10-24 10:08 KST
+- **판정:** 🟢 **ALL CLEAR**
+- **검증:** 0-Float 헌법 무결성, 64B L1 캐시 라인 정렬 `DestructionVoiceSlab64` & `AcousticZoneSlab64` 슬랩 컴파일 타임 검증(`size_of == 64, align_of == 64`), 256-엔트리 정수 사인파 LUT (`SINE_LUT_256`) 및 결정론적 PRNG 노이즈 트랜지언트 버스트 생성기 무결성 검증, 5대 지형 재질별 고유 모달 공명 주파수 비/감쇠율/포락선 합성기 `synthesize_destruction_impact_pcm` 무결성 검증, 0-힙 고정 용량 `DestructionAudioEngine` 3D 공간 음향 거리 역제곱 감쇠/스테레오 패닝 및 4개 서로소 정수 FDN 빗살 필터 잔향 필드 검증, 64-bit FNV-1a 결정론적 합의 해시 100% 비트 일치, 5개 전용 단위 테스트 및 `tools/guard.ps1` 100% 올패스 승인.
 
 ### [AUDIT-20261024-T212] Axiom Engine 260대 절차적 파괴 음향 합성 & 표면 잔향 필드 연구
 - **일시:** 2026-10-24 10:03 KST

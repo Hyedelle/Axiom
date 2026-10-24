@@ -104,9 +104,10 @@ pub use deformable_mesh::{
     VERTEX_FLAG_PINNED,
 };
 pub use destruction_audio::{
-    deterministic_noise, synthesize_destruction_impact_pcm, AcousticZoneSlab64,
-    DestructionAudioEngine, DestructionVoiceSlab64, AUDIO_MAT_DIRT, AUDIO_MAT_METAL,
-    AUDIO_MAT_MOLTEN, AUDIO_MAT_SAND, AUDIO_MAT_STONE, AUDIO_SAMPLE_RATE_48K,
+    destruction_audio_batch_job, deterministic_noise, dispatch_destruction_audio_with_jobs,
+    emit_destruction_audio_to_event_bus, synthesize_destruction_impact_pcm, AcousticZoneSlab64,
+    DestructionAudioEngine, DestructionAudioReport, DestructionVoiceSlab64, AUDIO_MAT_DIRT,
+    AUDIO_MAT_METAL, AUDIO_MAT_MOLTEN, AUDIO_MAT_SAND, AUDIO_MAT_STONE, AUDIO_SAMPLE_RATE_48K,
     DEFAULT_MAX_ACOUSTIC_ZONES, DEFAULT_MAX_DESTRUCTION_VOICES, EVENT_AUDIO_DESTRUCTION,
     VOICE_FLAG_ACTIVE, VOICE_FLAG_CRACK_BURST, VOICE_FLAG_HIGH_PRIORITY, VOICE_FLAG_REVERB_TAIL,
     ZONE_FLAG_ACTIVE, ZONE_FLAG_DAMPED, ZONE_FLAG_ENCLOSED,
