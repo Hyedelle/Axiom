@@ -1,9 +1,8 @@
 # Axiom D-Drive Cache & Workspace Junction Linker
-# Sets up unified D:\axiom hierarchy and creates junctions for tmp and target
+# Sets up D:\Tmp cache hierarchy and creates junctions for tmp and target
 
 param (
-    [string]$BaseDir = "D:\axiom",
-    [string]$TmpDir = "D:\Tmp"
+    [string]$BaseDir = "D:\Tmp"
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,12 +10,12 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $ProjectRoot
 
-Write-Host "==> Checking and preparing D-drive Axiom directory: $BaseDir (Tmp: $TmpDir)" -ForegroundColor Cyan
+Write-Host "==> Checking and preparing D-drive Tmp directory: $BaseDir" -ForegroundColor Cyan
 
-# 1. Create base directory structure on D:
+# 1. Create base directory structure on D:\Tmp
 $SubDirs = @(
-    $TmpDir,
-    (Join-Path $BaseDir "cache\target"),
+    $BaseDir,
+    (Join-Path $BaseDir "target"),
     (Join-Path $BaseDir "builds"),
     (Join-Path $BaseDir "dumps")
 )
@@ -32,8 +31,8 @@ foreach ($dir in $SubDirs) {
 
 # 2. Junction Links to create in Project Root
 $Junctions = @{
-    (Join-Path $ProjectRoot "tmp")    = $TmpDir
-    (Join-Path $ProjectRoot "target") = (Join-Path $BaseDir "cache\target")
+    (Join-Path $ProjectRoot "tmp")    = $BaseDir
+    (Join-Path $ProjectRoot "target") = (Join-Path $BaseDir "target")
 }
 
 Write-Host "`n==> Linking Windows Junctions..." -ForegroundColor Cyan
@@ -58,4 +57,4 @@ foreach ($linkPath in $Junctions.Keys) {
     Write-Host "  [+] Linked $linkName -> $targetPath" -ForegroundColor Green
 }
 
-Write-Host "`n==> [PASS] All D:\axiom cache junctions successfully verified." -ForegroundColor Green
+Write-Host "`n==> [PASS] All D:\Tmp cache junctions successfully verified." -ForegroundColor Green
