@@ -33,7 +33,7 @@ Write-Host "    - D: Drive Free: $dFreeGB GB" -ForegroundColor Gray
 Write-Host "`n==> [Phase 2/5] Verifying D-Drive Cache Junctions..." -ForegroundColor Yellow
 $JunctionTargets = @{
     (Join-Path $ProjectRoot "target") = "D:\axiom\cache\target"
-    (Join-Path $ProjectRoot "tmp")    = "D:\axiom\cache\tmp"
+    (Join-Path $ProjectRoot "tmp")    = "D:\Tmp"
 }
 
 foreach ($linkPath in $JunctionTargets.Keys) {

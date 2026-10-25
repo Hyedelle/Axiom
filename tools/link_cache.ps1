@@ -2,7 +2,8 @@
 # Sets up unified D:\axiom hierarchy and creates junctions for tmp and target
 
 param (
-    [string]$BaseDir = "D:\axiom"
+    [string]$BaseDir = "D:\axiom",
+    [string]$TmpDir = "D:\Tmp"
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,11 +11,11 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $ProjectRoot
 
-Write-Host "==> Checking and preparing D-drive Axiom directory: $BaseDir" -ForegroundColor Cyan
+Write-Host "==> Checking and preparing D-drive Axiom directory: $BaseDir (Tmp: $TmpDir)" -ForegroundColor Cyan
 
 # 1. Create base directory structure on D:
 $SubDirs = @(
-    (Join-Path $BaseDir "cache\tmp"),
+    $TmpDir,
     (Join-Path $BaseDir "cache\target"),
     (Join-Path $BaseDir "builds"),
     (Join-Path $BaseDir "dumps")
@@ -31,7 +32,7 @@ foreach ($dir in $SubDirs) {
 
 # 2. Junction Links to create in Project Root
 $Junctions = @{
-    (Join-Path $ProjectRoot "tmp")    = (Join-Path $BaseDir "cache\tmp")
+    (Join-Path $ProjectRoot "tmp")    = $TmpDir
     (Join-Path $ProjectRoot "target") = (Join-Path $BaseDir "cache\target")
 }
 
