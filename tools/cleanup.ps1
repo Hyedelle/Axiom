@@ -40,6 +40,10 @@ foreach ($linkPath in $JunctionTargets.Keys) {
     $targetPath = $JunctionTargets[$linkPath]
     $linkName = Split-Path $linkPath -Leaf
 
+    if (-not (Test-Path $targetPath)) {
+        New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
+    }
+
     if (Test-Path $linkPath) {
         $item = Get-Item $linkPath -Force
         if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
